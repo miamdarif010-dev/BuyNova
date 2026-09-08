@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package0cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -21,6 +21,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _loadUserData();
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  // ফায়ারস্টোর থেকে ইউজারের তথ্য লোড করা
   Future<void> _loadUserData() async {
     if (currentUser == null) return;
     setState(() => _isLoading = true);
@@ -43,6 +51,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
+  // তথ্য সেভ করা
   Future<void> _saveProfile() async {
     if (currentUser == null) return;
     setState(() => _isLoading = true);
@@ -53,7 +62,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           .doc(currentUser!.uid)
           .set({
         'uid': currentUser!.uid,
-        'email': currentUser!.email, // অরিজিনাল ইমেইল সেভ হবে
+        'email': currentUser!.email, // আসল ইমেইল সেভ থাকবে
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -61,7 +70,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('প্রোফাইল সফলভাবে আপডেট হয়েছে!')),
+        const SnackBar(content: Text('প্রোফাইল সফলভাবে আপডেট হয়েছে!')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -88,17 +97,39 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       radius: 40,
                       child: Icon(Icons.person, size: 40),
                     ),
-                    const SizedBox(height: 12),
-                    // ইউজার যে অরিজিনাল ইমেইল দিয়ে সাইন-ইন করেছে তা এখানে দেখাবে
-                    Text(
-                      currentUser?.email ?? 'No Email Available',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey,
+                    const SizedBox(height: 16),
+                    
+                    // আসল ইমেইল দেখানোর বক্স (ইউজার এতে কিছু লিখতে পারবে না)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade400),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.email, color: Colors.grey),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              currentUser?.email ?? 'No Email Found',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.lock, size: 18, color: Colors.grey), // লক আইকন
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // নাম লেখার ফিল্ড
                     TextField(
                       controller: _nameController,
                       decoration: const InputDecoration(
@@ -108,6 +139,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    
+                    // ফোন নম্বর লেখার ফিল্ড
                     TextField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
@@ -118,6 +151,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 24),
+                    
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -133,3 +167,4 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 }
+
