@@ -1,6 +1,5 @@
-import 'settings_page.dart';
 import 'package:flutter/material.dart';
-import 'user_profile_page.dart';
+import 'settings_page.dart';
 import 'add_product_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -9,37 +8,31 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(appBar: AppBar(
-  title: const Text('BuyNova'),
-  actions: [
-    IconButton(
-      icon: const Icon(Icons.settings),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const SettingsPage()),
-        );
-      },
-    ),
-  ],
-),
+      appBar: AppBar(
         title: const Text('BuyNova Store'),
+        backgroundColor: const Color(0xFF326295),
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.person),
+            icon: const Icon(Icons.settings),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const UserProfilePage()),
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
               );
             },
           ),
         ],
       ),
       body: const Center(
-        child: Text('সব প্রোডাক্ট এখানে দেখা যাবে'),
+        child: Text(
+          'সব প্রোডাক্ট এখানে দেখা যাবে',
+          style: TextStyle(fontSize: 18),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF326295),
+        foregroundColor: Colors.white,
         onPressed: () {
           Navigator.push(
             context,
