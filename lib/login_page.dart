@@ -36,6 +36,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
+      // রিয়েল ফায়ারবেস দিয়ে ইমেইল ও পাসওয়ার্ড ভ্যালিডেশন
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
