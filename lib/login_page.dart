@@ -15,6 +15,13 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -29,14 +36,12 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // রিয়েল ফায়ারবেস লগইন চেক
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       if (!mounted) return;
-      // লগইন সফল হলে হোম পেজে নেভিগেট করবে
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),
