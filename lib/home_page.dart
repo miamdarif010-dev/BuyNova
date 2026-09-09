@@ -9,7 +9,20 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(appBar: AppBar(
+  title: const Text('BuyNova'),
+  actions: [
+    IconButton(
+      icon: const Icon(Icons.settings),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SettingsPage()),
+        );
+      },
+    ),
+  ],
+),
         title: const Text('BuyNova Store'),
         actions: [
           IconButton(
