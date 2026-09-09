@@ -1,3 +1,4 @@
+import 'settings_page.dart';
 import 'package:flutter/material.dart';
 import 'user_profile_page.dart';
 import 'add_product_page.dart';
