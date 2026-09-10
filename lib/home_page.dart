@@ -32,12 +32,12 @@ class _HomePageState extends State<HomePage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: TextField(
+          child: const TextField(
             decoration: InputDecoration(
               hintText: 'Search in BuyNova...',
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              prefixIcon: Icon(Icons.search, color: Colors.grey),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              contentPadding: EdgeInsets.symmetric(vertical: 8),
             ),
           ),
         ),
@@ -167,7 +167,7 @@ class _HomePageState extends State<HomePage> {
           });
         },
         selectedItemColor: Colors.redAccent,
-        unhandledSelectionColor: Colors.grey,
+        unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
