@@ -2,6 +2,7 @@ plugins {
     id "com.android.application"
     id "org.jetbrains.kotlin.android"
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
 }
 
 def localProperties = new Properties()
@@ -20,7 +21,7 @@ def flutterVersionName =
         localProperties.getProperty("flutter.versionName") ?: "1.0"
 
 android {
-    namespace "com.buynova.buynova"
+    namespace "com.buynova.app"
 
     compileSdk 35
     ndkVersion "27.0.12077973"
@@ -35,7 +36,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.buynova.buynova"
+        applicationId "com.buynova.app"
 
         minSdk 23
         targetSdk 35
