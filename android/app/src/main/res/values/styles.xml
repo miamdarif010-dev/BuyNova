@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Theme applied to the Android Window as soon as the process has started -->
-    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+    <style name="LaunchTheme" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#FFFFFF</item>
     </style>
 
     <!-- Theme applied to the Android Window as soon as Flutter is initialized -->
-    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+    <style name="NormalTheme" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#FFFFFF</item>
     </style>
 </resources>
