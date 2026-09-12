@@ -1,37 +1,53 @@
-pluginManagement {
-    def flutterSdkPath = {
-        def properties = new Properties()
-        def file = new File(rootProject.projectDir, "local.properties")
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
 
-        if (file.exists()) {
-            file.withReader("UTF-8") { reader ->
-                properties.load(reader)
-            }
-        }
-
-        def sdkDir = properties.getProperty("flutter.sdk")
-        assert sdkDir != null : "flutter.sdk not set in local.properties"
-
-        return sdkDir
-    }()
-
-    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
-
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader("UTF-8") { reader ->
+        localProperties.load(reader)
     }
 }
 
-plugins {
-    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "1"
+def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "1.0"
 
-    id "com.android.application" version "8.11.1" apply false
+android {
+    namespace = "com.example.buynova"   // <-- আপনার আসল প্যাকেজ নাম বসান
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
 
-    id "org.jetbrains.kotlin.android" version "2.2.20" apply false
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
 
-    id "com.google.gms.google-services" version "4.4.1" apply false
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
+    defaultConfig {
+        applicationId = "com.example.buynova"   // <-- আপনার আসল applicationId বসান
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutterVersionCode.toInteger()
+        versionName = flutterVersionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug
+        }
+    }
 }
 
-include ":app"
+flutter {
+    source = "../.."
+}
+
+dependencies {
+}
