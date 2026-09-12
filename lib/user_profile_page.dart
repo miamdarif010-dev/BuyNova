@@ -160,6 +160,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
                   ),
 
+                  if (_phone.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    // PHONE
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.phone, size: 15, color: Colors.grey.shade600),
+                        const SizedBox(width: 6),
+                        Text(
+                          _phone,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   const SizedBox(height: 20),
 
                   // EDIT PROFILE
