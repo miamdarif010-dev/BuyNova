@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'login_page.dart';
 import 'user_profile_page.dart';
+import 'add_product_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -89,6 +90,17 @@ class _HomePageState extends State<HomePage> {
                 )
               else
                 const SizedBox.shrink(),
+              if (isLoggedIn)
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                  tooltip: 'Add Product',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AddProductPage()),
+                    );
+                  },
+                ),
               IconButton(
                 icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
                 onPressed: () {},
