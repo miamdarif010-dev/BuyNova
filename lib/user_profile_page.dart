@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'edit_profile_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -10,10 +11,13 @@ class UserProfilePage extends StatefulWidget {
 }
 
 class _UserProfilePageState extends State<UserProfilePage> {
-  final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  bool _isLoading = false;
-  final User? currentUser = FirebaseAuth.instance.currentUser;
+  bool _isLoading = true;
+
+  String _name = '';
+  String _phone = '';
+  String _profileImageUrl = '';
+
+  User? get currentUser => FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
@@ -21,150 +25,236 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _loadUserData();
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
-    super.dispose();
-  }
-
-  // ফায়ারস্টোর থেকে ইউজারের তথ্য লোড করা
   Future<void> _loadUserData() async {
-    if (currentUser == null) return;
-    setState(() => _isLoading = true);
+    final user = currentUser;
+
+    if (user == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
 
     try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+      final doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser!.uid)
+          .doc(user.uid)
           .get();
 
-      if (userDoc.exists) {
-        Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
-        _nameController.text = data['name'] ?? '';
-        _phoneController.text = data['phone'] ?? '';
+      if (doc.exists) {
+        final data = doc.data() ?? {};
+
+        setState(() {
+          _name = data['name'] ?? '';
+          _phone = data['phone'] ?? '';
+          _profileImageUrl = data['profileImageUrl'] ?? '';
+        });
       }
     } catch (e) {
-      debugPrint("Error loading user data: $e");
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint('Profile loading error: $e');
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
-  // তথ্য সেভ করা
-  Future<void> _saveProfile() async {
-    if (currentUser == null) return;
-    setState(() => _isLoading = true);
+  Future<void> _openEditProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const EditProfilePage(),
+      ),
+    );
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .set({
-        'uid': currentUser!.uid,
-        'email': currentUser!.email, // আসল ইমেইল সেভ থাকবে
-        'name': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+    _loadUserData();
+  }
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('প্রোফাইল সফলভাবে আপডেট হয়েছে!')),
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+
+    if (!mounted) return;
+
+    Navigator.pop(context);
+  }
+
+  Widget _profileImage() {
+    if (_profileImageUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 55,
+        backgroundImage: NetworkImage(_profileImageUrl),
       );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ত্রুটি: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
+
+    return const CircleAvatar(
+      radius: 55,
+      child: Icon(
+        Icons.person,
+        size: 60,
+      ),
+    );
+  }
+
+  Widget _menuItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = currentUser;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('My Profile')),
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        centerTitle: true,
+      ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    const CircleAvatar(
-                      radius: 40,
-                      child: Icon(Icons.person, size: 40),
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+
+                  // PROFILE PICTURE
+                  _profileImage(),
+
+                  const SizedBox(height: 14),
+
+                  // NAME
+                  Text(
+                    _name.isEmpty ? 'User' : _name,
+                    style: const TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(height: 16),
-                    
-                    // আসল ইমেইল দেখানোর বক্স (ইউজার এতে কিছু লিখতে পারবে না)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade400),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.email, color: Colors.grey),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              currentUser?.email ?? 'No Email Found',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                          const Icon(Icons.lock, size: 18, color: Colors.grey), // লক আইকন
-                        ],
-                      ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  // EMAIL
+                  Text(
+                    user?.email ?? 'No Email',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey.shade600,
                     ),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // নাম লেখার ফিল্ড
-                    TextField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Full Name',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // ফোন নম্বর লেখার ফিল্ড
-                    TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // EDIT PROFILE
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _openEditProfile,
+                      icon: const Icon(Icons.edit),
+                      label: const Text(
+                        'Edit Profile',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _saveProfile,
-                        child: const Text('Save Profile'),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // MENU
+                  _menuItem(
+                    icon: Icons.chat_bubble_outline,
+                    title: 'Chat',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Chat coming soon'),
+                        ),
+                      );
+                    },
+                  ),
+
+                  _menuItem(
+                    icon: Icons.shopping_bag_outlined,
+                    title: 'My Orders',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('My Orders coming soon'),
+                        ),
+                      );
+                    },
+                  ),
+
+                  _menuItem(
+                    icon: Icons.favorite_border,
+                    title: 'Favorites',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Favorites coming soon'),
+                        ),
+                      );
+                    },
+                  ),
+
+                  _menuItem(
+                    icon: Icons.settings_outlined,
+                    title: 'Settings',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Settings coming soon'),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // LOGOUT
+                  Card(
+                    elevation: 0,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.logout,
+                        color: Colors.red,
                       ),
+                      title: const Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      onTap: _logout,
                     ),
-                  ],
-                ),
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
     );
   }
 }
-
