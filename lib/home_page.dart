@@ -127,7 +127,7 @@ class _HomePageState extends State<HomePage> {
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return const Center(
-                        child: Text('à¦ªà§à¦°à§‹à¦¡à¦¾à¦•à§à¦Ÿ à¦²à§‹à¦¡ à¦•à¦°à¦¤à§‡ à¦¸à¦®à¦¸à§à¦¯à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡'),
+                        child: Text('Failed to load products'),
                       );
                     }
 
@@ -139,7 +139,7 @@ class _HomePageState extends State<HomePage> {
 
                     if (docs.isEmpty) {
                       return const Center(
-                        child: Text('à¦•à§‹à¦¨à§‹ à¦ªà§à¦°à§‹à¦¡à¦¾à¦•à§à¦Ÿ à¦ªà¦¾à¦“à¦¯à¦¼à¦¾ à¦¯à¦¾à¦¯à¦¼à¦¨à¦¿'),
+                        child: Text('No products found yet'),
                       );
                     }
 
