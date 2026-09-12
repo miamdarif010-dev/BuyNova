@@ -31,8 +31,8 @@ class _HomePageState extends State<HomePage> {
       _selectedIndex = index;
     });
 
-    if (index == 2) {
-      // Account tab
+    if (index == 4) {
+      // Profile tab
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         Navigator.push(
@@ -57,50 +57,103 @@ class _HomePageState extends State<HomePage> {
         final isLoggedIn = user != null;
 
         return Scaffold(
+          drawer: Drawer(
+            child: SafeArea(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  DrawerHeader(
+                    decoration: const BoxDecoration(color: Colors.redAccent),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.shopping_bag, color: Colors.white, size: 32),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'BuyNova',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.home_outlined),
+                    title: const Text('Home'),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.category_outlined),
+                    title: const Text('Categories'),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: const Text('Account'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isLoggedIn) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const UserProfilePage()),
+                        );
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LoginPage()),
+                        );
+                      }
+                    },
+                  ),
+                  if (isLoggedIn)
+                    ListTile(
+                      leading: const Icon(Icons.add_circle_outline),
+                      title: const Text('Add Product'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AddProductPage()),
+                        );
+                      },
+                    ),
+                  if (isLoggedIn)
+                    ListTile(
+                      leading: const Icon(Icons.logout),
+                      title: const Text('Logout'),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        await FirebaseAuth.instance.signOut();
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
           appBar: AppBar(
             backgroundColor: Colors.redAccent,
             elevation: 0,
-            title: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.white),
+                onPressed: () => Scaffold.of(context).openDrawer(),
               ),
-              child: const TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search in BuyNova...',
-                  prefixIcon: Icon(Icons.search, color: Colors.grey),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                ),
+            ),
+            title: const Text(
+              'BuyNova',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
               ),
             ),
             actions: [
-              if (isLoggedIn)
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    (user.email ?? 'U')[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.redAccent,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                )
-              else
-                const SizedBox.shrink(),
-              if (isLoggedIn)
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-                  tooltip: 'Add Product',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const AddProductPage()),
-                    );
-                  },
-                ),
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                onPressed: () {},
+              ),
               IconButton(
                 icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
                 onPressed: () {},
@@ -109,6 +162,27 @@ class _HomePageState extends State<HomePage> {
           ),
           body: Column(
             children: [
+              // Search bar
+              Container(
+                color: Colors.redAccent,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Container(
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(21),
+                  ),
+                  child: const TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search products...',
+                      prefixIcon: Icon(Icons.search, color: Colors.grey),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+              ),
+
               // Horizontal Categories
               SizedBox(
                 height: 50,
@@ -283,7 +357,9 @@ class _HomePageState extends State<HomePage> {
             items: const [
               BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
               BottomNavigationBarItem(icon: Icon(Icons.category), label: 'Categories'),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Account'),
+              BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Favorites'),
+              BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Cart'),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
             ],
           ),
         );
