@@ -17,7 +17,7 @@ def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "
 def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "1.0"
 
 android {
-    namespace = "com.buynova.buynova"
+    namespace = "com.buynova.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -31,7 +31,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.buynova.buynova"
+        applicationId = "com.buynova.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
