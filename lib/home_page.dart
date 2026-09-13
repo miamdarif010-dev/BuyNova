@@ -7,6 +7,7 @@ import 'user_profile_page.dart';
 import 'add_product_page.dart';
 import 'settings_page.dart';
 import 'cart_page.dart';
+import 'migrate_products_page.dart'; // TEMPORARY â€” remove after migration
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -168,6 +169,24 @@ class _HomePageState extends State<HomePage> {
                         );
                       },
                     ),
+
+                  // TEMPORARY â€” remove this tile after running migration once
+                  ListTile(
+                    leading: const Icon(Icons.sync_alt, color: Colors.orange),
+                    title: const Text(
+                      'Migrate Old Data',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MigrateProductsPage(),
+                        ),
+                      );
+                    },
+                  ),
 
                   ListTile(
                     leading: const Icon(Icons.settings_outlined),
