@@ -13,14 +13,26 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
+  # Firebase
   firebase_core: ^4.14.0
   firebase_auth: ^6.6.1
   cloud_firestore: ^6.9.0
-  google_sign_in: ^6.2.1
-  shared_preferences: ^2.5.3
-  video_player: ^2.9.2
   firebase_storage: ^12.4.3
+
+  # Google Login
+  google_sign_in: ^6.2.1
+
+  # Local Storage
+  shared_preferences: ^2.5.3
+
+  # Video
+  video_player: ^2.9.2
+
+  # Image Picker
   image_picker: ^1.1.2
+
+  # Cloudinary Upload
+  http: ^1.5.0
 
 dev_dependencies:
   flutter_test:
