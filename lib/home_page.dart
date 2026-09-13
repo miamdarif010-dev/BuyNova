@@ -7,6 +7,7 @@ import 'user_profile_page.dart';
 import 'add_product_page.dart';
 import 'settings_page.dart';
 import 'cart_page.dart';
+import 'categories_page.dart';
 import 'migrate_products_page.dart'; // TEMPORARY â€” remove after migration
 
 class HomePage extends StatefulWidget {
@@ -36,10 +37,33 @@ class _HomePageState extends State<HomePage> {
     'Grocery',
   ];
 
-  void _onNavTap(int index) {
+  void _onNavTap(int index) async {
     setState(() {
       _selectedIndex = index;
     });
+
+    if (index == 1) {
+      final result = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const CategoriesPage(),
+        ),
+      );
+
+      if (result != null && mounted) {
+        final matchIndex = categories.indexOf(result);
+        if (matchIndex != -1) {
+          setState(() {
+            _selectedCategory = matchIndex;
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Selected: $result')),
+          );
+        }
+      }
+      return;
+    }
 
     if (index == 3) {
       Navigator.push(
@@ -122,7 +146,25 @@ class _HomePageState extends State<HomePage> {
                   ListTile(
                     leading: const Icon(Icons.category_outlined),
                     title: const Text('Categories'),
-                    onTap: () => Navigator.pop(context),
+                    onTap: () async {
+                      Navigator.pop(context);
+
+                      final result = await Navigator.push<String>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CategoriesPage(),
+                        ),
+                      );
+
+                      if (result != null && mounted) {
+                        final matchIndex = categories.indexOf(result);
+                        if (matchIndex != -1) {
+                          setState(() {
+                            _selectedCategory = matchIndex;
+                          });
+                        }
+                      }
+                    },
                   ),
 
                   ListTile(
