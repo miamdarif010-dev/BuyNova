@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_page.dart';
+import 'payment_methods_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -210,7 +211,10 @@ class SettingsPage extends StatelessWidget {
                 _tile(
                   icon: Icons.payment_outlined,
                   title: 'Payment Methods',
-                  onTap: () => _comingSoon(context, 'Payment Methods'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PaymentMethodsPage()),
+                  ),
                 ),
                 const Divider(height: 1),
                 _tile(
