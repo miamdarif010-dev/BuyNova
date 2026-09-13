@@ -1,5 +1,4 @@
-import 'cart_page.dart';
-import 'package:flutter/material.dart';
+ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -7,6 +6,7 @@ import 'login_page.dart';
 import 'user_profile_page.dart';
 import 'add_product_page.dart';
 import 'settings_page.dart';
+import 'cart_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,6 +39,16 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _selectedIndex = index;
     });
+
+    if (index == 3) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const CartPage(),
+        ),
+      );
+      return;
+    }
 
     if (index == 4) {
       final user = FirebaseAuth.instance.currentUser;
@@ -232,7 +242,14 @@ class _HomePageState extends State<HomePage> {
                   Icons.shopping_cart_outlined,
                   color: Colors.white,
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CartPage(),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -449,6 +466,164 @@ class _HomePageState extends State<HomePage> {
                                             fit: BoxFit.cover,
                                             width: double.infinity,
                                             errorBuilder:
+                                                (
+                                              context,
+                                              error,
+                                              stackTrace,
+                                            ) {
+                                              return const Center(
+                                                child: Icon(
+                                                  Icons.image,
+                                                  size: 50,
+                                                  color: Colors.grey,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        )
+                                      : const Center(
+                                          child: Icon(
+                                            Icons.image,
+                                            size: 50,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                ),
+                              ),
+
+                              Padding(
+                                padding:
+                                    const EdgeInsets.all(8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style:
+                                          const TextStyle(
+                                        fontWeight:
+                                            FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow.ellipsis,
+                                    ),
+
+                                    const SizedBox(height: 4),
+
+                                    Text(
+                                      '\$$price',
+                                      style:
+                                          const TextStyle(
+                                        color:
+                                            Colors.redAccent,
+                                        fontWeight:
+                                            FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          // =========================
+          // SIGN IN BANNER
+          // =========================
+          bottomSheet: isLoggedIn
+              ? null
+              : Container(
+                  color: Colors.orangeAccent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Sign in for best experience!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor:
+                              Colors.orangeAccent,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const LoginPage(),
+                            ),
+                          );
+                        },
+                        child: const Text('Sign In'),
+                      ),
+                    ],
+                  ),
+                ),
+
+          // =========================
+          // BOTTOM NAVIGATION
+          // =========================
+          bottomNavigationBar:
+              BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            onTap: _onNavTap,
+            selectedItemColor: Colors.redAccent,
+            unselectedItemColor: Colors.grey,
+            type: BottomNavigationBarType.fixed,
+
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.category),
+                label: 'Categories',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.favorite_border),
+                label: 'Favorites',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.shopping_cart_outlined,
+                ),
+                label: 'Cart',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: 'Profile',
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}                                           errorBuilder:
                                                 (
                                               context,
                                               error,
