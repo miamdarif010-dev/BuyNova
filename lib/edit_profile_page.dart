@@ -1,4 +1,4 @@
-import 'dart:convert';
+  import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,7 +34,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   // =========================================================
 
   static const String _cloudName = 'riassg6d';
-  static const String _uploadPreset = 'buynova_upload';
+  static const String _uploadPreset = 'buynova_products';
 
   @override
   void initState() {
@@ -542,3 +542,4 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 }
+
