@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'edit_profile_page.dart';
 import 'settings_page.dart';
+import 'add_product_page.dart';
+import 'cart_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -91,6 +93,32 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const SettingsPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // ADD PRODUCT
+  // =========================================================
+
+  Future<void> _openAddProduct() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddProductPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // MY CART
+  // =========================================================
+
+  Future<void> _openCart() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CartPage(),
       ),
     );
   }
@@ -343,7 +371,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   _menuItem(
                     icon: Icons.shopping_cart_outlined,
                     title: 'My Cart',
-                    onTap: () => _comingSoon('My Cart'),
+                    onTap: _openCart,
                   ),
 
                   _menuItem(
@@ -390,7 +418,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   _menuItem(
                     icon: Icons.add_box_outlined,
                     title: 'Add Product',
-                    onTap: () => _comingSoon('Add Product'),
+                    onTap: _openAddProduct,
                   ),
 
                   _menuItem(
