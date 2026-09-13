@@ -237,17 +237,61 @@ class _HomePageState extends State<HomePage> {
                 onPressed: () {},
               ),
 
-              IconButton(
-                icon: const Icon(
-                  Icons.shopping_cart_outlined,
-                  color: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CartPage(),
-                    ),
+              StreamBuilder<QuerySnapshot>(
+                stream: isLoggedIn ? CartService.stream : null,
+                builder: (context, cartSnapshot) {
+                  int cartCount = 0;
+                  for (final doc in cartSnapshot.data?.docs ?? []) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final qty = (data['quantity'] is num)
+                        ? (data['quantity'] as num).toInt()
+                        : 1;
+                    cartCount += qty;
+                  }
+
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.shopping_cart_outlined,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const CartPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      if (cartCount > 0)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '$cartCount',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -423,10 +467,11 @@ class _HomePageState extends State<HomePage> {
                             data['name']?.toString() ??
                                 'Unnamed Product';
 
-                        final price = data['price'] is num
-                            ? (data['price'] as num)
-                                .toStringAsFixed(2)
-                            : '0.00';
+                        final rawPrice = data['price'] is num
+                            ? (data['price'] as num).toDouble()
+                            : 0.0;
+
+                        final price = rawPrice.toStringAsFixed(2);
 
                         final imageUrl =
                             data['imageUrl']?.toString();
@@ -512,16 +557,64 @@ class _HomePageState extends State<HomePage> {
 
                                     const SizedBox(height: 4),
 
-                                    Text(
-                                      '\$$price',
-                                      style:
-                                          const TextStyle(
-                                        color:
-                                            Colors.redAccent,
-                                        fontWeight:
-                                            FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '\$$price',
+                                          style: const TextStyle(
+                                            color: Colors.redAccent,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        InkWell(
+                                          borderRadius: BorderRadius.circular(20),
+                                          onTap: () async {
+                                            if (!isLoggedIn) {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => const LoginPage(),
+                                                ),
+                                              );
+                                              return;
+                                            }
+
+                                            await CartService.addItem(
+                                              id: docs[index].id,
+                                              name: name,
+                                              price: rawPrice,
+                                              imageUrl: imageUrl,
+                                            );
+
+                                            if (!context.mounted) return;
+
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text('$name added to cart'),
+                                                behavior: SnackBarBehavior.floating,
+                                                duration: const Duration(seconds: 1),
+                                              ),
+                                            );
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.redAccent,
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: const Icon(
+                                              Icons.add_shopping_cart,
+                                              size: 16,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
