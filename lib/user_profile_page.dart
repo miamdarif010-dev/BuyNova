@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'edit_profile_page.dart';
+import 'settings_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -66,6 +67,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
 
     _loadUserData();
+  }
+
+  Future<void> _openSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SettingsPage(),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -162,11 +172,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                   if (_phone.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    // PHONE
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.phone, size: 15, color: Colors.grey.shade600),
+                        Icon(
+                          Icons.phone,
+                          size: 15,
+                          color: Colors.grey.shade600,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           _phone,
@@ -200,7 +213,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                   const SizedBox(height: 25),
 
-                  // MENU
+                  // CHAT
                   _menuItem(
                     icon: Icons.chat_bubble_outline,
                     title: 'Chat',
@@ -213,6 +226,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     },
                   ),
 
+                  // MY ORDERS
                   _menuItem(
                     icon: Icons.shopping_bag_outlined,
                     title: 'My Orders',
@@ -225,6 +239,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     },
                   ),
 
+                  // FAVORITES
                   _menuItem(
                     icon: Icons.favorite_border,
                     title: 'Favorites',
@@ -237,16 +252,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     },
                   ),
 
+                  // SETTINGS
                   _menuItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Settings coming soon'),
-                        ),
-                      );
-                    },
+                    onTap: _openSettings,
                   ),
 
                   const SizedBox(height: 10),
