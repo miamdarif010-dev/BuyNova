@@ -1,9 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class AddProductPage extends StatefulWidget {
@@ -19,37 +20,90 @@ class _AddProductPageState extends State<AddProductPage> {
   final _descriptionController = TextEditingController();
   final _categoryController = TextEditingController();
 
+  final ImagePicker _imagePicker = ImagePicker();
+
   File? _pickedImage;
+  String? _uploadedImageUrl;
+
+  bool _isUploadingPhoto = false;
   bool _isUploading = false;
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
+  // =========================================================
+  // CLOUDINARY SETTINGS
+  // =========================================================
 
-    if (picked != null) {
-      setState(() {
-        _pickedImage = File(picked.path);
-      });
+  static const String _cloudName = 'riassg6d';
+  static const String _uploadPreset = 'buynova_products';
+
+  Future<void> _pickImage() async {
+    if (_isUploadingPhoto || _isUploading) return;
+
+    try {
+      final XFile? picked = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      );
+
+      if (picked == null) return;
+
+      await _uploadToCloudinary(File(picked.path));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not select photo: $e')),
+      );
     }
   }
 
-  Future<String?> _uploadImageToStorage(String uid) async {
-    if (_pickedImage == null) return null;
+  Future<void> _uploadToCloudinary(File imageFile) async {
+    setState(() {
+      _pickedImage = imageFile;
+      _isUploadingPhoto = true;
+    });
 
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('product_images')
-        .child(uid)
-        .child(fileName);
+    try {
+      final uri = Uri.parse(
+        'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
+      );
 
-    final uploadTask = await ref.putFile(_pickedImage!);
-    final downloadUrl = await uploadTask.ref.getDownloadURL();
+      final request = http.MultipartRequest('POST', uri);
+      request.fields['upload_preset'] = _uploadPreset;
+      request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
 
-    return downloadUrl;
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Cloudinary upload failed: ${response.statusCode}\n${response.body}');
+      }
+
+      final Map<String, dynamic> result = jsonDecode(response.body);
+      final String? secureUrl = result['secure_url']?.toString();
+
+      if (secureUrl == null || secureUrl.isEmpty) {
+        throw Exception('Cloudinary did not return an image URL.');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _uploadedImageUrl = secureUrl;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Photo upload failed: $e')),
+      );
+      setState(() {
+        _pickedImage = null;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
+      }
+    }
   }
 
   Future<void> _uploadProduct() async {
@@ -65,25 +119,26 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
+    if (_isUploadingPhoto) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait until the photo upload finishes')),
+      );
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     setState(() => _isUploading = true);
 
     try {
-      String? imageUrl;
-
-      if (_pickedImage != null) {
-        imageUrl = await _uploadImageToStorage(user.uid);
-      }
-
       // NOTE: collection name must stay lowercase 'products' and field
       // name must stay 'imageUrl' to match what home_page.dart reads.
       await FirebaseFirestore.instance.collection('products').add({
         'name': title,
         'price': price,
         'description': description,
-        'imageUrl': imageUrl ?? '',
+        'imageUrl': _uploadedImageUrl ?? '',
         'category': category.isNotEmpty ? category : 'General',
         'sellerId': user.uid,
         'sellerEmail': user.email,
@@ -129,16 +184,21 @@ class _AddProductPageState extends State<AddProductPage> {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: Colors.grey.shade400),
                   ),
-                  child: _pickedImage != null
-                      ? ClipRRect(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (_pickedImage != null)
+                        ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: Image.file(
                             _pickedImage!,
                             fit: BoxFit.cover,
                             width: double.infinity,
+                            height: 180,
                           ),
                         )
-                      : Column(
+                      else
+                        Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.add_a_photo_outlined,
@@ -150,6 +210,18 @@ class _AddProductPageState extends State<AddProductPage> {
                             ),
                           ],
                         ),
+                      if (_isUploadingPhoto)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black45,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Center(
+                            child: CircularProgressIndicator(color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -192,7 +264,7 @@ class _AddProductPageState extends State<AddProductPage> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isUploading ? null : _uploadProduct,
+                  onPressed: (_isUploading || _isUploadingPhoto) ? null : _uploadProduct,
                   child: _isUploading
                       ? const SizedBox(
                           height: 22,
