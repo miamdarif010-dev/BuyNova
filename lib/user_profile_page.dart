@@ -8,6 +8,8 @@ import 'add_product_page.dart';
 import 'cart_page.dart';
 import 'admin_panel_page.dart';
 import 'my_products_page.dart';
+import 'add_seller_video_page.dart';
+import 'my_videos_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -103,6 +105,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const MyProductsPage()),
+    );
+  }
+
+  Future<void> _openAddVideo() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddSellerVideoPage()),
+    );
+  }
+
+  Future<void> _openMyVideos() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MyVideosPage()),
     );
   }
 
@@ -275,6 +291,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
           icon: Icons.add_box_outlined,
           title: 'Add Product',
           onTap: _openAddProduct,
+        ),
+        _menuItem(
+          icon: Icons.video_call_outlined,
+          title: 'Add Video',
+          onTap: _openAddVideo,
+        ),
+        _menuItem(
+          icon: Icons.video_library_outlined,
+          title: 'My Videos',
+          onTap: _openMyVideos,
         ),
         _menuItem(
           icon: Icons.bar_chart_outlined,
