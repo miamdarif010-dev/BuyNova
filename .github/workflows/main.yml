@@ -37,6 +37,11 @@ jobs:
       - name: Analyze project
         run: flutter analyze
 
+      - name: Get SHA-1
+        run: |
+          cd android
+          ./gradlew signingReport
+
       - name: Build APK
         run: flutter build apk --release
 
