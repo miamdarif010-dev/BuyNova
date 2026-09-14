@@ -36,34 +36,34 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Get SHA-1
-        run: |
-          mkdir -p "$HOME/.android"
-
-          keytool -genkeypair \
-            -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-          keytool -list -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias androiddebugkey | grep "SHA1:"
-
       - name: Analyze project
         run: flutter analyze
 
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Get APK SHA-1
+        run: |
+          keytool -printcert \
+            -jarfile build/app/outputs/flutter-apk/app-release.apk \
+            > sha1-full.txt
+
+          echo "================================="
+          echo "BUY NOVA APK SHA-1"
+          echo "================================="
+
+          grep "SHA1:" sha1-full.txt | tee BuyNova-SHA1.txt
+
+          echo "================================="
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: BuyNova-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload SHA-1
+        uses: actions/upload-artifact@v4
+        with:
+          name: BuyNova-SHA1
+          path: BuyNova-SHA1.txt
