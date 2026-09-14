@@ -180,7 +180,6 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
           children: [
             _headerCard(),
             const SizedBox(height: 18),
-
             if (_status == 'approved') ...[
               _approvedSection(),
             ] else if (_status == 'pending') ...[
@@ -497,169 +496,15 @@ class _MyStorePageState extends State<MyStorePage> {
   User? get currentUser =>
       FirebaseAuth.instance.currentUser;
 
-  Future<void> _addToMyStore(
-    String productId,
-    Map<String, dynamic> product,
-  ) async {
-    final user = currentUser;
-
-    if (user == null) return;
-
-    final supplierPrice =
-        (product['price'] is num)
-            ? (product['price'] as num).toDouble()
-            : 0.0;
-
-    final sellerUid =
-        product['sellerId']?.toString() ?? '';
-
-    final sellerEmail =
-        product['sellerEmail']?.toString() ?? '';
-
-    final name =
-        product['name']?.toString() ?? 'Product';
-
-    final imageUrl =
-        product['imageUrl']?.toString() ?? '';
-
-    final category =
-        product['category']?.toString() ?? 'General';
-
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-
-    final userData = userDoc.data() ?? {};
-
-    final entrepreneurCode =
-        userData['entrepreneurCode']?.toString() ??
-            'ENT-${user.uid.substring(0, 6).toUpperCase()}';
-
-    final sellerCode =
-        product['sellerCode']?.toString() ??
-            (sellerUid.isNotEmpty
-                ? 'SELL-${sellerUid.substring(0, 6).toUpperCase()}'
-                : '');
-
-    final sellingPrice =
-        await _showPriceDialog(
-      supplierPrice,
-      name,
-    );
-
-    if (sellingPrice == null) return;
-
-    if (sellingPrice < supplierPrice) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Selling price cannot be lower than supplier price.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    final profit =
-        sellingPrice - supplierPrice;
-
-    try {
-      final existing = await FirebaseFirestore
-          .instance
-          .collection('reseller_products')
-          .where(
-            'entrepreneurUid',
-            isEqualTo: user.uid,
-          )
-          .where(
-            'productId',
-            isEqualTo: productId,
-          )
-          .limit(1)
-          .get();
-
-      if (existing.docs.isNotEmpty) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'This product is already in your store.',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-
-      await FirebaseFirestore.instance
-          .collection('reseller_products')
-          .add({
-        'productId': productId,
-
-        'entrepreneurUid': user.uid,
-        'entrepreneurCode': entrepreneurCode,
-        'entrepreneurEmail': user.email,
-
-        'sellerUid': sellerUid,
-        'sellerCode': sellerCode,
-        'sellerEmail': sellerEmail,
-
-        'name': name,
-        'imageUrl': imageUrl,
-        'category': category,
-
-        'supplierPrice': supplierPrice,
-        'sellingPrice': sellingPrice,
-        'profit': profit,
-
-        'active': true,
-
-        'createdAt':
-            FieldValue.serverTimestamp(),
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '$name added to My Store',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-
-      setState(() {});
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to add product: $e',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
   Future<double?> _showPriceDialog(
     double supplierPrice,
     String productName,
   ) async {
     final controller = TextEditingController(
-      text: (supplierPrice * 1.3)
-          .round()
-          .toString(),
+      text: (supplierPrice * 1.3).round().toString(),
     );
 
-    return showDialog<double>(
+    final result = await showDialog<double>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -677,16 +522,12 @@ class _MyStorePageState extends State<MyStorePage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Text(
                 'Supplier Price: '
                 '₩${supplierPrice.toStringAsFixed(0)}',
               ),
-
               const SizedBox(height: 12),
-
               TextField(
                 controller: controller,
                 keyboardType:
@@ -700,9 +541,7 @@ class _MyStorePageState extends State<MyStorePage> {
                       OutlineInputBorder(),
                 ),
               ),
-
               const SizedBox(height: 10),
-
               const Text(
                 'Your profit will be calculated automatically.',
                 style: TextStyle(
@@ -718,7 +557,6 @@ class _MyStorePageState extends State<MyStorePage> {
               },
               child: const Text('Cancel'),
             ),
-
             ElevatedButton(
               onPressed: () {
                 final value =
@@ -744,6 +582,9 @@ class _MyStorePageState extends State<MyStorePage> {
         );
       },
     );
+
+    controller.dispose();
+    return result;
   }
 
   Future<void> _removeFromStore(
@@ -792,21 +633,34 @@ class _MyStorePageState extends State<MyStorePage> {
 
     if (confirm != true) return;
 
-    await FirebaseFirestore.instance
-        .collection('reseller_products')
-        .doc(documentId)
-        .delete();
+    try {
+      await FirebaseFirestore.instance
+          .collection('reseller_products')
+          .doc(documentId)
+          .delete();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Product removed from your store',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Product removed from your store',
+          ),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to remove product: $e',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -833,11 +687,9 @@ class _MyStorePageState extends State<MyStorePage> {
         ),
         centerTitle: true,
       ),
-
       body: Column(
         children: [
           _storeHeader(user.uid),
-
           Expanded(
             child: _myStoreProducts(
               user.uid,
@@ -845,12 +697,9 @@ class _MyStorePageState extends State<MyStorePage> {
           ),
         ],
       ),
-
       floatingActionButton:
           FloatingActionButton.extended(
-        onPressed: () {
-          _showAvailableProducts();
-        },
+        onPressed: _showAvailableProducts,
         icon: const Icon(
           Icons.add,
         ),
@@ -893,9 +742,7 @@ class _MyStorePageState extends State<MyStorePage> {
                       size: 30,
                     ),
                   ),
-
                   const SizedBox(width: 12),
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
@@ -942,7 +789,6 @@ class _MyStorePageState extends State<MyStorePage> {
             descending: true,
           )
           .snapshots(),
-
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
@@ -1008,7 +854,6 @@ class _MyStorePageState extends State<MyStorePage> {
             90,
           ),
           itemCount: docs.length,
-
           itemBuilder: (context, index) {
             final doc = docs[index];
 
@@ -1058,15 +903,12 @@ class _MyStorePageState extends State<MyStorePage> {
                   const EdgeInsets.only(
                 bottom: 10,
               ),
-
               child: Padding(
                 padding:
                     const EdgeInsets.all(10),
-
                 child: Row(
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
-
                   children: [
                     ClipRRect(
                       borderRadius:
@@ -1099,9 +941,7 @@ class _MyStorePageState extends State<MyStorePage> {
                               ),
                       ),
                     ),
-
                     const SizedBox(width: 12),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
@@ -1117,21 +957,17 @@ class _MyStorePageState extends State<MyStorePage> {
                                   FontWeight.bold,
                             ),
                           ),
-
                           const SizedBox(
                             height: 6,
                           ),
-
                           Text(
                             'Supplier: ₩'
                             '${supplierPrice.toStringAsFixed(0)}',
                           ),
-
                           Text(
                             'Selling: ₩'
                             '${sellingPrice.toStringAsFixed(0)}',
                           ),
-
                           Text(
                             'Profit: ₩'
                             '${profit.toStringAsFixed(0)}',
@@ -1143,7 +979,6 @@ class _MyStorePageState extends State<MyStorePage> {
                                   FontWeight.bold,
                             ),
                           ),
-
                           if (sellerCode
                               .isNotEmpty)
                             Text(
@@ -1160,7 +995,6 @@ class _MyStorePageState extends State<MyStorePage> {
                         ],
                       ),
                     ),
-
                     IconButton(
                       icon: const Icon(
                         Icons.delete_outline,
@@ -1203,26 +1037,9 @@ class AvailableProductsPage
     super.key,
   });
 
-  Future<void> _addProduct(
-    BuildContext context,
-    String productId,
-    Map<String, dynamic> data,
-  ) async {
-    final page =
-        context.findAncestorStateOfType<
-            _AvailableProductsPageState>();
-
-    if (page != null) {
-      await page.addProduct(
-        productId,
-        data,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return _AvailableProductsPage();
+    return const _AvailableProductsPage();
   }
 }
 
@@ -1315,382 +1132,4 @@ class _AvailableProductsPageState
                 name,
                 style:
                     const TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Supplier Price: ₩'
-                '${supplierPrice.toStringAsFixed(0)}',
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                keyboardType:
-                    TextInputType.number,
-                decoration:
-                    const InputDecoration(
-                  labelText:
-                      'Your Selling Price',
-                  prefixText: '₩ ',
-                  border:
-                      OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(
-                context,
-              ),
-              child:
-                  const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final price =
-                    double.tryParse(
-                  controller.text
-                      .replaceAll(
-                        ',',
-                        '',
-                      )
-                      .trim(),
-                );
-
-                if (price == null ||
-                    price <= 0) {
-                  return;
-                }
-
-                Navigator.pop(
-                  context,
-                  price,
-                );
-              },
-              child:
-                  const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (sellingPrice == null) return;
-
-    if (sellingPrice <
-        supplierPrice) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Selling price cannot be lower than supplier price.',
-          ),
-        ),
-      );
-
-      return;
-    }
-
-    final profit =
-        sellingPrice - supplierPrice;
-
-    try {
-      final existing =
-          await FirebaseFirestore
-              .instance
-              .collection(
-                  'reseller_products')
-              .where(
-                'entrepreneurUid',
-                isEqualTo: user.uid,
-              )
-              .where(
-                'productId',
-                isEqualTo: productId,
-              )
-              .limit(1)
-              .get();
-
-      if (existing.docs.isNotEmpty) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Already added to My Store.',
-            ),
-          ),
-        );
-
-        return;
-      }
-
-      await FirebaseFirestore.instance
-          .collection(
-              'reseller_products')
-          .add({
-        'productId': productId,
-
-        'entrepreneurUid':
-            user.uid,
-        'entrepreneurCode':
-            entrepreneurCode,
-        'entrepreneurEmail':
-            user.email,
-
-        'sellerUid': sellerUid,
-        'sellerCode': sellerCode,
-        'sellerEmail':
-            sellerEmail,
-
-        'name': name,
-        'imageUrl':
-            imageUrl,
-        'category':
-            category,
-
-        'supplierPrice':
-            supplierPrice,
-        'sellingPrice':
-            sellingPrice,
-        'profit': profit,
-
-        'active': true,
-
-        'createdAt':
-            FieldValue
-                .serverTimestamp(),
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Product added to My Store!',
-          ),
-          behavior:
-              SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Error: $e',
-          ),
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Find Products',
-          style: TextStyle(
-            fontWeight:
-                FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore
-            .instance
-            .collection('products')
-            .orderBy(
-              'createdAt',
-              descending: true,
-            )
-            .snapshots(),
-
-        builder:
-            (context, snapshot) {
-          if (snapshot
-                  .connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error:\n'
-                '${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
-              ),
-            );
-          }
-
-          final docs =
-              snapshot.data?.docs ??
-                  [];
-
-          if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'No products available.',
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding:
-                const EdgeInsets.all(12),
-            itemCount:
-                docs.length,
-
-            itemBuilder:
-                (context, index) {
-              final doc =
-                  docs[index];
-
-              final data =
-                  doc.data()
-                      as Map<String,
-                          dynamic>;
-
-              final name =
-                  data['name']
-                          ?.toString() ??
-                      'Product';
-
-              final price =
-                  (data['price']
-                          is num)
-                      ? (data['price']
-                              as num)
-                          .toDouble()
-                      : 0.0;
-
-              final imageUrl =
-                  data['imageUrl']
-                          ?.toString() ??
-                      '';
-
-              final sellerEmail =
-                  data['sellerEmail']
-                          ?.toString() ??
-                      '';
-
-              return Card(
-                margin:
-                    const EdgeInsets
-                        .only(
-                  bottom: 10,
-                ),
-
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets
-                          .all(10),
-
-                  leading:
-                      ClipRRect(
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      8,
-                    ),
-                    child: SizedBox(
-                      width: 65,
-                      height: 65,
-                      child: imageUrl
-                              .isNotEmpty
-                          ? Image.network(
-                              imageUrl,
-                              fit: BoxFit
-                                  .cover,
-                              errorBuilder:
-                                  (
-                                context,
-                                error,
-                                stackTrace,
-                              ) {
-                                return const Icon(
-                                  Icons.image,
-                                );
-                              },
-                            )
-                          : const Icon(
-                              Icons.image,
-                              size: 35,
-                            ),
-                    ),
-                  ),
-
-                  title: Text(
-                    name,
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  subtitle:
-                      Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      const SizedBox(
-                        height: 4,
-                      ),
-                      Text(
-                        'Supplier Price: ₩'
-                        '${price.toStringAsFixed(0)}',
-                      ),
-                      if (sellerEmail
-                          .isNotEmpty)
-                        Text(
-                          sellerEmail,
-                          style:
-                              const TextStyle(
-                            fontSize:
-                                11,
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  trailing:
-                      ElevatedButton(
-                    onPressed: () =>
-                        addProduct(
-                      doc.id,
-                      data,
-                    ),
-                    child:
-                        const Text(
-                      'Add',
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
+                 
