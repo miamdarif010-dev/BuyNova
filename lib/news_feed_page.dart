@@ -204,9 +204,7 @@ class _FeedVideoItemState extends State<_FeedVideoItem> {
   void _shareVideo() {
     final videoUrl = widget.data['videoUrl']?.toString() ?? '';
     final caption = widget.data['caption']?.toString() ?? '';
-    SharePlus.instance.share(
-      ShareParams(text: '$caption\n\nCheck this out on BuyNova: $videoUrl'),
-    );
+    Share.share('$caption\n\nCheck this out on BuyNova: $videoUrl');
   }
 
   Future<void> _viewProduct() async {
