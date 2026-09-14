@@ -10,10 +10,10 @@ class EntrepreneurPage extends StatefulWidget {
 }
 
 class _EntrepreneurPageState extends State<EntrepreneurPage> {
-  bool _isLoading = true;
+  bool _loading = true;
 
   String _status = 'none';
-  String _entrepreneurId = '';
+  String _entrepreneurCode = '';
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
@@ -23,17 +23,13 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
     _loadEntrepreneurData();
   }
 
-  // =========================================================
-  // LOAD ENTREPRENEUR DATA
-  // =========================================================
-
   Future<void> _loadEntrepreneurData() async {
     final user = currentUser;
 
     if (user == null) {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _loading = false;
         });
       }
       return;
@@ -53,8 +49,8 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
             _status =
                 data['entrepreneurStatus']?.toString() ?? 'none';
 
-            _entrepreneurId =
-                data['entrepreneurId']?.toString() ?? '';
+            _entrepreneurCode =
+                data['entrepreneurCode']?.toString() ?? '';
           });
         }
       }
@@ -64,16 +60,12 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
 
     if (mounted) {
       setState(() {
-        _isLoading = false;
+        _loading = false;
       });
     }
   }
 
-  // =========================================================
-  // BECOME ENTREPRENEUR
-  // =========================================================
-
-  Future<void> _becomeEntrepreneur() async {
+  Future<void> _sendRequest() async {
     final user = currentUser;
 
     if (user == null) return;
@@ -82,10 +74,12 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Become an Entrepreneur'),
+          title: const Text(
+            'Become an Entrepreneur / Reseller',
+          ),
           content: const Text(
-            'Do you want to become a BuyNova Entrepreneur / Reseller?\n\n'
-            'After sending the request, an admin will review your application.',
+            'Send a request to become an Entrepreneur / Reseller? '
+            'An admin will review your request.',
           ),
           actions: [
             TextButton(
@@ -131,7 +125,7 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Entrepreneur request sent! Waiting for admin approval.',
+            'Entrepreneur request sent successfully!',
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -142,7 +136,7 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Request failed: $e',
+            'Failed to send request: $e',
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -150,35 +144,326 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
     }
   }
 
-  // =========================================================
-  // COMMON MENU ITEM
-  // =========================================================
+  Future<void> _openMyStore() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyStorePage(),
+      ),
+    );
+  }
 
-  Widget _menuItem({
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Entrepreneur / Reseller',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _headerCard(),
+            const SizedBox(height: 18),
+
+            if (_status == 'approved') ...[
+              _approvedSection(),
+            ] else if (_status == 'pending') ...[
+              _pendingSection(),
+            ] else if (_status == 'rejected') ...[
+              _rejectedSection(),
+            ] else ...[
+              _notRegisteredSection(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _headerCard() {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const CircleAvatar(
+              radius: 38,
+              child: Icon(
+                Icons.business_center,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Entrepreneur / Reseller',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Find products from BuyNova sellers, '
+              'set your own selling price and earn profit.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _notRegisteredSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Start Reselling',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Become a BuyNova Entrepreneur / Reseller and '
+          'start selling products from approved sellers.',
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: _sendRequest,
+            icon: const Icon(Icons.send),
+            label: const Text(
+              'Become an Entrepreneur',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pendingSection() {
+    return Card(
+      color: Colors.orange.shade50,
+      elevation: 0,
+      child: const Padding(
+        padding: EdgeInsets.all(18),
+        child: Row(
+          children: [
+            Icon(
+              Icons.hourglass_top,
+              color: Colors.orange,
+              size: 32,
+            ),
+            SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Request Pending',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'Your Entrepreneur / Reseller request '
+                    'is waiting for admin approval.',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _rejectedSection() {
+    return Column(
+      children: [
+        Card(
+          color: Colors.red.shade50,
+          elevation: 0,
+          child: const ListTile(
+            leading: Icon(
+              Icons.cancel_outlined,
+              color: Colors.red,
+            ),
+            title: Text(
+              'Request Rejected',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Text(
+              'You can send another request.',
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: _sendRequest,
+            child: const Text(
+              'Request Again',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _approvedSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          color: Colors.green.shade50,
+          elevation: 0,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: 32,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Entrepreneur Approved',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_entrepreneurCode.isNotEmpty)
+                        Padding(
+                          padding:
+                              const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Entrepreneur ID: $_entrepreneurCode',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        const Text(
+          'My Business',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        _businessItem(
+          icon: Icons.store_outlined,
+          title: 'My Store',
+          subtitle:
+              'Manage products you want to resell.',
+          onTap: _openMyStore,
+        ),
+
+        _businessItem(
+          icon: Icons.add_business_outlined,
+          title: 'Find Products',
+          subtitle:
+              'Browse products from BuyNova sellers.',
+          onTap: _openMyStore,
+        ),
+
+        _businessItem(
+          icon: Icons.shopping_bag_outlined,
+          title: 'Reseller Orders',
+          subtitle:
+              'Manage orders from your customers.',
+          onTap: () {
+            _comingSoon('Reseller Orders');
+          },
+        ),
+
+        _businessItem(
+          icon: Icons.account_balance_wallet_outlined,
+          title: 'My Profit',
+          subtitle:
+              'Track your reseller profit.',
+          onTap: () {
+            _comingSoon('My Profit');
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _businessItem({
     required IconData icon,
     required String title,
+    required String subtitle,
     required VoidCallback onTap,
-    Color? color,
   }) {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 3,
-        ),
-        leading: Icon(
-          icon,
-          color: color,
-        ),
+        leading: Icon(icon),
         title: Text(
           title,
           style: const TextStyle(
-            fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
+        subtitle: Text(subtitle),
         trailing: const Icon(
           Icons.chevron_right,
         ),
@@ -186,105 +471,6 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
       ),
     );
   }
-
-  // =========================================================
-  // APPROVED DASHBOARD
-  // =========================================================
-
-  Widget _approvedView() {
-    return Column(
-      children: [
-        Card(
-          elevation: 0,
-          color: Colors.green.shade50,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.verified,
-                  size: 48,
-                  color: Colors.green,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Entrepreneur Account Approved',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (_entrepreneurId.isNotEmpty)
-                  Text(
-                    'Entrepreneur ID: $_entrepreneurId',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        _menuItem(
-          icon: Icons.storefront_outlined,
-          title: 'My Store',
-          onTap: () {
-            _comingSoon('My Store');
-          },
-        ),
-
-        _menuItem(
-          icon: Icons.add_business_outlined,
-          title: 'Add Products to My Store',
-          onTap: () {
-            _comingSoon('Add Products to My Store');
-          },
-        ),
-
-        _menuItem(
-          icon: Icons.inventory_2_outlined,
-          title: 'My Reseller Products',
-          onTap: () {
-            _comingSoon('My Reseller Products');
-          },
-        ),
-
-        _menuItem(
-          icon: Icons.attach_money,
-          title: 'My Profit',
-          onTap: () {
-            _comingSoon('My Profit');
-          },
-        ),
-
-        _menuItem(
-          icon: Icons.shopping_bag_outlined,
-          title: 'Reseller Orders',
-          onTap: () {
-            _comingSoon('Reseller Orders');
-          },
-        ),
-
-        _menuItem(
-          icon: Icons.people_outline,
-          title: 'Connected Sellers',
-          onTap: () {
-            _comingSoon('Connected Sellers');
-          },
-        ),
-      ],
-    );
-  }
-
-  // =========================================================
-  // COMING SOON
-  // =========================================================
 
   void _comingSoon(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -294,204 +480,1217 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
       ),
     );
   }
+}
 
-  // =========================================================
-  // STATUS VIEW
-  // =========================================================
+// =============================================================
+// MY STORE PAGE
+// =============================================================
 
-  Widget _content() {
-    if (_status == 'approved') {
-      return _approvedView();
+class MyStorePage extends StatefulWidget {
+  const MyStorePage({super.key});
+
+  @override
+  State<MyStorePage> createState() => _MyStorePageState();
+}
+
+class _MyStorePageState extends State<MyStorePage> {
+  User? get currentUser =>
+      FirebaseAuth.instance.currentUser;
+
+  Future<void> _addToMyStore(
+    String productId,
+    Map<String, dynamic> product,
+  ) async {
+    final user = currentUser;
+
+    if (user == null) return;
+
+    final supplierPrice =
+        (product['price'] is num)
+            ? (product['price'] as num).toDouble()
+            : 0.0;
+
+    final sellerUid =
+        product['sellerId']?.toString() ?? '';
+
+    final sellerEmail =
+        product['sellerEmail']?.toString() ?? '';
+
+    final name =
+        product['name']?.toString() ?? 'Product';
+
+    final imageUrl =
+        product['imageUrl']?.toString() ?? '';
+
+    final category =
+        product['category']?.toString() ?? 'General';
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    final userData = userDoc.data() ?? {};
+
+    final entrepreneurCode =
+        userData['entrepreneurCode']?.toString() ??
+            'ENT-${user.uid.substring(0, 6).toUpperCase()}';
+
+    final sellerCode =
+        product['sellerCode']?.toString() ??
+            (sellerUid.isNotEmpty
+                ? 'SELL-${sellerUid.substring(0, 6).toUpperCase()}'
+                : '');
+
+    final sellingPrice =
+        await _showPriceDialog(
+      supplierPrice,
+      name,
+    );
+
+    if (sellingPrice == null) return;
+
+    if (sellingPrice < supplierPrice) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Selling price cannot be lower than supplier price.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
     }
 
-    if (_status == 'pending') {
-      return Card(
-        elevation: 0,
-        color: Colors.orange.shade50,
-        child: const ListTile(
-          leading: Icon(
-            Icons.hourglass_top,
-            color: Colors.orange,
-          ),
-          title: Text(
-            'Entrepreneur request pending',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
+    final profit =
+        sellingPrice - supplierPrice;
+
+    try {
+      final existing = await FirebaseFirestore
+          .instance
+          .collection('reseller_products')
+          .where(
+            'entrepreneurUid',
+            isEqualTo: user.uid,
+          )
+          .where(
+            'productId',
+            isEqualTo: productId,
+          )
+          .limit(1)
+          .get();
+
+      if (existing.docs.isNotEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This product is already in your store.',
             ),
+            behavior: SnackBarBehavior.floating,
           ),
-          subtitle: Text(
-            'An admin is reviewing your request.',
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('reseller_products')
+          .add({
+        'productId': productId,
+
+        'entrepreneurUid': user.uid,
+        'entrepreneurCode': entrepreneurCode,
+        'entrepreneurEmail': user.email,
+
+        'sellerUid': sellerUid,
+        'sellerCode': sellerCode,
+        'sellerEmail': sellerEmail,
+
+        'name': name,
+        'imageUrl': imageUrl,
+        'category': category,
+
+        'supplierPrice': supplierPrice,
+        'sellingPrice': sellingPrice,
+        'profit': profit,
+
+        'active': true,
+
+        'createdAt':
+            FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$name added to My Store',
           ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to add product: $e',
+          ),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
+  }
 
-    if (_status == 'rejected') {
-      return Card(
-        elevation: 0,
-        color: Colors.red.shade50,
-        child: ListTile(
-          leading: const Icon(
-            Icons.cancel_outlined,
-            color: Colors.red,
-          ),
+  Future<double?> _showPriceDialog(
+    double supplierPrice,
+    String productName,
+  ) async {
+    final controller = TextEditingController(
+      text: (supplierPrice * 1.3)
+          .round()
+          .toString(),
+    );
+
+    return showDialog<double>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
           title: const Text(
-            'Entrepreneur request rejected',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+            'Set Your Selling Price',
           ),
-          subtitle: const Text(
-            'Tap below to request again.',
-          ),
-          trailing: ElevatedButton(
-            onPressed: _becomeEntrepreneur,
-            child: const Text('Request Again'),
-          ),
-        ),
-      );
-    }
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                productName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
 
-    return _menuItem(
-      icon: Icons.business_center_outlined,
-      title: 'Become an Entrepreneur',
-      onTap: _becomeEntrepreneur,
+              const SizedBox(height: 12),
+
+              Text(
+                'Supplier Price: '
+                '₩${supplierPrice.toStringAsFixed(0)}',
+              ),
+
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: controller,
+                keyboardType:
+                    TextInputType.number,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Your Selling Price',
+                  prefixText: '₩ ',
+                  border:
+                      OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              const Text(
+                'Your profit will be calculated automatically.',
+                style: TextStyle(
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                final value =
+                    double.tryParse(
+                  controller.text
+                      .replaceAll(',', '')
+                      .trim(),
+                );
+
+                if (value == null ||
+                    value <= 0) {
+                  return;
+                }
+
+                Navigator.pop(
+                  context,
+                  value,
+                );
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
+  Future<void> _removeFromStore(
+    String documentId,
+    String name,
+  ) async {
+    final confirm =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Remove Product',
+          ),
+          content: Text(
+            'Remove "$name" from your store?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(
+                context,
+                false,
+              ),
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(
+                context,
+                true,
+              ),
+              child: const Text(
+                'Remove',
+                style: TextStyle(
+                  color: Colors.red,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    await FirebaseFirestore.instance
+        .collection('reseller_products')
+        .doc(documentId)
+        .delete();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Product removed from your store',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = currentUser;
 
+    if (user == null) {
+      return const Scaffold(
+        body: Center(
+          child: Text(
+            'Please login first.',
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Entrepreneur',
+          'My Store',
           style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
         centerTitle: true,
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : SingleChildScrollView(
+
+      body: Column(
+        children: [
+          _storeHeader(user.uid),
+
+          Expanded(
+            child: _myStoreProducts(
+              user.uid,
+            ),
+          ),
+        ],
+      ),
+
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: () {
+          _showAvailableProducts();
+        },
+        icon: const Icon(
+          Icons.add,
+        ),
+        label: const Text(
+          'Find Products',
+        ),
+      ),
+    );
+  }
+
+  Widget _storeHeader(String uid) {
+    return FutureBuilder<
+        DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get(),
+      builder: (context, snapshot) {
+        final data =
+            snapshot.data?.data() ?? {};
+
+        final code =
+            data['entrepreneurCode']
+                    ?.toString() ??
+                'ENT-${uid.substring(0, 6).toUpperCase()}';
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            elevation: 0,
+            child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  // =================================================
-                  // HEADER
-                  // =================================================
-
-                  Card(
-                    elevation: 0,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 30,
-                            child: const Icon(
-                              Icons.business_center,
-                              size: 30,
-                            ),
-                          ),
-                          const SizedBox(width: 15),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  user?.displayName?.isNotEmpty == true
-                                      ? user!.displayName!
-                                      : 'Entrepreneur',
-                                  style: const TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  user?.email ?? '',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                  const CircleAvatar(
+                    radius: 28,
+                    child: Icon(
+                      Icons.store,
+                      size: 30,
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(width: 12),
 
-                  const Text(
-                    'ENTREPRENEUR / RESELLER',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  const Text(
-                    'Find products from BuyNova sellers, '
-                    'add them to your store, set your own selling price, '
-                    'and earn profit from each sale.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.5,
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  _content(),
-
-                  const SizedBox(height: 25),
-
-                  Card(
-                    elevation: 0,
-                    color: Colors.blue.shade50,
-                    child: const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Row(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Colors.blue,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Reseller Store',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight:
+                                FontWeight.bold,
                           ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Business flow:\n'
-                              'Seller → BuyNova → Entrepreneur → Customer',
-                              style: TextStyle(
-                                fontSize: 14,
-                                height: 1.5,
-                              ),
-                            ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Entrepreneur ID: $code',
+                          style: TextStyle(
+                            color:
+                                Colors.grey.shade700,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _myStoreProducts(String uid) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('reseller_products')
+          .where(
+            'entrepreneurUid',
+            isEqualTo: uid,
+          )
+          .orderBy(
+            'createdAt',
+            descending: true,
+          )
+          .snapshots(),
+
+      builder: (context, snapshot) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child:
+                CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding:
+                  const EdgeInsets.all(20),
+              child: Text(
+                'Error loading My Store:\n'
+                '${snapshot.error}',
+                textAlign:
+                    TextAlign.center,
+              ),
+            ),
+          );
+        }
+
+        final docs =
+            snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.store_outlined,
+                  size: 65,
+                  color: Colors.grey,
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Your store is empty',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Tap "Find Products" to add products.',
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding:
+              const EdgeInsets.fromLTRB(
+            12,
+            0,
+            12,
+            90,
+          ),
+          itemCount: docs.length,
+
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+
+            final data =
+                doc.data()
+                    as Map<String, dynamic>;
+
+            final name =
+                data['name']?.toString() ??
+                    'Product';
+
+            final imageUrl =
+                data['imageUrl']
+                        ?.toString() ??
+                    '';
+
+            final supplierPrice =
+                (data['supplierPrice']
+                            is num)
+                    ? (data['supplierPrice']
+                            as num)
+                        .toDouble()
+                    : 0.0;
+
+            final sellingPrice =
+                (data['sellingPrice']
+                            is num)
+                    ? (data['sellingPrice']
+                            as num)
+                        .toDouble()
+                    : 0.0;
+
+            final profit =
+                (data['profit'] is num)
+                    ? (data['profit'] as num)
+                        .toDouble()
+                    : sellingPrice -
+                        supplierPrice;
+
+            final sellerCode =
+                data['sellerCode']
+                        ?.toString() ??
+                    '';
+
+            return Card(
+              margin:
+                  const EdgeInsets.only(
+                bottom: 10,
+              ),
+
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(10),
+
+                child: Row(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+
+                  children: [
+                    ClipRRect(
+                      borderRadius:
+                          BorderRadius.circular(
+                        10,
+                      ),
+                      child: SizedBox(
+                        width: 85,
+                        height: 85,
+                        child: imageUrl
+                                .isNotEmpty
+                            ? Image.network(
+                                imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (
+                                  context,
+                                  error,
+                                  stackTrace,
+                                ) {
+                                  return const Icon(
+                                    Icons.image,
+                                    size: 40,
+                                  );
+                                },
+                              )
+                            : const Icon(
+                                Icons.image,
+                                size: 40,
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Text(
+                            name,
+                            style:
+                                const TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 6,
+                          ),
+
+                          Text(
+                            'Supplier: ₩'
+                            '${supplierPrice.toStringAsFixed(0)}',
+                          ),
+
+                          Text(
+                            'Selling: ₩'
+                            '${sellingPrice.toStringAsFixed(0)}',
+                          ),
+
+                          Text(
+                            'Profit: ₩'
+                            '${profit.toStringAsFixed(0)}',
+                            style:
+                                const TextStyle(
+                              color:
+                                  Colors.green,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+
+                          if (sellerCode
+                              .isNotEmpty)
+                            Text(
+                              'Seller ID: '
+                              '$sellerCode',
+                              style:
+                                  TextStyle(
+                                fontSize: 11,
+                                color: Colors
+                                    .grey
+                                    .shade600,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                      ),
+                      onPressed: () =>
+                          _removeFromStore(
+                        doc.id,
+                        name,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAvailableProducts() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const AvailableProductsPage(),
+      ),
+    );
+  }
+}
+
+// =============================================================
+// AVAILABLE PRODUCTS
+// =============================================================
+
+class AvailableProductsPage
+    extends StatelessWidget {
+  const AvailableProductsPage({
+    super.key,
+  });
+
+  Future<void> _addProduct(
+    BuildContext context,
+    String productId,
+    Map<String, dynamic> data,
+  ) async {
+    final page =
+        context.findAncestorStateOfType<
+            _AvailableProductsPageState>();
+
+    if (page != null) {
+      await page.addProduct(
+        productId,
+        data,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AvailableProductsPage();
+  }
+}
+
+class _AvailableProductsPage
+    extends StatefulWidget {
+  const _AvailableProductsPage();
+
+  @override
+  State<_AvailableProductsPage> createState() =>
+      _AvailableProductsPageState();
+}
+
+class _AvailableProductsPageState
+    extends State<_AvailableProductsPage> {
+  User? get currentUser =>
+      FirebaseAuth.instance.currentUser;
+
+  Future<void> addProduct(
+    String productId,
+    Map<String, dynamic> data,
+  ) async {
+    final user = currentUser;
+
+    if (user == null) return;
+
+    final supplierPrice =
+        (data['price'] is num)
+            ? (data['price'] as num).toDouble()
+            : 0.0;
+
+    final sellerUid =
+        data['sellerId']?.toString() ?? '';
+
+    final sellerEmail =
+        data['sellerEmail']?.toString() ?? '';
+
+    final name =
+        data['name']?.toString() ??
+            'Product';
+
+    final imageUrl =
+        data['imageUrl']?.toString() ?? '';
+
+    final category =
+        data['category']?.toString() ??
+            'General';
+
+    final userDoc =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+    final userData =
+        userDoc.data() ?? {};
+
+    final entrepreneurCode =
+        userData['entrepreneurCode']
+                ?.toString() ??
+            'ENT-${user.uid.substring(0, 6).toUpperCase()}';
+
+    final sellerCode =
+        data['sellerCode']?.toString() ??
+            (sellerUid.isNotEmpty
+                ? 'SELL-${sellerUid.substring(0, 6).toUpperCase()}'
+                : '');
+
+    final controller =
+        TextEditingController(
+      text: (supplierPrice * 1.3)
+          .round()
+          .toString(),
+    );
+
+    final sellingPrice =
+        await showDialog<double>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Set Selling Price',
+          ),
+          content: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style:
+                    const TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Supplier Price: ₩'
+                '${supplierPrice.toStringAsFixed(0)}',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                keyboardType:
+                    TextInputType.number,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Your Selling Price',
+                  prefixText: '₩ ',
+                  border:
+                      OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(
+                context,
+              ),
+              child:
+                  const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final price =
+                    double.tryParse(
+                  controller.text
+                      .replaceAll(
+                        ',',
+                        '',
+                      )
+                      .trim(),
+                );
+
+                if (price == null ||
+                    price <= 0) {
+                  return;
+                }
+
+                Navigator.pop(
+                  context,
+                  price,
+                );
+              },
+              child:
+                  const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (sellingPrice == null) return;
+
+    if (sellingPrice <
+        supplierPrice) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Selling price cannot be lower than supplier price.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final profit =
+        sellingPrice - supplierPrice;
+
+    try {
+      final existing =
+          await FirebaseFirestore
+              .instance
+              .collection(
+                  'reseller_products')
+              .where(
+                'entrepreneurUid',
+                isEqualTo: user.uid,
+              )
+              .where(
+                'productId',
+                isEqualTo: productId,
+              )
+              .limit(1)
+              .get();
+
+      if (existing.docs.isNotEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Already added to My Store.',
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      await FirebaseFirestore.instance
+          .collection(
+              'reseller_products')
+          .add({
+        'productId': productId,
+
+        'entrepreneurUid':
+            user.uid,
+        'entrepreneurCode':
+            entrepreneurCode,
+        'entrepreneurEmail':
+            user.email,
+
+        'sellerUid': sellerUid,
+        'sellerCode': sellerCode,
+        'sellerEmail':
+            sellerEmail,
+
+        'name': name,
+        'imageUrl':
+            imageUrl,
+        'category':
+            category,
+
+        'supplierPrice':
+            supplierPrice,
+        'sellingPrice':
+            sellingPrice,
+        'profit': profit,
+
+        'active': true,
+
+        'createdAt':
+            FieldValue
+                .serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Product added to My Store!',
+          ),
+          behavior:
+              SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Find Products',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+      ),
+
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore
+            .instance
+            .collection('products')
+            .orderBy(
+              'createdAt',
+              descending: true,
+            )
+            .snapshots(),
+
+        builder:
+            (context, snapshot) {
+          if (snapshot
+                  .connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error:\n'
+                '${snapshot.error}',
+                textAlign:
+                    TextAlign.center,
+              ),
+            );
+          }
+
+          final docs =
+              snapshot.data?.docs ??
+                  [];
+
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'No products available.',
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding:
+                const EdgeInsets.all(12),
+            itemCount:
+                docs.length,
+
+            itemBuilder:
+                (context, index) {
+              final doc =
+                  docs[index];
+
+              final data =
+                  doc.data()
+                      as Map<String,
+                          dynamic>;
+
+              final name =
+                  data['name']
+                          ?.toString() ??
+                      'Product';
+
+              final price =
+                  (data['price']
+                          is num)
+                      ? (data['price']
+                              as num)
+                          .toDouble()
+                      : 0.0;
+
+              final imageUrl =
+                  data['imageUrl']
+                          ?.toString() ??
+                      '';
+
+              final sellerEmail =
+                  data['sellerEmail']
+                          ?.toString() ??
+                      '';
+
+              return Card(
+                margin:
+                    const EdgeInsets
+                        .only(
+                  bottom: 10,
+                ),
+
+                child: ListTile(
+                  contentPadding:
+                      const EdgeInsets
+                          .all(10),
+
+                  leading:
+                      ClipRRect(
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      8,
+                    ),
+                    child: SizedBox(
+                      width: 65,
+                      height: 65,
+                      child: imageUrl
+                              .isNotEmpty
+                          ? Image.network(
+                              imageUrl,
+                              fit: BoxFit
+                                  .cover,
+                              errorBuilder:
+                                  (
+                                context,
+                                error,
+                                stackTrace,
+                              ) {
+                                return const Icon(
+                                  Icons.image,
+                                );
+                              },
+                            )
+                          : const Icon(
+                              Icons.image,
+                              size: 35,
+                            ),
+                    ),
+                  ),
+
+                  title: Text(
+                    name,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+
+                  subtitle:
+                      Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
+                    children: [
+                      const SizedBox(
+                        height: 4,
+                      ),
+                      Text(
+                        'Supplier Price: ₩'
+                        '${price.toStringAsFixed(0)}',
+                      ),
+                      if (sellerEmail
+                          .isNotEmpty)
+                        Text(
+                          sellerEmail,
+                          style:
+                              const TextStyle(
+                            fontSize:
+                                11,
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  trailing:
+                      ElevatedButton(
+                    onPressed: () =>
+                        addProduct(
+                      doc.id,
+                      data,
+                    ),
+                    child:
+                        const Text(
+                      'Add',
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
