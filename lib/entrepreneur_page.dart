@@ -496,97 +496,6 @@ class _MyStorePageState extends State<MyStorePage> {
   User? get currentUser =>
       FirebaseAuth.instance.currentUser;
 
-  Future<double?> _showPriceDialog(
-    double supplierPrice,
-    String productName,
-  ) async {
-    final controller = TextEditingController(
-      text: (supplierPrice * 1.3).round().toString(),
-    );
-
-    final result = await showDialog<double>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Set Your Selling Price',
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                productName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Supplier Price: '
-                '₩${supplierPrice.toStringAsFixed(0)}',
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                keyboardType:
-                    TextInputType.number,
-                decoration:
-                    const InputDecoration(
-                  labelText:
-                      'Your Selling Price',
-                  prefixText: '₩ ',
-                  border:
-                      OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Your profit will be calculated automatically.',
-                style: TextStyle(
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value =
-                    double.tryParse(
-                  controller.text
-                      .replaceAll(',', '')
-                      .trim(),
-                );
-
-                if (value == null ||
-                    value <= 0) {
-                  return;
-                }
-
-                Navigator.pop(
-                  context,
-                  value,
-                );
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
-    return result;
-  }
-
   Future<void> _removeFromStore(
     String documentId,
     String name,
@@ -961,15 +870,15 @@ class _MyStorePageState extends State<MyStorePage> {
                             height: 6,
                           ),
                           Text(
-                            'Supplier: ₩'
+                            'Supplier: â‚©'
                             '${supplierPrice.toStringAsFixed(0)}',
                           ),
                           Text(
-                            'Selling: ₩'
+                            'Selling: â‚©'
                             '${sellingPrice.toStringAsFixed(0)}',
                           ),
                           Text(
-                            'Profit: ₩'
+                            'Profit: â‚©'
                             '${profit.toStringAsFixed(0)}',
                             style:
                                 const TextStyle(
@@ -1130,6 +1039,213 @@ class _AvailableProductsPageState
             children: [
               Text(
                 name,
-                style:
-                    const TextStyle(
-                 
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Supplier Price: '
+                'â‚©${supplierPrice.toStringAsFixed(0)}',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Your Selling Price',
+                  prefixText: 'â‚© ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Your profit will be calculated automatically.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value = double.tryParse(
+                  controller.text.replaceAll(',', '').trim(),
+                );
+
+                if (value == null || value <= 0) {
+                  return;
+                }
+
+                Navigator.pop(context, value);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (sellingPrice == null) return;
+
+    final profit = sellingPrice - supplierPrice;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('reseller_products')
+          .add({
+        'productId': productId,
+        'name': name,
+        'imageUrl': imageUrl,
+        'category': category,
+        'supplierPrice': supplierPrice,
+        'sellingPrice': sellingPrice,
+        'profit': profit,
+        'entrepreneurUid': user.uid,
+        'entrepreneurCode': entrepreneurCode,
+        'sellerUid': sellerUid,
+        'sellerCode': sellerCode,
+        'sellerEmail': sellerEmail,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$name added to your store!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to add product: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Find Products',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('products')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Error loading products:\n${snapshot.error}'),
+            );
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
+            return const Center(child: Text('No products available yet'));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+
+              final name = data['name']?.toString() ?? 'Product';
+              final imageUrl = data['imageUrl']?.toString() ?? '';
+              final price = (data['price'] is num)
+                  ? (data['price'] as num).toDouble()
+                  : 0.0;
+              final sellerEmail = data['sellerEmail']?.toString() ?? '';
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: 85,
+                          height: 85,
+                          child: imageUrl.isNotEmpty
+                              ? Image.network(
+                                  imageUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Icon(Icons.image, size: 40);
+                                  },
+                                )
+                              : const Icon(Icons.image, size: 40),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text('Supplier Price: â‚©${price.toStringAsFixed(0)}'),
+                            if (sellerEmail.isNotEmpty)
+                              Text(
+                                'Seller: $sellerEmail',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () => addProduct(doc.id, data),
+                                child: const Text('Add to My Store'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
