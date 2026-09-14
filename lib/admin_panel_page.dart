@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Only reachable if the logged-in user's email matches kAdminEmail
-/// (checked before navigating here â€” see user_profile_page.dart).
+/// Only reachable if the logged-in user's email matches kAdminEmail.
 const String kAdminEmail = 'miamdarif010@gmail.com';
 
 class AdminPanelPage extends StatefulWidget {
@@ -20,12 +19,10 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   void initState() {
     super.initState();
 
-    // 4 tabs:
-    // 1. Products
-    // 2. Users
-    // 3. Seller Requests
-    // 4. Entrepreneur Requests
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(
+      length: 5,
+      vsync: this,
+    );
   }
 
   @override
@@ -35,22 +32,47 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
+  // AUTOMATIC SELLER ID
+  // ===========================================================
+
+  String _generateSellerCode(String uid) {
+    final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
+    return 'SELL-${shortId.toUpperCase()}';
+  }
+
+  // ===========================================================
+  // AUTOMATIC ENTREPRENEUR ID
+  // ===========================================================
+
+  String _generateEntrepreneurCode(String uid) {
+    final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
+    return 'ENT-${shortId.toUpperCase()}';
+  }
+
+  // ===========================================================
   // DELETE PRODUCT
   // ===========================================================
 
-  Future<void> _deleteProduct(String productId, String name) async {
+  Future<void> _deleteProduct(
+    String productId,
+    String name,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Product'),
-        content: Text('Delete "$name"? This cannot be undone.'),
+        content: Text(
+          'Delete "$name"? This cannot be undone.',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () =>
+                Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () =>
+                Navigator.pop(context, true),
             child: const Text(
               'Delete',
               style: TextStyle(color: Colors.red),
@@ -72,7 +94,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Product deleted successfully'),
+          content: Text(
+            'Product deleted successfully',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -81,7 +105,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to delete product: $e'),
+          content: Text(
+            'Failed to delete product: $e',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -89,7 +115,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
-  // UPDATE SELLER STATUS
+  // UPDATE SELLER STATUS + SELLER ID
   // ===========================================================
 
   Future<void> _updateSellerStatus(
@@ -97,13 +123,38 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String status,
   ) async {
     try {
-      await FirebaseFirestore.instance
+      final userRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(uid)
-          .set(
-        {
-          'sellerStatus': status,
-        },
+          .doc(uid);
+
+      final userDoc = await userRef.get();
+
+      final existingData =
+          userDoc.data() ?? {};
+
+      final updateData =
+          <String, dynamic>{
+        'sellerStatus': status,
+      };
+
+      // Generate Seller ID when approved.
+      if (status == 'approved') {
+        final existingSellerCode =
+            existingData['sellerCode']
+                    ?.toString() ??
+                '';
+
+        if (existingSellerCode.isEmpty) {
+          updateData['sellerCode'] =
+              _generateSellerCode(uid);
+
+          updateData['sellerApprovedAt'] =
+              FieldValue.serverTimestamp();
+        }
+      }
+
+      await userRef.set(
+        updateData,
         SetOptions(merge: true),
       );
 
@@ -113,7 +164,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         SnackBar(
           content: Text(
             status == 'approved'
-                ? 'Seller approved successfully'
+                ? 'Seller approved and Seller ID created'
                 : 'Seller request rejected',
           ),
           behavior: SnackBarBehavior.floating,
@@ -124,7 +175,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update seller status: $e'),
+          content: Text(
+            'Failed to update seller status: $e',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -132,7 +185,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
-  // UPDATE ENTREPRENEUR STATUS
+  // UPDATE ENTREPRENEUR STATUS + ENTREPRENEUR ID
   // ===========================================================
 
   Future<void> _updateEntrepreneurStatus(
@@ -140,13 +193,38 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String status,
   ) async {
     try {
-      await FirebaseFirestore.instance
+      final userRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(uid)
-          .set(
-        {
-          'entrepreneurStatus': status,
-        },
+          .doc(uid);
+
+      final userDoc = await userRef.get();
+
+      final existingData =
+          userDoc.data() ?? {};
+
+      final updateData =
+          <String, dynamic>{
+        'entrepreneurStatus': status,
+      };
+
+      // Generate Entrepreneur ID when approved.
+      if (status == 'approved') {
+        final existingEntrepreneurCode =
+            existingData['entrepreneurCode']
+                    ?.toString() ??
+                '';
+
+        if (existingEntrepreneurCode.isEmpty) {
+          updateData['entrepreneurCode'] =
+              _generateEntrepreneurCode(uid);
+
+          updateData['entrepreneurApprovedAt'] =
+              FieldValue.serverTimestamp();
+        }
+      }
+
+      await userRef.set(
+        updateData,
         SetOptions(merge: true),
       );
 
@@ -156,7 +234,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         SnackBar(
           content: Text(
             status == 'approved'
-                ? 'Entrepreneur approved successfully'
+                ? 'Entrepreneur approved and ID created'
                 : 'Entrepreneur request rejected',
           ),
           behavior: SnackBarBehavior.floating,
@@ -167,7 +245,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update entrepreneur status: $e'),
+          content: Text(
+            'Failed to update entrepreneur status: $e',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -190,14 +270,10 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         ),
         backgroundColor: Colors.black87,
         foregroundColor: Colors.white,
-
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
-
-          // Allows the 4 tabs to fit better on phone screens.
           isScrollable: true,
-
           tabs: const [
             Tab(
               icon: Icon(Icons.inventory_2_outlined),
@@ -212,13 +288,20 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               text: 'Seller Requests',
             ),
             Tab(
-              icon: Icon(Icons.business_center_outlined),
+              icon: Icon(
+                Icons.business_center_outlined,
+              ),
               text: 'Entrepreneur Requests',
+            ),
+            Tab(
+              icon: Icon(
+                Icons.link_outlined,
+              ),
+              text: 'Relationships',
             ),
           ],
         ),
       ),
-
       body: TabBarView(
         controller: _tabController,
         children: [
@@ -226,6 +309,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           _usersTab(),
           _sellerRequestsTab(),
           _entrepreneurRequestsTab(),
+          _relationshipsTab(),
         ],
       ),
     );
@@ -244,7 +328,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             descending: true,
           )
           .snapshots(),
-
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
@@ -258,14 +341,16 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Error loading products:\n${snapshot.error}',
+                'Error loading products:\n'
+                '${snapshot.error}',
                 textAlign: TextAlign.center,
               ),
             ),
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -276,80 +361,86 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         return ListView.builder(
           padding: const EdgeInsets.all(8),
           itemCount: docs.length,
-
           itemBuilder: (context, index) {
             final doc = docs[index];
 
             final data =
-                doc.data() as Map<String, dynamic>;
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
-                data['name']?.toString() ?? 'Unnamed';
+                data['name']?.toString() ??
+                    'Unnamed';
 
             final price =
-                (data['price'] is num)
-                    ? (data['price'] as num).toDouble()
+                data['price'] is num
+                    ? (data['price'] as num)
+                        .toDouble()
                     : 0.0;
 
             final imageUrl =
                 data['imageUrl']?.toString();
 
             final sellerEmail =
-                data['sellerEmail']?.toString() ??
+                data['sellerEmail']
+                        ?.toString() ??
                     'Unknown seller';
+
+            final sellerCode =
+                data['sellerCode']
+                        ?.toString() ??
+                    '';
 
             final category =
                 data['category']?.toString() ??
                     'General';
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 4,
               ),
-
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor:
                       Colors.grey.shade200,
-
                   backgroundImage:
-                      (imageUrl != null &&
-                              imageUrl.isNotEmpty)
-                          ? NetworkImage(imageUrl)
+                      imageUrl != null &&
+                              imageUrl.isNotEmpty
+                          ? NetworkImage(
+                              imageUrl,
+                            )
                           : null,
-
                   child:
-                      (imageUrl == null ||
-                              imageUrl.isEmpty)
+                      imageUrl == null ||
+                              imageUrl.isEmpty
                           ? const Icon(
                               Icons.image,
                               color: Colors.grey,
                             )
                           : null,
                 ),
-
                 title: Text(
                   name,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  overflow:
+                      TextOverflow.ellipsis,
                 ),
-
                 subtitle: Text(
                   '₩${price.toStringAsFixed(0)} • '
                   '$category\n'
+                  '${sellerCode.isNotEmpty ? '$sellerCode • ' : ''}'
                   '$sellerEmail',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 3,
+                  overflow:
+                      TextOverflow.ellipsis,
                 ),
-
                 isThreeLine: true,
-
                 trailing: IconButton(
                   icon: const Icon(
                     Icons.delete_outline,
                     color: Colors.red,
                   ),
-
                   onPressed: () =>
                       _deleteProduct(
                     doc.id,
@@ -373,7 +464,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
       stream: FirebaseFirestore.instance
           .collection('users')
           .snapshots(),
-
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
@@ -387,14 +477,16 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Error loading users:\n${snapshot.error}',
+                'Error loading users:\n'
+                '${snapshot.error}',
                 textAlign: TextAlign.center,
               ),
             ),
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -405,22 +497,24 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         return ListView.builder(
           padding: const EdgeInsets.all(8),
           itemCount: docs.length,
-
           itemBuilder: (context, index) {
             final doc = docs[index];
 
             final data =
-                doc.data() as Map<String, dynamic>;
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
                 data['name']?.toString() ??
                     'Unnamed User';
 
             final email =
-                data['email']?.toString() ?? '';
+                data['email']?.toString() ??
+                    '';
 
             final sellerStatus =
-                data['sellerStatus']?.toString() ??
+                data['sellerStatus']
+                        ?.toString() ??
                     'none';
 
             final entrepreneurStatus =
@@ -428,75 +522,117 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         ?.toString() ??
                     'none';
 
+            final sellerCode =
+                data['sellerCode']
+                        ?.toString() ??
+                    '';
+
+            final entrepreneurCode =
+                data['entrepreneurCode']
+                        ?.toString() ??
+                    '';
+
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 5,
               ),
-
               child: Padding(
-                padding: const EdgeInsets.all(10),
-
-                child: Row(
+                padding:
+                    const EdgeInsets.all(10),
+                child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
-
                   children: [
-                    const CircleAvatar(
-                      child: Icon(Icons.person),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        const CircleAvatar(
+                          child: Icon(
+                            Icons.person,
                           ),
-
-                          const SizedBox(height: 3),
-
-                          Text(
-                            email,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color:
-                                  Colors.grey.shade600,
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 5,
+                        ),
+                        const SizedBox(
+                          width: 12,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
                             children: [
-                              _statusChip(
-                                label:
-                                    'Seller: $sellerStatus',
-                                status:
-                                    sellerStatus,
+                              Text(
+                                name,
+                                style:
+                                    const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
+                                ),
                               ),
-
-                              _statusChip(
-                                label:
-                                    'Entrepreneur: '
-                                    '$entrepreneurStatus',
-                                status:
-                                    entrepreneurStatus,
+                              const SizedBox(
+                                height: 3,
+                              ),
+                              Text(
+                                email,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors
+                                      .grey
+                                      .shade600,
+                                ),
                               ),
                             ],
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // SELLER ID
+                    if (sellerCode.isNotEmpty)
+                      _idBox(
+                        icon:
+                            Icons.storefront,
+                        title: 'Seller ID',
+                        value: sellerCode,
                       ),
+
+                    // ENTREPRENEUR ID
+                    if (entrepreneurCode
+                        .isNotEmpty)
+                      _idBox(
+                        icon:
+                            Icons.business_center,
+                        title:
+                            'Entrepreneur ID',
+                        value:
+                            entrepreneurCode,
+                      ),
+
+                    const SizedBox(height: 8),
+
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 5,
+                      children: [
+                        _statusChip(
+                          label:
+                              'Seller: $sellerStatus',
+                          status:
+                              sellerStatus,
+                        ),
+                        _statusChip(
+                          label:
+                              'Entrepreneur: '
+                              '$entrepreneurStatus',
+                          status:
+                              entrepreneurStatus,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -505,6 +641,55 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           },
         );
       },
+    );
+  }
+
+  // ===========================================================
+  // ID BOX
+  // ===========================================================
+
+  Widget _idBox({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin:
+          const EdgeInsets.only(bottom: 6),
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius:
+            BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 19,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$title: ',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -522,15 +707,12 @@ class _AdminPanelPageState extends State<AdminPanelPage>
       case 'approved':
         color = Colors.green;
         break;
-
       case 'pending':
         color = Colors.orange;
         break;
-
       case 'rejected':
         color = Colors.red;
         break;
-
       default:
         color = Colors.grey;
     }
@@ -564,7 +746,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             isEqualTo: 'pending',
           )
           .snapshots(),
-
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
@@ -586,7 +767,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -599,67 +781,62 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         return ListView.builder(
           padding: const EdgeInsets.all(8),
           itemCount: docs.length,
-
           itemBuilder: (context, index) {
             final doc = docs[index];
 
             final data =
-                doc.data() as Map<String, dynamic>;
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
                 data['name']?.toString() ??
                     'Unnamed User';
 
             final email =
-                data['email']?.toString() ?? '';
+                data['email']?.toString() ??
+                    '';
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 4,
               ),
-
               child: ListTile(
-                leading: const CircleAvatar(
+                leading:
+                    const CircleAvatar(
                   child: Icon(
                     Icons.storefront_outlined,
                   ),
                 ),
-
                 title: Text(name),
-
                 subtitle: Text(
                   email,
                   maxLines: 1,
                   overflow:
                       TextOverflow.ellipsis,
                 ),
-
                 trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize:
+                      MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: const Icon(
                         Icons.check_circle,
                         color: Colors.green,
                       ),
-
                       tooltip: 'Approve',
-
                       onPressed: () =>
                           _updateSellerStatus(
                         doc.id,
                         'approved',
                       ),
                     ),
-
                     IconButton(
                       icon: const Icon(
                         Icons.cancel,
                         color: Colors.red,
                       ),
-
                       tooltip: 'Reject',
-
                       onPressed: () =>
                           _updateSellerStatus(
                         doc.id,
@@ -689,7 +866,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             isEqualTo: 'pending',
           )
           .snapshots(),
-
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
@@ -711,7 +887,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -724,9 +901,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   size: 55,
                   color: Colors.grey,
                 ),
-
                 SizedBox(height: 12),
-
                 Text(
                   'No pending entrepreneur requests',
                   style: TextStyle(
@@ -741,87 +916,90 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         return ListView.builder(
           padding: const EdgeInsets.all(8),
           itemCount: docs.length,
-
           itemBuilder: (context, index) {
             final doc = docs[index];
 
             final data =
-                doc.data() as Map<String, dynamic>;
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
                 data['name']?.toString() ??
                     'Unnamed User';
 
             final email =
-                data['email']?.toString() ?? '';
+                data['email']?.toString() ??
+                    '';
 
             final phone =
-                data['phone']?.toString() ?? '';
+                data['phone']?.toString() ??
+                    '';
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 5,
               ),
-
               child: Padding(
-                padding: const EdgeInsets.all(8),
-
+                padding:
+                    const EdgeInsets.all(8),
                 child: ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 4,
                   ),
-
-                  leading: const CircleAvatar(
+                  leading:
+                      const CircleAvatar(
                     radius: 27,
                     child: Icon(
                       Icons.business_center_outlined,
                     ),
                   ),
-
                   title: Text(
                     name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
-
                   subtitle: Padding(
                     padding:
                         const EdgeInsets.only(
                       top: 5,
                     ),
-
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
-
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         Text(
                           email,
                           maxLines: 1,
                           overflow:
-                              TextOverflow.ellipsis,
+                              TextOverflow
+                                  .ellipsis,
                         ),
-
                         if (phone.isNotEmpty)
                           Padding(
                             padding:
-                                const EdgeInsets.only(
+                                const EdgeInsets
+                                    .only(
                               top: 3,
                             ),
                             child: Text(
                               phone,
                             ),
                           ),
-
-                        const SizedBox(height: 5),
-
+                        const SizedBox(
+                          height: 5,
+                        ),
                         const Text(
                           'Status: Pending',
                           style: TextStyle(
-                            color: Colors.orange,
+                            color:
+                                Colors.orange,
                             fontWeight:
                                 FontWeight.w600,
                           ),
@@ -829,20 +1007,19 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       ],
                     ),
                   ),
-
                   trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-
+                    mainAxisSize:
+                        MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon:
+                            const Icon(
                           Icons.check_circle,
-                          color: Colors.green,
+                          color:
+                              Colors.green,
                         ),
-
                         tooltip:
                             'Approve Entrepreneur',
-
                         onPressed: () =>
                             _confirmEntrepreneurAction(
                           doc.id,
@@ -850,16 +1027,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                           'approved',
                         ),
                       ),
-
                       IconButton(
-                        icon: const Icon(
+                        icon:
+                            const Icon(
                           Icons.cancel,
                           color: Colors.red,
                         ),
-
                         tooltip:
                             'Reject Entrepreneur',
-
                         onPressed: () =>
                             _confirmEntrepreneurAction(
                           doc.id,
@@ -879,6 +1054,333 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
+  // SELLER ↔ ENTREPRENEUR RELATIONSHIPS
+  // ===========================================================
+
+  Widget _relationshipsTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('reseller_products')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding:
+                  const EdgeInsets.all(20),
+              child: Text(
+                'Error loading relationships:\n'
+                '${snapshot.error}',
+                textAlign:
+                    TextAlign.center,
+              ),
+            ),
+          );
+        }
+
+        final docs =
+            snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.link_off,
+                  size: 55,
+                  color: Colors.grey,
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'No Seller ↔ Entrepreneur relationships yet',
+                  textAlign:
+                      TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding:
+              const EdgeInsets.all(8),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+
+            final data =
+                doc.data()
+                    as Map<String, dynamic>;
+
+            final sellerCode =
+                data['sellerCode']
+                        ?.toString() ??
+                    'Unknown';
+
+            final sellerEmail =
+                data['sellerEmail']
+                        ?.toString() ??
+                    'Unknown';
+
+            final entrepreneurCode =
+                data['entrepreneurCode']
+                        ?.toString() ??
+                    'Unknown';
+
+            final entrepreneurEmail =
+                data['entrepreneurEmail']
+                        ?.toString() ??
+                    'Unknown';
+
+            final productName =
+                data['name']?.toString() ??
+                    'Unknown Product';
+
+            final supplierPrice =
+                data['supplierPrice'] is num
+                    ? (data['supplierPrice']
+                            as num)
+                        .toDouble()
+                    : 0.0;
+
+            final sellingPrice =
+                data['sellingPrice'] is num
+                    ? (data['sellingPrice']
+                            as num)
+                        .toDouble()
+                    : 0.0;
+
+            final profit =
+                data['profit'] is num
+                    ? (data['profit'] as num)
+                        .toDouble()
+                    : sellingPrice -
+                        supplierPrice;
+
+            return Card(
+              margin:
+                  const EdgeInsets.symmetric(
+                vertical: 5,
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.link,
+                          color: Colors.blue,
+                        ),
+                        const SizedBox(
+                          width: 8,
+                        ),
+                        Expanded(
+                          child: Text(
+                            productName,
+                            style:
+                                const TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const Divider(),
+
+                    // SELLER
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        const Icon(
+                          Icons.storefront,
+                          size: 20,
+                        ),
+                        const SizedBox(
+                          width: 8,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
+                            children: [
+                              const Text(
+                                'SELLER',
+                                style:
+                                    TextStyle(
+                                  fontSize: 11,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                sellerCode,
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                sellerEmail,
+                                maxLines: 1,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    // ARROW
+                    const Center(
+                      child: Icon(
+                        Icons
+                            .arrow_downward,
+                        size: 25,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    // ENTREPRENEUR
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        const Icon(
+                          Icons
+                              .business_center,
+                          size: 20,
+                        ),
+                        const SizedBox(
+                          width: 8,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
+                            children: [
+                              const Text(
+                                'ENTREPRENEUR / RESELLER',
+                                style:
+                                    TextStyle(
+                                  fontSize: 11,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                entrepreneurCode,
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                entrepreneurEmail,
+                                maxLines: 1,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const Divider(),
+
+                    // PRICE INFORMATION
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment
+                              .spaceBetween,
+                      children: [
+                        _priceInfo(
+                          'Supplier',
+                          supplierPrice,
+                        ),
+                        _priceInfo(
+                          'Selling',
+                          sellingPrice,
+                        ),
+                        _priceInfo(
+                          'Profit',
+                          profit,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ===========================================================
+  // PRICE INFO
+  // ===========================================================
+
+  Widget _priceInfo(
+    String title,
+    double price,
+  ) {
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        Text(
+          '₩${price.toStringAsFixed(0)}',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================
   // CONFIRM ENTREPRENEUR ACTION
   // ===========================================================
 
@@ -887,44 +1389,49 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String name,
     String status,
   ) async {
-    final isApprove = status == 'approved';
+    final isApprove =
+        status == 'approved';
 
-    final result = await showDialog<bool>(
+    final result =
+        await showDialog<bool>(
       context: context,
-
-      builder: (context) => AlertDialog(
+      builder: (context) =>
+          AlertDialog(
         title: Text(
           isApprove
               ? 'Approve Entrepreneur'
               : 'Reject Entrepreneur',
         ),
-
         content: Text(
           isApprove
               ? 'Approve "$name" as an Entrepreneur / Reseller?'
               : 'Reject "$name"\'s Entrepreneur request?',
         ),
-
         actions: [
           TextButton(
             onPressed: () =>
-                Navigator.pop(context, false),
-
-            child: const Text('Cancel'),
+                Navigator.pop(
+              context,
+              false,
+            ),
+            child:
+                const Text('Cancel'),
           ),
-
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
+            style:
+                ElevatedButton.styleFrom(
               backgroundColor:
                   isApprove
                       ? Colors.green
                       : Colors.red,
-              foregroundColor: Colors.white,
+              foregroundColor:
+                  Colors.white,
             ),
-
             onPressed: () =>
-                Navigator.pop(context, true),
-
+                Navigator.pop(
+              context,
+              true,
+            ),
             child: Text(
               isApprove
                   ? 'Approve'
