@@ -8,6 +8,7 @@ import 'add_product_page.dart';
 import 'settings_page.dart';
 import 'cart_page.dart';
 import 'categories_page.dart';
+import 'news_feed_page.dart';
 import 'migrate_products_page.dart'; // TEMPORARY â€” remove after migration
 
 class HomePage extends StatefulWidget {
@@ -190,6 +191,21 @@ class _HomePageState extends State<HomePage> {
                           ),
                         );
                       }
+                    },
+                  ),
+
+                  ListTile(
+                    leading: const Icon(Icons.dynamic_feed_outlined),
+                    title: const Text('News Feed'),
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NewsFeedPage(),
+                        ),
+                      );
                     },
                   ),
 
