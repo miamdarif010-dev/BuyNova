@@ -25,22 +25,20 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     super.dispose();
   }
 
+  void _openLogin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LoginPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        title: const Text(
-          'News Feed',
-          style: TextStyle(color: Colors.white),
-        ),
-        iconTheme: const IconThemeData(
-          color: Colors.white,
-        ),
-      ),
-      body: StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('sellerVideos')
             .where('status', isEqualTo: 'published')
@@ -48,18 +46,27 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(
-              child: Text(
-                'Failed to load feed',
-                style: TextStyle(
-                  color: Colors.white,
+            return Stack(
+              children: [
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Videos could not be loaded.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                _topButtons(),
+              ],
             );
           }
 
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(
                 color: Colors.white,
@@ -67,806 +74,745 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
             );
           }
 
-          final docs =
-              snapshot.data?.docs ?? [];
+          final videos = snapshot.data?.docs ?? [];
 
-          if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'No videos yet',
-                style: TextStyle(
-                  color: Colors.white70,
+          if (videos.isEmpty) {
+            return Stack(
+              children: [
+                const Center(
+                  child: Text(
+                    'No videos yet',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
+                _topButtons(),
+              ],
             );
           }
 
-          return PageView.builder(
-            controller: _pageController,
-            scrollDirection: Axis.vertical,
-            itemCount: docs.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPage = index;
-              });
-            },
-            itemBuilder: (context, index) {
-              final doc = docs[index];
+          return Stack(
+            children: [
+              PageView.builder(
+                controller: _pageController,
+                scrollDirection: Axis.vertical,
+                itemCount: videos.length,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPage = index;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final data = videos[index].data();
 
-              final data =
-                  doc.data() as Map<String, dynamic>;
+                  return _ReelsVideoItem(
+                    key: ValueKey(videos[index].id),
+                    videoId: videos[index].id,
+                    data: data,
+                    isActive: index == _currentPage,
+                    onLoginRequired: _openLogin,
+                  );
+                },
+              ),
 
-              return _FeedVideoItem(
-                key: ValueKey(doc.id),
-                videoId: doc.id,
-                data: data,
-                isActive:
-                    index == _currentPage,
-              );
-            },
+              _topButtons(),
+
+              Positioned(
+                top: 58,
+                left: 20,
+                child: SafeArea(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.play_circle_fill,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Videos',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
     );
   }
+
+  Widget _topButtons() {
+    return Positioned(
+      top: 45,
+      right: 12,
+      child: SafeArea(
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              icon: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-// =============================================================
-// FEED VIDEO ITEM
-// =============================================================
-
-class _FeedVideoItem extends StatefulWidget {
+class _ReelsVideoItem extends StatefulWidget {
   final String videoId;
   final Map<String, dynamic> data;
   final bool isActive;
+  final VoidCallback onLoginRequired;
 
-  const _FeedVideoItem({
+  const _ReelsVideoItem({
     super.key,
     required this.videoId,
     required this.data,
     required this.isActive,
+    required this.onLoginRequired,
   });
 
   @override
-  State<_FeedVideoItem> createState() =>
-      _FeedVideoItemState();
+  State<_ReelsVideoItem> createState() => _ReelsVideoItemState();
 }
 
-class _FeedVideoItemState
-    extends State<_FeedVideoItem> {
+class _ReelsVideoItemState extends State<_ReelsVideoItem> {
   VideoPlayerController? _controller;
 
   bool _isInitialized = false;
-  bool _hasError = false;
+  bool _isPlaying = false;
+  bool _isLiked = false;
+  bool _isLoadingLike = false;
 
-  // Prevent duplicate view count during
-  // this widget/session.
-  bool _viewRecorded = false;
+  int _likeCount = 0;
+  int _commentCount = 0;
+  int _viewCount = 0;
+  int _shareCount = 0;
 
-  String? get _uid =>
-      FirebaseAuth.instance.currentUser?.uid;
-
-  DocumentReference<Map<String, dynamic>>
-      get _videoRef {
-    return FirebaseFirestore.instance
-        .collection('sellerVideos')
-        .doc(widget.videoId);
-  }
+  User? get currentUser => FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
-    _initializeVideo();
-  }
 
-  @override
-  void didUpdateWidget(
-    covariant _FeedVideoItem oldWidget,
-  ) {
-    super.didUpdateWidget(oldWidget);
+    _likeCount = _toInt(widget.data['likeCount']);
+    _commentCount = _toInt(widget.data['commentCount']);
+    _viewCount = _toInt(widget.data['viewCount']);
+    _shareCount = _toInt(widget.data['shareCount']);
 
-    if (_controller == null) return;
+    _loadVideo();
+
+    _checkLike();
 
     if (widget.isActive) {
-      if (!_controller!.value.isPlaying) {
-        _controller!.play();
-      }
-
       _recordView();
-    } else {
-      if (_controller!.value.isPlaying) {
-        _controller!.pause();
-      }
     }
   }
 
-  // =========================================================
-  // INITIALIZE VIDEO
-  // =========================================================
+  @override
+  void didUpdateWidget(covariant _ReelsVideoItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
-  Future<void> _initializeVideo() async {
-    final videoUrl =
-        widget.data['videoUrl']?.toString() ?? '';
+    if (widget.isActive && !oldWidget.isActive) {
+      _playVideo();
+      _recordView();
+    }
+
+    if (!widget.isActive && oldWidget.isActive) {
+      _pauseVideo();
+    }
+  }
+
+  Future<void> _loadVideo() async {
+    final videoUrl = widget.data['videoUrl']?.toString() ?? '';
 
     if (videoUrl.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-        });
-      }
       return;
     }
 
     try {
-      final controller =
-          VideoPlayerController.networkUrl(
+      final controller = VideoPlayerController.networkUrl(
         Uri.parse(videoUrl),
       );
 
+      _controller = controller;
+
       await controller.initialize();
 
-      controller.setLooping(true);
+      await controller.setLooping(true);
 
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
-        _controller = controller;
         _isInitialized = true;
       });
 
       if (widget.isActive) {
-        controller.play();
-        _recordView();
+        await controller.play();
+
+        if (mounted) {
+          setState(() {
+            _isPlaying = true;
+          });
+        }
       }
-    } catch (e) {
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isInitialized = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _playVideo() async {
+    final controller = _controller;
+
+    if (controller == null || !_isInitialized) return;
+
+    try {
+      await controller.play();
+
+      if (mounted) {
+        setState(() {
+          _isPlaying = true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pauseVideo() async {
+    final controller = _controller;
+
+    if (controller == null) return;
+
+    try {
+      await controller.pause();
+
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _togglePlayPause() async {
+    final controller = _controller;
+
+    if (controller == null || !_isInitialized) return;
+
+    if (controller.value.isPlaying) {
+      await _pauseVideo();
+    } else {
+      await _playVideo();
+    }
+  }
+
+  Future<void> _checkLike() async {
+    final user = currentUser;
+
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('sellerVideos')
+          .doc(widget.videoId)
+          .collection('likes')
+          .doc(user.uid)
+          .get();
+
       if (!mounted) return;
 
       setState(() {
-        _hasError = true;
+        _isLiked = doc.exists;
       });
-    }
+    } catch (_) {}
   }
-
-  // =========================================================
-  // RECORD VIEW
-  // =========================================================
-
-  Future<void> _recordView() async {
-    if (_viewRecorded) return;
-
-    _viewRecorded = true;
-
-    try {
-      final uid = _uid;
-
-      // Logged-in user:
-      // store individual view to prevent
-      // repeated views for the same video.
-      if (uid != null) {
-        final viewRef = _videoRef
-            .collection('views')
-            .doc(uid);
-
-        final viewDoc =
-            await viewRef.get();
-
-        if (viewDoc.exists) return;
-
-        await FirebaseFirestore.instance
-            .runTransaction((transaction) async {
-          final freshView =
-              await transaction.get(viewRef);
-
-          if (freshView.exists) return;
-
-          transaction.set(
-            viewRef,
-            {
-              'userId': uid,
-              'viewedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          transaction.update(
-            _videoRef,
-            {
-              'viewCount':
-                  FieldValue.increment(1),
-            },
-          );
-        });
-      } else {
-        // For guest users, record only once
-        // during this widget lifetime.
-        await _videoRef.update({
-          'viewCount':
-              FieldValue.increment(1),
-        });
-      }
-    } catch (e) {
-      debugPrint(
-        'View recording error: $e',
-      );
-    }
-  }
-
-  // =========================================================
-  // PLAY / PAUSE
-  // =========================================================
-
-  void _togglePlayPause() {
-    if (_controller == null) return;
-
-    setState(() {
-      if (_controller!.value.isPlaying) {
-        _controller!.pause();
-      } else {
-        _controller!.play();
-      }
-    });
-  }
-
-  // =========================================================
-  // LIKE / UNLIKE
-  // =========================================================
 
   Future<void> _toggleLike() async {
-    final uid = _uid;
+    final user = currentUser;
 
-    if (uid == null) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              const LoginPage(),
-        ),
-      );
+    if (user == null) {
+      widget.onLoginRequired();
       return;
     }
 
-    final likeRef = _videoRef
-        .collection('likes')
-        .doc(uid);
+    if (_isLoadingLike) return;
+
+    setState(() {
+      _isLoadingLike = true;
+    });
+
+    final videoRef = FirebaseFirestore.instance
+        .collection('sellerVideos')
+        .doc(widget.videoId);
+
+    final likeRef = videoRef.collection('likes').doc(user.uid);
 
     try {
-      await FirebaseFirestore.instance
-          .runTransaction((transaction) async {
-        final likeDoc =
-            await transaction.get(likeRef);
+      final result = await FirebaseFirestore.instance.runTransaction(
+        (transaction) async {
+          final likeSnapshot = await transaction.get(likeRef);
+          final videoSnapshot = await transaction.get(videoRef);
 
-        if (likeDoc.exists) {
-          transaction.delete(likeRef);
+          final currentLikes =
+              _toInt(videoSnapshot.data()?['likeCount']);
 
-          transaction.update(
-            _videoRef,
-            {
-              'likeCount':
-                  FieldValue.increment(-1),
-            },
-          );
-        } else {
-          transaction.set(
-            likeRef,
-            {
-              'userId': uid,
-              'likedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
+          if (likeSnapshot.exists) {
+            transaction.delete(likeRef);
 
-          transaction.update(
-            _videoRef,
-            {
-              'likeCount':
-                  FieldValue.increment(1),
-            },
-          );
-        }
-      });
-    } catch (e) {
+            transaction.update(videoRef, {
+              'likeCount': currentLikes > 0 ? currentLikes - 1 : 0,
+            });
+
+            return false;
+          } else {
+            transaction.set(likeRef, {
+              'userId': user.uid,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+
+            transaction.update(videoRef, {
+              'likeCount': currentLikes + 1,
+            });
+
+            return true;
+          }
+        },
+      );
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not update like: $e',
+      setState(() {
+        _isLiked = result;
+
+        if (result) {
+          _likeCount++;
+        } else if (_likeCount > 0) {
+          _likeCount--;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not update like'),
           ),
-        ),
-      );
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingLike = false;
+        });
+      }
     }
   }
 
-  // =========================================================
-  // COMMENTS
-  // =========================================================
+  Future<void> _recordView() async {
+    final user = currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    final viewRef = FirebaseFirestore.instance
+        .collection('sellerVideos')
+        .doc(widget.videoId)
+        .collection('views')
+        .doc(user.uid);
+
+    final videoRef = FirebaseFirestore.instance
+        .collection('sellerVideos')
+        .doc(widget.videoId);
+
+    try {
+      await FirebaseFirestore.instance.runTransaction(
+        (transaction) async {
+          final viewSnapshot = await transaction.get(viewRef);
+
+          if (viewSnapshot.exists) {
+            return;
+          }
+
+          final videoSnapshot = await transaction.get(videoRef);
+
+          final currentViews =
+              _toInt(videoSnapshot.data()?['viewCount']);
+
+          transaction.set(viewRef, {
+            'userId': user.uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          transaction.update(videoRef, {
+            'viewCount': currentViews + 1,
+          });
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _viewCount++;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _shareVideo() async {
+    final videoUrl = widget.data['videoUrl']?.toString() ?? '';
+
+    if (videoUrl.isEmpty) return;
+
+    try {
+      await Share.share(
+        'Check out this video on BuyNova!\n\n$videoUrl',
+      );
+
+      final videoRef = FirebaseFirestore.instance
+          .collection('sellerVideos')
+          .doc(widget.videoId);
+
+      await videoRef.update({
+        'shareCount': FieldValue.increment(1),
+      });
+
+      if (mounted) {
+        setState(() {
+          _shareCount++;
+        });
+      }
+    } catch (_) {}
+  }
 
   void _openComments() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape:
-          const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(
-          top: Radius.circular(16),
-        ),
-      ),
-      builder: (context) {
+      backgroundColor: Colors.transparent,
+      builder: (_) {
         return _CommentsSheet(
           videoId: widget.videoId,
+          onCommentAdded: () {
+            if (mounted) {
+              setState(() {
+                _commentCount++;
+              });
+            }
+          },
         );
       },
     );
   }
 
-  // =========================================================
-  // SHARE
-  // =========================================================
+  void _openProduct() {
+    final productId = widget.data['productId']?.toString() ?? '';
 
-  Future<void> _shareVideo() async {
-    final videoUrl =
-        widget.data['videoUrl']
-                ?.toString() ??
-            '';
-
-    final caption =
-        widget.data['caption']
-                ?.toString() ??
-            '';
-
-    try {
-      await Share.share(
-        '$caption\n\n'
-        'Check this out on BuyNova:\n'
-        '$videoUrl',
+    if (productId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No product attached to this video'),
+        ),
       );
-
-      await _videoRef.update({
-        'shareCount':
-            FieldValue.increment(1),
-      });
-    } catch (e) {
-      debugPrint(
-        'Share error: $e',
-      );
-    }
-  }
-
-  // =========================================================
-  // PRODUCT
-  // =========================================================
-
-  Future<void> _viewProduct() async {
-    final productName =
-        widget.data['productName']
-            ?.toString();
-
-    final productId =
-        widget.data['productId']
-            ?.toString();
-
-    final productPrice =
-        widget.data['productPrice'] is num
-            ? (widget.data['productPrice']
-                    as num)
-                .toDouble()
-            : 0.0;
-
-    if (productName == null ||
-        productName.isEmpty ||
-        productId == null ||
-        productId.isEmpty) {
       return;
     }
 
-    final imageUrl =
-        widget.data['productImageUrl']
-            ?.toString();
+    final productName =
+        widget.data['productName']?.toString() ?? 'Product';
 
-    if (!mounted) return;
+    final productPrice =
+        _toDouble(widget.data['productPrice']);
+
+    final imageUrl =
+        widget.data['productImageUrl']?.toString() ??
+            widget.data['imageUrl']?.toString() ??
+            '';
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape:
-          const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(
-          top: Radius.circular(16),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
         ),
       ),
       builder: (context) {
-        return Padding(
-          padding:
-              const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                productName,
-                style:
-                    const TextStyle(
-                  fontSize: 18,
-                  fontWeight:
-                      FontWeight.bold,
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (imageUrl.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          imageUrl,
+                          width: 70,
+                          height: 70,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) {
+                            return Container(
+                              width: 70,
+                              height: 70,
+                              color: Colors.grey.shade200,
+                              child: const Icon(
+                                Icons.image,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            productName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            '₩${productPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
 
-              const SizedBox(height: 8),
-
-              Text(
-                '₩${productPrice.toStringAsFixed(0)}',
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.redAccent,
-                  fontSize: 20,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              SizedBox(
-                width:
-                    double.infinity,
-                height: 48,
-                child:
-                    ElevatedButton.icon(
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors.redAccent,
-                    foregroundColor:
-                        Colors.white,
-                  ),
-                  icon: const Icon(
-                    Icons
-                        .shopping_cart_outlined,
-                  ),
-                  label:
-                      const Text(
-                    'Add to Cart',
-                  ),
-                  onPressed: () async {
-                    final uid =
-                        _uid;
-
-                    if (uid == null) {
-                      Navigator.pop(
-                        context,
-                      );
-
-                      await Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder:
-                              (context) =>
-                                  const LoginPage(),
+                          builder: (_) => const CartPage(),
                         ),
                       );
-
-                      return;
-                    }
-
-                    await CartService.addItem(
-                      id: productId,
-                      name: productName,
-                      price: productPrice,
-                      imageUrl:
-                          imageUrl,
-                    );
-
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    Navigator.pop(
-                      context,
-                    );
-
-                    ScaffoldMessenger.of(
-                            context)
-                        .showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          '$productName added to cart',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              SizedBox(
-                width:
-                    double.infinity,
-                height: 48,
-                child:
-                    OutlinedButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      context,
-                    );
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) =>
-                                const CartPage(),
-                      ),
-                    );
-                  },
-                  child:
-                      const Text(
-                    'Go to Cart',
+                    },
+                    icon: const Icon(Icons.shopping_cart),
+                    label: const Text('Go to Cart'),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
+  String _sellerName() {
+    return widget.data['sellerName']?.toString() ??
+        widget.data['userName']?.toString() ??
+        'BuyNova User';
+  }
+
+  String _caption() {
+    return widget.data['caption']?.toString() ?? '';
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final sellerName =
-        widget.data['sellerName']
-                ?.toString() ??
-            'Seller';
-
-    final sellerCode =
-        widget.data['sellerCode']
-                ?.toString();
-
-    final caption =
-        widget.data['caption']
-                ?.toString() ??
-            '';
-
-    final productName =
-        widget.data['productName']
-            ?.toString();
-
-    final productPrice =
-        widget.data['productPrice'] is num
-            ? (widget.data['productPrice']
-                    as num)
-                .toDouble()
-            : null;
-
-    final likeCount =
-        widget.data['likeCount'] is num
-            ? (widget.data['likeCount']
-                    as num)
-                .toInt()
-            : 0;
-
-    final viewCount =
-        widget.data['viewCount'] is num
-            ? (widget.data['viewCount']
-                    as num)
-                .toInt()
-            : 0;
-
-    final commentCount =
-        widget.data['commentCount'] is num
-            ? (widget.data['commentCount']
-                    as num)
-                .toInt()
-            : 0;
-
-    final shareCount =
-        widget.data['shareCount'] is num
-            ? (widget.data['shareCount']
-                    as num)
-                .toInt()
-            : 0;
+    final controller = _controller;
 
     return GestureDetector(
       onTap: _togglePlayPause,
-      child: Container(
-        color: Colors.black,
-        width:
-            double.infinity,
-        height:
-            double.infinity,
-        child: Stack(
-          alignment:
-              Alignment.center,
-          children: [
-            // ===================================================
-            // VIDEO
-            // ===================================================
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            color: Colors.black,
+          ),
 
-            if (_hasError)
-              const Icon(
-                Icons.broken_image,
-                color:
-                    Colors.white54,
-                size: 60,
-              )
-            else if (_isInitialized &&
-                _controller != null)
-              FittedBox(
-                fit:
-                    BoxFit.cover,
+          if (controller != null && _isInitialized)
+            Center(
+              child: FittedBox(
+                fit: BoxFit.cover,
                 child: SizedBox(
-                  width:
-                      _controller!
-                          .value
-                          .size
-                          .width,
-                  height:
-                      _controller!
-                          .value
-                          .size
-                          .height,
-                  child:
-                      VideoPlayer(
-                    _controller!,
-                  ),
+                  width: controller.value.size.width,
+                  height: controller.value.size.height,
+                  child: VideoPlayer(controller),
                 ),
-              )
-            else
-              const CircularProgressIndicator(
+              ),
+            ),
+
+          if (!_isInitialized)
+            const Center(
+              child: CircularProgressIndicator(
                 color: Colors.white,
               ),
+            ),
 
-            // ===================================================
-            // PLAY ICON
-            // ===================================================
-
-            if (_isInitialized &&
-                _controller != null &&
-                !_controller!
-                    .value
-                    .isPlaying)
-              const Icon(
-                Icons.play_arrow,
-                color:
-                    Colors.white70,
-                size: 70,
+          if (_isInitialized && !_isPlaying)
+            const Center(
+              child: CircleAvatar(
+                radius: 34,
+                backgroundColor: Colors.black54,
+                child: Icon(
+                  Icons.play_arrow,
+                  color: Colors.white,
+                  size: 48,
+                ),
               ),
+            ),
 
-            // ===================================================
-            // BOTTOM LEFT
-            // ===================================================
-
-            Positioned(
-              left: 16,
-              right: 90,
-              bottom: 30,
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                children: [
-                  Text(
-                    sellerName,
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+          // Bottom gradient
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 260,
+            child: IgnorePointer(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black87,
+                      Colors.transparent,
+                    ],
                   ),
+                ),
+              ),
+            ),
+          ),
 
-                  if (sellerCode !=
-                          null &&
-                      sellerCode
-                          .isNotEmpty) ...[
-                    const SizedBox(
-                      height: 2,
-                    ),
-                    Text(
-                      'Seller ID: $sellerCode',
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.white70,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-
-                  if (caption
-                      .isNotEmpty) ...[
-                    const SizedBox(
-                      height: 4,
-                    ),
-                    Text(
-                      caption,
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.white70,
-                        fontSize: 14,
-                      ),
-                      maxLines: 2,
-                      overflow:
-                          TextOverflow
-                              .ellipsis,
-                    ),
-                  ],
-
-                  if (productName !=
-                          null &&
-                      productPrice !=
-                          null) ...[
-                    const SizedBox(
-                      height: 10,
-                    ),
-                    GestureDetector(
-                      onTap:
-                          _viewProduct,
-                      child:
-                          Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal:
-                              14,
-                          vertical: 8,
+          // Seller + caption + product
+          Positioned(
+            left: 16,
+            right: 90,
+            bottom: 28,
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 21,
+                        backgroundColor: Colors.white24,
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.white,
                         ),
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              Colors.white,
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '@${_sellerName()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
+                      ),
+                    ],
+                  ),
+
+                  if (_caption().isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _caption(),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+
+                  if ((widget.data['productId']
+                              ?.toString()
+                              .isNotEmpty ??
+                          false)) ...[
+                    const SizedBox(height: 14),
+                    GestureDetector(
+                      onTap: _openProduct,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 11,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius:
+                              BorderRadius.circular(24),
+                        ),
                         child: Row(
-                          mainAxisSize:
-                              MainAxisSize
-                                  .min,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
-                              Icons
-                                  .shopping_bag_outlined,
-                              size: 16,
-                              color:
-                                  Colors.redAccent,
+                              Icons.shopping_bag,
+                              color: Colors.black,
+                              size: 20,
                             ),
-                            const SizedBox(
-                              width: 6,
-                            ),
-                            Text(
-                              'View Product · '
-                              '₩${productPrice.toStringAsFixed(0)}',
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Colors.black87,
-                                fontWeight:
-                                    FontWeight.bold,
-                                fontSize:
-                                    12,
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                widget.data['productName']
+                                        ?.toString() ??
+                                    'View Product',
+                                maxLines: 1,
+                                overflow:
+                                    TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
                               ),
+                            ),
+                            const SizedBox(width: 5),
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.black,
+                              size: 15,
                             ),
                           ],
                         ),
@@ -876,205 +822,239 @@ class _FeedVideoItemState
                 ],
               ),
             ),
+          ),
 
-            // ===================================================
-            // RIGHT SIDE ACTIONS
-            // ===================================================
-
-            Positioned(
-              right: 12,
-              bottom: 30,
+          // Right action buttons
+          Positioned(
+            right: 12,
+            bottom: 55,
+            child: SafeArea(
               child: Column(
                 children: [
-                  // =================================================
-                  // VIEW COUNT
-                  // =================================================
-
-                  Column(
-                    children: [
-                      const Icon(
-                        Icons
-                            .visibility_outlined,
-                        color:
-                            Colors.white,
-                        size: 27,
-                      ),
-                      const SizedBox(
-                        height: 3,
-                      ),
-                      Text(
-                        '$viewCount',
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  _ActionButton(
+                    icon: _isLiked
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    label: _formatCount(_likeCount),
+                    iconColor:
+                        _isLiked ? Colors.red : Colors.white,
+                    onTap: _toggleLike,
                   ),
-
-                  const SizedBox(
-                    height: 16,
+                  const SizedBox(height: 22),
+                  _ActionButton(
+                    icon: Icons.comment,
+                    label: _formatCount(_commentCount),
+                    onTap: _openComments,
                   ),
-
-                  // =================================================
-                  // LIKE
-                  // =================================================
-
-                  StreamBuilder<
-                      DocumentSnapshot>(
-                    stream: _uid == null
-                        ? null
-                        : _videoRef
-                            .collection(
-                                'likes')
-                            .doc(_uid)
-                            .snapshots(),
-                    builder:
-                        (context,
-                            likeSnapshot) {
-                      final isLiked =
-                          likeSnapshot
-                                  .data
-                                  ?.exists ??
-                              false;
-
-                      return Column(
-                        children: [
-                          IconButton(
-                            onPressed:
-                                _toggleLike,
-                            icon:
-                                Icon(
-                              isLiked
-                                  ? Icons
-                                      .favorite
-                                  : Icons
-                                      .favorite_border,
-                              color: isLiked
-                                  ? Colors
-                                      .redAccent
-                                  : Colors
-                                      .white,
-                              size: 30,
-                            ),
-                          ),
-                          Text(
-                            '$likeCount',
-                            style:
-                                const TextStyle(
-                              color:
-                                  Colors.white,
-                              fontSize:
-                                  12,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  const SizedBox(height: 22),
+                  _ActionButton(
+                    icon: Icons.share,
+                    label: _formatCount(_shareCount),
+                    onTap: _shareVideo,
                   ),
-
-                  const SizedBox(
-                    height: 10,
+                  const SizedBox(height: 22),
+                  _ActionButton(
+                    icon: Icons.visibility,
+                    label: _formatCount(_viewCount),
+                    onTap: () {},
                   ),
-
-                  // =================================================
-                  // COMMENTS
-                  // =================================================
-
-                  IconButton(
-                    onPressed:
-                        _openComments,
-                    icon:
-                        const Icon(
-                      Icons
-                          .mode_comment_outlined,
-                      color:
-                          Colors.white,
-                      size: 28,
-                    ),
-                  ),
-
-                  Text(
-                    '$commentCount',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize: 12,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 16,
-                  ),
-
-                  // =================================================
-                  // SHARE
-                  // =================================================
-
-                  IconButton(
-                    onPressed:
-                        _shareVideo,
-                    icon:
-                        const Icon(
-                      Icons
-                          .share_outlined,
-                      color:
-                          Colors.white,
-                      size: 26,
-                    ),
-                  ),
-
-                  Text(
-                    '$shareCount',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize: 12,
-                    ),
+                  const SizedBox(height: 22),
+                  _ActionButton(
+                    icon: Icons.shopping_cart,
+                    label: 'Buy',
+                    onTap: _openProduct,
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static int _toInt(dynamic value) {
+    if (value is int) return value;
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is double) return value;
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static String _formatCount(int value) {
+    if (value >= 1000000) {
+      return '${(value / 1000000).toStringAsFixed(1)}M';
+    }
+
+    if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}K';
+    }
+
+    return value.toString();
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color iconColor;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.iconColor = Colors.white,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: Colors.black45,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// =============================================================
-// COMMENTS SHEET
-// =============================================================
-
-class _CommentsSheet
-    extends StatefulWidget {
+class _CommentsSheet extends StatefulWidget {
   final String videoId;
+  final VoidCallback onCommentAdded;
 
   const _CommentsSheet({
     required this.videoId,
+    required this.onCommentAdded,
   });
 
   @override
-  State<_CommentsSheet> createState() =>
-      _CommentsSheetState();
+  State<_CommentsSheet> createState() => _CommentsSheetState();
 }
 
-class _CommentsSheetState
-    extends State<_CommentsSheet> {
-  final _commentController =
+class _CommentsSheetState extends State<_CommentsSheet> {
+  final TextEditingController _commentController =
       TextEditingController();
 
-  bool _isSending = false;
+  bool _sending = false;
 
-  DocumentReference<Map<String, dynamic>>
-      get _videoRef {
-    return FirebaseFirestore.instance
+  User? get currentUser => FirebaseAuth.instance.currentUser;
+
+  Future<void> _sendComment() async {
+    final user = currentUser;
+
+    if (user == null) {
+      Navigator.pop(context);
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LoginPage(),
+        ),
+      );
+
+      return;
+    }
+
+    final text = _commentController.text.trim();
+
+    if (text.isEmpty || _sending) return;
+
+    setState(() {
+      _sending = true;
+    });
+
+    final videoRef = FirebaseFirestore.instance
         .collection('sellerVideos')
         .doc(widget.videoId);
+
+    final commentRef = videoRef.collection('comments').doc();
+
+    try {
+      await FirebaseFirestore.instance.runTransaction(
+        (transaction) async {
+          final videoSnapshot =
+              await transaction.get(videoRef);
+
+          final currentComments = _toInt(
+            videoSnapshot.data()?['commentCount'],
+          );
+
+          transaction.set(commentRef, {
+            'userId': user.uid,
+            'userName': user.displayName ??
+                user.email ??
+                'BuyNova User',
+            'text': text,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          transaction.update(videoRef, {
+            'commentCount': currentComments + 1,
+          });
+        },
+      );
+
+      _commentController.clear();
+
+      widget.onCommentAdded();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Comment added'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not add comment'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
+    }
   }
 
   @override
@@ -1083,291 +1063,205 @@ class _CommentsSheetState
     super.dispose();
   }
 
-  // =========================================================
-  // SEND COMMENT
-  // =========================================================
-
-  Future<void> _sendComment() async {
-    final text =
-        _commentController.text.trim();
-
-    if (text.isEmpty) return;
-
-    if (text.length > 500) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Comment must be 500 characters or less.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      Navigator.pop(context);
-
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              const LoginPage(),
-        ),
-      );
-
-      return;
-    }
-
-    setState(() {
-      _isSending = true;
-    });
-
-    try {
-      String userName =
-          user.email ?? 'User';
-
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-
-      final name =
-          userDoc.data()?['name']
-              ?.toString();
-
-      if (name != null &&
-          name.isNotEmpty) {
-        userName = name;
-      }
-
-      final commentRef =
-          _videoRef
-              .collection('comments')
-              .doc();
-
-      await FirebaseFirestore.instance
-          .runTransaction((transaction) async {
-        transaction.set(
-          commentRef,
-          {
-            'text': text,
-            'userId': user.uid,
-            'userName': userName,
-            'createdAt':
-                FieldValue.serverTimestamp(),
-          },
-        );
-
-        transaction.update(
-          _videoRef,
-          {
-            'commentCount':
-                FieldValue.increment(1),
-          },
-        );
-      });
-
-      _commentController.clear();
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not send comment: $e',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // BUILD COMMENTS
-  // =========================================================
-
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final bottomInset =
+        MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.72,
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context)
-            .viewInsets
-            .bottom,
+        bottom: bottomInset,
       ),
-      child: SizedBox(
-        height:
-            MediaQuery.of(context)
-                    .size
-                    .height *
-                0.6,
-        child: Column(
-          children: [
-            const Padding(
-              padding:
-                  EdgeInsets.all(16),
-              child: Text(
-                'Comments',
-                style:
-                    TextStyle(
-                  fontSize: 16,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-            ),
-
-            Expanded(
-              child: StreamBuilder<
-                  QuerySnapshot>(
-                stream:
-                    _videoRef
-                        .collection(
-                            'comments')
-                        .orderBy(
-                          'createdAt',
-                          descending:
-                              true,
-                        )
-                        .snapshots(),
-                builder:
-                    (context,
-                        snapshot) {
-                  if (snapshot
-                      .hasError) {
-                    return const Center(
-                      child: Text(
-                        'Failed to load comments',
-                      ),
-                    );
-                  }
-
-                  if (snapshot
-                          .connectionState ==
-                      ConnectionState
-                          .waiting) {
-                    return const Center(
-                      child:
-                          CircularProgressIndicator(),
-                    );
-                  }
-
-                  final docs =
-                      snapshot.data
-                              ?.docs ??
-                          [];
-
-                  if (docs.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No comments yet',
-                      ),
-                    );
-                  }
-
-                  return ListView
-                      .builder(
-                    itemCount:
-                        docs.length,
-                    itemBuilder:
-                        (context,
-                            index) {
-                      final data =
-                          docs[index]
-                                  .data()
-                              as Map<String,
-                                  dynamic>;
-
-                      return ListTile(
-                        leading:
-                            const CircleAvatar(
-                          child: Icon(
-                            Icons.person,
-                            size: 18,
-                          ),
-                        ),
-                        title:
-                            Text(
-                          data['userName']
-                                  ?.toString() ??
-                              'User',
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        subtitle:
-                            Text(
-                          data['text']
-                                  ?.toString() ??
-                              '',
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-
-            Padding(
-              padding:
-                  const EdgeInsets.all(
-                12,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child:
-                        TextField(
-                      controller:
-                          _commentController,
-                      maxLength: 500,
-                      decoration:
-                          const InputDecoration(
-                        hintText:
-                            'Add a comment...',
-                        border:
-                            OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets
-                                .symmetric(
-                          horizontal:
-                              12,
-                          vertical: 8,
-                        ),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed:
-                        _isSending
-                            ? null
-                            : _sendComment,
-                    icon:
-                        const Icon(
-                      Icons.send,
-                      color:
-                          Colors.redAccent,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
         ),
       ),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+
+          Container(
+            width: 45,
+            height: 5,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade400,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+
+          const SizedBox(height: 15),
+
+          const Text(
+            'Comments',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const Divider(),
+
+          Expanded(
+            child: StreamBuilder<
+                QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('sellerVideos')
+                  .doc(widget.videoId)
+                  .collection('comments')
+                  .orderBy(
+                    'createdAt',
+                    descending: true,
+                  )
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final comments =
+                    snapshot.data?.docs ?? [];
+
+                if (comments.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No comments yet',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 16,
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                  ),
+                  itemCount: comments.length,
+                  itemBuilder: (context, index) {
+                    final data = comments[index].data();
+
+                    final name =
+                        data['userName']?.toString() ??
+                            'BuyNova User';
+
+                    final text =
+                        data['text']?.toString() ?? '';
+
+                    return Padding(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        vertical: 9,
+                      ),
+                      child: Row(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          const CircleAvatar(
+                            radius: 20,
+                            child: Icon(
+                              Icons.person,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(text),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              12,
+              8,
+              12,
+              12,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    maxLength: 500,
+                    decoration: InputDecoration(
+                      hintText: 'Write a comment...',
+                      counterText: '',
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 24,
+                  child: IconButton(
+                    onPressed: _sending
+                        ? null
+                        : _sendComment,
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.send),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  static int _toInt(dynamic value) {
+    if (value is int) return value;
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
