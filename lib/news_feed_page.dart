@@ -61,8 +61,14 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('sellerVideos')
-              .where('status', isEqualTo: 'published')
-              .orderBy('createdAt', descending: true)
+              .where(
+                'status',
+                isEqualTo: 'published',
+              )
+              .orderBy(
+                'createdAt',
+                descending: true,
+              )
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState ==
@@ -164,12 +170,13 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                       key: ValueKey(doc.id),
                       videoId: doc.id,
                       data: data,
-                      isActive: index == _currentPage,
-                      onLoginRequired: _openLogin,
+                      isActive:
+                          index == _currentPage,
+                      onLoginRequired:
+                          _openLogin,
                     );
                   },
                 ),
-
                 Positioned(
                   top: 10,
                   right: 10,
@@ -256,6 +263,8 @@ class _ReelsVideoItemState
   bool _rewardEligible = false;
   bool _isClaimingReward = false;
 
+  bool _viewRecorded = false;
+
   int _watchSeconds = 0;
 
   static const int _requiredWatchSeconds = 10;
@@ -273,11 +282,17 @@ class _ReelsVideoItemState
   void initState() {
     super.initState();
 
-    _likeCount = _toInt(widget.data['likeCount']);
+    _likeCount =
+        _toInt(widget.data['likeCount']);
+
     _commentCount =
         _toInt(widget.data['commentCount']);
-    _viewCount = _toInt(widget.data['viewCount']);
-    _shareCount = _toInt(widget.data['shareCount']);
+
+    _viewCount =
+        _toInt(widget.data['viewCount']);
+
+    _shareCount =
+        _toInt(widget.data['shareCount']);
 
     _loadVideo();
     _checkLike();
@@ -294,6 +309,10 @@ class _ReelsVideoItemState
         ) ??
         0;
   }
+
+  // ==========================================================
+  // LOAD VIDEO
+  // ==========================================================
 
   Future<void> _loadVideo() async {
     final videoUrl =
@@ -331,6 +350,7 @@ class _ReelsVideoItemState
           });
         }
 
+        _recordView();
         _startWatchTimer();
       }
     } catch (e) {
@@ -339,6 +359,10 @@ class _ReelsVideoItemState
       );
     }
   }
+
+  // ==========================================================
+  // UPDATE ACTIVE VIDEO
+  // ==========================================================
 
   @override
   void didUpdateWidget(
@@ -354,6 +378,10 @@ class _ReelsVideoItemState
       }
     }
   }
+
+  // ==========================================================
+  // PLAY
+  // ==========================================================
 
   Future<void> _playVideo() async {
     final controller = _controller;
@@ -372,6 +400,10 @@ class _ReelsVideoItemState
         });
       }
 
+      if (!_viewRecorded) {
+        _recordView();
+      }
+
       _startWatchTimer();
     } catch (e) {
       debugPrint(
@@ -379,6 +411,10 @@ class _ReelsVideoItemState
       );
     }
   }
+
+  // ==========================================================
+  // PAUSE
+  // ==========================================================
 
   Future<void> _pauseVideo() async {
     _stopWatchTimer();
@@ -399,6 +435,10 @@ class _ReelsVideoItemState
       });
     }
   }
+
+  // ==========================================================
+  // PLAY / PAUSE
+  // ==========================================================
 
   void _togglePlayPause() {
     if (_isPlaying) {
@@ -425,6 +465,10 @@ class _ReelsVideoItemState
       return;
     }
 
+    if (!_isPlaying) {
+      return;
+    }
+
     if (_watchTimer != null) {
       return;
     }
@@ -434,6 +478,7 @@ class _ReelsVideoItemState
       (timer) {
         if (!mounted) {
           timer.cancel();
+          _watchTimer = null;
           return;
         }
 
@@ -501,7 +546,8 @@ class _ReelsVideoItemState
       }
 
       setState(() {
-        _rewardClaimed = claimDoc.exists;
+        _rewardClaimed =
+            claimDoc.exists;
       });
     } catch (e) {
       debugPrint(
@@ -638,7 +684,7 @@ class _ReelsVideoItemState
   }
 
   // ==========================================================
-  // LIKE
+  // CHECK LIKE
   // ==========================================================
 
   Future<void> _checkLike() async {
@@ -670,6 +716,10 @@ class _ReelsVideoItemState
       );
     }
   }
+
+  // ==========================================================
+  // LIKE
+  // ==========================================================
 
   Future<void> _toggleLike() async {
     final user = currentUser;
@@ -789,6 +839,10 @@ class _ReelsVideoItemState
   // ==========================================================
 
   Future<void> _recordView() async {
+    if (_viewRecorded) {
+      return;
+    }
+
     final user = currentUser;
 
     if (user == null) {
@@ -812,6 +866,7 @@ class _ReelsVideoItemState
           await viewRef.get();
 
       if (existing.exists) {
+        _viewRecorded = true;
         return;
       }
 
@@ -844,6 +899,8 @@ class _ReelsVideoItemState
           );
         },
       );
+
+      _viewRecorded = true;
 
       if (mounted) {
         setState(() {
@@ -1047,8 +1104,7 @@ class _ReelsVideoItemState
                                   style:
                                       const TextStyle(
                                     fontWeight:
-                                        FontWeight
-                                            .bold,
+                                        FontWeight.bold,
                                   ),
                                 ),
                                 subtitle:
@@ -1155,8 +1211,7 @@ class _ReelsVideoItemState
                                             'sellerVideos',
                                           )
                                           .doc(
-                                            widget
-                                                .videoId,
+                                            widget.videoId,
                                           )
                                           .collection(
                                             'comments',
@@ -1241,21 +1296,16 @@ class _ReelsVideoItemState
         widget.data['productId']?.toString() ??
             '';
 
-    final productName =
-        widget.data['productName']?.toString() ??
-            '';
-
     if (productId.isEmpty) {
       return;
     }
 
+    // CartPage does not have productId/productName
+    // parameters, so open the normal CartPage.
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CartPage(
-          productId: productId,
-          productName: productName,
-        ),
+        builder: (context) => const CartPage(),
       ),
     );
   }
@@ -1330,7 +1380,10 @@ class _ReelsVideoItemState
           ),
         ),
 
-        // Play icon when paused
+        // ========================================================
+        // PLAY ICON
+        // ========================================================
+
         if (_isInitialized &&
             !_isPlaying)
           const Center(
@@ -1341,7 +1394,10 @@ class _ReelsVideoItemState
             ),
           ),
 
-        // Bottom gradient
+        // ========================================================
+        // BOTTOM GRADIENT
+        // ========================================================
+
         Positioned(
           left: 0,
           right: 0,
@@ -1353,10 +1409,11 @@ class _ReelsVideoItemState
                 gradient: LinearGradient(
                   begin:
                       Alignment.bottomCenter,
-                  end: Alignment.topCenter,
+                  end:
+                      Alignment.topCenter,
                   colors: [
-                    Colors.black.withOpacity(
-                      0.85,
+                    Colors.black.withValues(
+                      alpha: 0.85,
                     ),
                     Colors.transparent,
                   ],
@@ -1366,14 +1423,20 @@ class _ReelsVideoItemState
           ),
         ),
 
-        // Reward button
+        // ========================================================
+        // REWARD BUTTON
+        // ========================================================
+
         Positioned(
           top: 60,
           left: 15,
           child: _rewardButton(),
         ),
 
-        // Right action buttons
+        // ========================================================
+        // RIGHT ACTION BUTTONS
+        // ========================================================
+
         Positioned(
           right: 12,
           bottom: 130,
@@ -1413,7 +1476,10 @@ class _ReelsVideoItemState
           ),
         ),
 
-        // Bottom information
+        // ========================================================
+        // BOTTOM INFORMATION
+        // ========================================================
+
         Positioned(
           left: 15,
           right: 75,
@@ -1460,6 +1526,10 @@ class _ReelsVideoItemState
                 ),
               ],
 
+              // ==================================================
+              // PRODUCT
+              // ==================================================
+
               if (productId.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 GestureDetector(
@@ -1470,8 +1540,8 @@ class _ReelsVideoItemState
                     decoration:
                         BoxDecoration(
                       color: Colors.white
-                          .withOpacity(
-                        0.15,
+                          .withValues(
+                        alpha: 0.15,
                       ),
                       borderRadius:
                           BorderRadius.circular(
@@ -1502,8 +1572,7 @@ class _ReelsVideoItemState
                                 stackTrace,
                               ) {
                                 return const Icon(
-                                  Icons
-                                      .image,
+                                  Icons.image,
                                   color:
                                       Colors.white,
                                   size: 40,
@@ -1536,8 +1605,7 @@ class _ReelsVideoItemState
                                   color:
                                       Colors.white,
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                               if (productPrice !=
@@ -1554,8 +1622,7 @@ class _ReelsVideoItemState
                           ),
                         ),
                         const Icon(
-                          Icons
-                              .arrow_forward_ios,
+                          Icons.arrow_forward_ios,
                           color:
                               Colors.white,
                           size: 15,
@@ -1589,7 +1656,7 @@ class _ReelsVideoItemState
           child: Container(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: Colors.black54,
               shape: BoxShape.circle,
             ),
