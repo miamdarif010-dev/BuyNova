@@ -9,7 +9,7 @@ import 'settings_page.dart';
 import 'cart_page.dart';
 import 'categories_page.dart';
 import 'news_feed_page.dart';
-import 'migrate_products_page.dart';
+import 'watch_earn_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -163,7 +163,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // =========================================================
-  // OPEN LOGIN / PROFILE
+  // OPEN ACCOUNT
   // =========================================================
 
   void _openAccount(bool isLoggedIn) {
@@ -185,6 +185,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   // =========================================================
+  // OPEN WATCH & EARN
+  // =========================================================
+
+  void _openWatchEarn() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WatchEarnPage(),
+      ),
+    );
+  }
+
+  // =========================================================
   // BUILD
   // =========================================================
 
@@ -198,7 +211,7 @@ class _HomePageState extends State<HomePage> {
 
         return Scaffold(
           // ===================================================
-          // DRAWER
+          // DRAWER / SIDE MENU
           // ===================================================
 
           drawer: Drawer(
@@ -235,7 +248,22 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                   // =================================================
-                  // HOME
+                  // 1. ACCOUNT
+                  // =================================================
+
+                  ListTile(
+                    leading: const Icon(
+                      Icons.person_outline,
+                    ),
+                    title: const Text('Account'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openAccount(isLoggedIn);
+                    },
+                  ),
+
+                  // =================================================
+                  // 2. HOME
                   // =================================================
 
                   ListTile(
@@ -253,7 +281,7 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                   // =================================================
-                  // CATEGORIES
+                  // 3. CATEGORIES
                   // =================================================
 
                   ListTile(
@@ -288,62 +316,7 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                   // =================================================
-                  // VIDEOS
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.video_library_outlined,
-                    ),
-                    title: const Text('Videos'),
-                    subtitle: const Text(
-                      'Watch Reels & Videos',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _openVideos();
-                    },
-                  ),
-
-                  // =================================================
-                  // ACCOUNT
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.person_outline,
-                    ),
-                    title: const Text('Account'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _openAccount(isLoggedIn);
-                    },
-                  ),
-
-                  // =================================================
-                  // NEWS FEED
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.dynamic_feed_outlined,
-                    ),
-                    title: const Text('News Feed'),
-                    onTap: () {
-                      Navigator.pop(context);
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const NewsFeedPage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  // =================================================
-                  // ADD PRODUCT
+                  // 4. ADD PRODUCT
                   // =================================================
 
                   if (isLoggedIn)
@@ -368,20 +341,32 @@ class _HomePageState extends State<HomePage> {
                     ),
 
                   // =================================================
-                  // MIGRATE OLD DATA
+                  // 5. VIDEOS
                   // =================================================
 
                   ListTile(
                     leading: const Icon(
-                      Icons.sync_alt,
-                      color: Colors.orange,
+                      Icons.video_library_outlined,
                     ),
-                    title: const Text(
-                      'Migrate Old Data',
-                      style: TextStyle(
-                        color: Colors.orange,
-                      ),
+                    title: const Text('Videos'),
+                    subtitle: const Text(
+                      'Watch Reels & Videos',
                     ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openVideos();
+                    },
+                  ),
+
+                  // =================================================
+                  // 6. CART
+                  // =================================================
+
+                  ListTile(
+                    leading: const Icon(
+                      Icons.shopping_cart_outlined,
+                    ),
+                    title: const Text('Cart'),
                     onTap: () {
                       Navigator.pop(context);
 
@@ -389,14 +374,34 @@ class _HomePageState extends State<HomePage> {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              const MigrateProductsPage(),
+                              const CartPage(),
                         ),
                       );
                     },
                   ),
 
                   // =================================================
-                  // SETTINGS
+                  // 7. WATCH & EARN
+                  // =================================================
+
+                  ListTile(
+                    leading: const Icon(
+                      Icons.ondemand_video_outlined,
+                    ),
+                    title: const Text(
+                      'Watch & Earn',
+                    ),
+                    subtitle: const Text(
+                      'Watch videos & earn points',
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openWatchEarn();
+                    },
+                  ),
+
+                  // =================================================
+                  // 8. SETTINGS
                   // =================================================
 
                   ListTile(
@@ -418,7 +423,7 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                   // =================================================
-                  // LOGOUT
+                  // 9. LOGOUT
                   // =================================================
 
                   if (isLoggedIn)
@@ -698,13 +703,10 @@ class _HomePageState extends State<HomePage> {
               // =================================================
 
               Expanded(
-                child: StreamBuilder<
-                    QuerySnapshot>(
+                child: StreamBuilder<QuerySnapshot>(
                   stream:
                       FirebaseFirestore.instance
-                          .collection(
-                            'products',
-                          )
+                          .collection('products')
                           .snapshots(),
                   builder:
                       (context, snapshot) {
@@ -720,8 +722,7 @@ class _HomePageState extends State<HomePage> {
                       );
                     }
 
-                    if (snapshot
-                            .connectionState ==
+                    if (snapshot.connectionState ==
                         ConnectionState.waiting) {
                       return const Center(
                         child:
@@ -730,8 +731,7 @@ class _HomePageState extends State<HomePage> {
                     }
 
                     final docs =
-                        snapshot.data?.docs ??
-                            [];
+                        snapshot.data?.docs ?? [];
 
                     if (docs.isEmpty) {
                       return const Center(
@@ -794,16 +794,14 @@ class _HomePageState extends State<HomePage> {
                           ),
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                                CrossAxisAlignment.start,
                             children: [
                               // =================================================
                               // IMAGE
                               // =================================================
 
                               Expanded(
-                                child:
-                                    Container(
+                                child: Container(
                                   width:
                                       double.infinity,
                                   decoration:
@@ -878,25 +876,23 @@ class _HomePageState extends State<HomePage> {
 
                               Padding(
                                 padding:
-                                    const EdgeInsets
-                                        .all(8),
+                                    const EdgeInsets.all(
+                                  8,
+                                ),
                                 child: Column(
                                   crossAxisAlignment:
-                                      CrossAxisAlignment
-                                          .start,
+                                      CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       name,
                                       style:
                                           const TextStyle(
                                         fontWeight:
-                                            FontWeight
-                                                .bold,
+                                            FontWeight.bold,
                                       ),
                                       maxLines: 1,
                                       overflow:
-                                          TextOverflow
-                                              .ellipsis,
+                                          TextOverflow.ellipsis,
                                     ),
 
                                     const SizedBox(
@@ -915,10 +911,8 @@ class _HomePageState extends State<HomePage> {
                                             color: Colors
                                                 .redAccent,
                                             fontWeight:
-                                                FontWeight
-                                                    .bold,
-                                            fontSize:
-                                                16,
+                                                FontWeight.bold,
+                                            fontSize: 16,
                                           ),
                                         ),
 
@@ -935,8 +929,7 @@ class _HomePageState extends State<HomePage> {
                                           onTap:
                                               () async {
                                             if (!isLoggedIn) {
-                                              await Navigator
-                                                  .push(
+                                              await Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
                                                   builder:
@@ -949,15 +942,10 @@ class _HomePageState extends State<HomePage> {
 
                                             await CartService
                                                 .addItem(
-                                              id: docs[
-                                                      index]
-                                                  .id,
-                                              name:
-                                                  name,
-                                              price:
-                                                  rawPrice,
-                                              imageUrl:
-                                                  imageUrl,
+                                              id: docs[index].id,
+                                              name: name,
+                                              price: rawPrice,
+                                              imageUrl: imageUrl,
                                             );
 
                                             if (!context
@@ -979,24 +967,22 @@ class _HomePageState extends State<HomePage> {
                                                         .floating,
                                                 duration:
                                                     const Duration(
-                                                  seconds:
-                                                      1,
+                                                  seconds: 1,
                                                 ),
                                               ),
                                             );
                                           },
-                                          child:
-                                              Container(
+                                          child: Container(
                                             padding:
-                                                const EdgeInsets
-                                                    .all(6),
+                                                const EdgeInsets.all(
+                                              6,
+                                            ),
                                             decoration:
                                                 BoxDecoration(
-                                              color: Colors
-                                                  .redAccent,
+                                              color:
+                                                  Colors.redAccent,
                                               borderRadius:
-                                                  BorderRadius
-                                                      .circular(
+                                                  BorderRadius.circular(
                                                 20,
                                               ),
                                             ),
@@ -1041,8 +1027,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: Row(
                     mainAxisAlignment:
-                        MainAxisAlignment
-                            .spaceBetween,
+                        MainAxisAlignment.spaceBetween,
                     children: [
                       const Expanded(
                         child: Text(
