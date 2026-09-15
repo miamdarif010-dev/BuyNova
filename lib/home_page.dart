@@ -42,22 +42,18 @@ class _HomePageState extends State<HomePage> {
   // BOTTOM NAVIGATION
   // =========================================================
 
-  void _onNavTap(int index) async {
+  Future<void> _onNavTap(int index) async {
     setState(() {
       _selectedIndex = index;
     });
-
-    // -------------------------------------------------------
-    // HOME
-    // -------------------------------------------------------
 
     if (index == 0) {
       return;
     }
 
-    // -------------------------------------------------------
+    // =======================================================
     // CATEGORIES
-    // -------------------------------------------------------
+    // =======================================================
 
     if (index == 1) {
       final result = await Navigator.push<String>(
@@ -80,57 +76,75 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // -------------------------------------------------------
+    // =======================================================
     // VIDEOS
-    // -------------------------------------------------------
+    // =======================================================
 
     if (index == 2) {
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => const NewsFeedPage(),
         ),
       );
 
+      if (mounted) {
+        setState(() {
+          _selectedIndex = 0;
+        });
+      }
+
       return;
     }
 
-    // -------------------------------------------------------
+    // =======================================================
     // CART
-    // -------------------------------------------------------
+    // =======================================================
 
     if (index == 3) {
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => const CartPage(),
         ),
       );
 
+      if (mounted) {
+        setState(() {
+          _selectedIndex = 0;
+        });
+      }
+
       return;
     }
 
-    // -------------------------------------------------------
+    // =======================================================
     // PROFILE
-    // -------------------------------------------------------
+    // =======================================================
 
     if (index == 4) {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => const LoginPage(),
           ),
         );
       } else {
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => const UserProfilePage(),
           ),
         );
+      }
+
+      if (mounted) {
+        setState(() {
+          _selectedIndex = 0;
+        });
       }
     }
   }
@@ -146,6 +160,28 @@ class _HomePageState extends State<HomePage> {
         builder: (context) => const NewsFeedPage(),
       ),
     );
+  }
+
+  // =========================================================
+  // OPEN LOGIN / PROFILE
+  // =========================================================
+
+  void _openAccount(bool isLoggedIn) {
+    if (isLoggedIn) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const UserProfilePage(),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LoginPage(),
+        ),
+      );
+    }
   }
 
   // =========================================================
@@ -170,9 +206,9 @@ class _HomePageState extends State<HomePage> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  // ------------------------------------------------
-                  // DRAWER HEADER
-                  // ------------------------------------------------
+                  // =================================================
+                  // HEADER
+                  // =================================================
 
                   DrawerHeader(
                     decoration: const BoxDecoration(
@@ -198,9 +234,9 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // HOME
-                  // ------------------------------------------------
+                  // =================================================
 
                   ListTile(
                     leading: const Icon(
@@ -216,9 +252,9 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // CATEGORIES
-                  // ------------------------------------------------
+                  // =================================================
 
                   ListTile(
                     leading: const Icon(
@@ -251,9 +287,9 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // VIDEOS
-                  // ------------------------------------------------
+                  // =================================================
 
                   ListTile(
                     leading: const Icon(
@@ -265,14 +301,13 @@ class _HomePageState extends State<HomePage> {
                     ),
                     onTap: () {
                       Navigator.pop(context);
-
                       _openVideos();
                     },
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // ACCOUNT
-                  // ------------------------------------------------
+                  // =================================================
 
                   ListTile(
                     leading: const Icon(
@@ -281,30 +316,13 @@ class _HomePageState extends State<HomePage> {
                     title: const Text('Account'),
                     onTap: () {
                       Navigator.pop(context);
-
-                      if (isLoggedIn) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const UserProfilePage(),
-                          ),
-                        );
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const LoginPage(),
-                          ),
-                        );
-                      }
+                      _openAccount(isLoggedIn);
                     },
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // NEWS FEED
-                  // ------------------------------------------------
+                  // =================================================
 
                   ListTile(
                     leading: const Icon(
@@ -324,9 +342,9 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // ADD PRODUCT
-                  // ------------------------------------------------
+                  // =================================================
 
                   if (isLoggedIn)
                     ListTile(
@@ -349,9 +367,9 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // MIGRATE OLD DATA
-                  // ------------------------------------------------
+                  // =================================================
 
                   ListTile(
                     leading: const Icon(
@@ -377,9 +395,9 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // SETTINGS
-                  // ------------------------------------------------
+                  // =================================================
 
                   ListTile(
                     leading: const Icon(
@@ -399,9 +417,9 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
 
-                  // ------------------------------------------------
+                  // =================================================
                   // LOGOUT
-                  // ------------------------------------------------
+                  // =================================================
 
                   if (isLoggedIn)
                     ListTile(
@@ -428,7 +446,6 @@ class _HomePageState extends State<HomePage> {
           appBar: AppBar(
             backgroundColor: Colors.redAccent,
             elevation: 0,
-
             leading: Builder(
               builder: (context) {
                 return IconButton(
@@ -442,7 +459,6 @@ class _HomePageState extends State<HomePage> {
                 );
               },
             ),
-
             title: const Text(
               'BuyNova',
               style: TextStyle(
@@ -451,11 +467,10 @@ class _HomePageState extends State<HomePage> {
                 fontSize: 20,
               ),
             ),
-
             actions: [
-              // ------------------------------------------------
+              // =================================================
               // NOTIFICATIONS
-              // ------------------------------------------------
+              // =================================================
 
               IconButton(
                 icon: const Icon(
@@ -465,9 +480,9 @@ class _HomePageState extends State<HomePage> {
                 onPressed: () {},
               ),
 
-              // ------------------------------------------------
+              // =================================================
               // CART
-              // ------------------------------------------------
+              // =================================================
 
               StreamBuilder<QuerySnapshot>(
                 stream:
@@ -482,7 +497,7 @@ class _HomePageState extends State<HomePage> {
                             as Map<String, dynamic>;
 
                     final qty =
-                        (data['quantity'] is num)
+                        data['quantity'] is num
                             ? (data['quantity'] as num)
                                 .toInt()
                             : 1;
@@ -508,7 +523,6 @@ class _HomePageState extends State<HomePage> {
                           );
                         },
                       ),
-
                       if (cartCount > 0)
                         Positioned(
                           right: 6,
@@ -594,7 +608,7 @@ class _HomePageState extends State<HomePage> {
               ),
 
               // =================================================
-              // PRODUCT CATEGORIES
+              // CATEGORIES
               // =================================================
 
               Container(
@@ -692,7 +706,6 @@ class _HomePageState extends State<HomePage> {
                             'products',
                           )
                           .snapshots(),
-
                   builder:
                       (context, snapshot) {
                     if (snapshot.hasError) {
@@ -734,9 +747,7 @@ class _HomePageState extends State<HomePage> {
 
                     return GridView.builder(
                       padding:
-                          const EdgeInsets.all(
-                        8,
-                      ),
+                          const EdgeInsets.all(8),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
@@ -744,8 +755,7 @@ class _HomePageState extends State<HomePage> {
                         crossAxisSpacing: 8,
                         mainAxisSpacing: 8,
                       ),
-                      itemCount:
-                          docs.length,
+                      itemCount: docs.length,
                       itemBuilder:
                           (context, index) {
                         final data =
@@ -767,9 +777,7 @@ class _HomePageState extends State<HomePage> {
 
                         final price =
                             rawPrice
-                                .toStringAsFixed(
-                          2,
-                        );
+                                .toStringAsFixed(0);
 
                         final imageUrl =
                             data['imageUrl']
@@ -789,9 +797,9 @@ class _HomePageState extends State<HomePage> {
                                 CrossAxisAlignment
                                     .start,
                             children: [
-                              // --------------------------------
-                              // PRODUCT IMAGE
-                              // --------------------------------
+                              // =================================================
+                              // IMAGE
+                              // =================================================
 
                               Expanded(
                                 child:
@@ -800,8 +808,8 @@ class _HomePageState extends State<HomePage> {
                                       double.infinity,
                                   decoration:
                                       BoxDecoration(
-                                    color: Colors
-                                        .grey[300],
+                                    color:
+                                        Colors.grey[300],
                                     borderRadius:
                                         const BorderRadius
                                             .vertical(
@@ -811,62 +819,62 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                   ),
-                                  child: imageUrl !=
-                                              null &&
-                                          imageUrl
-                                              .isNotEmpty
-                                      ? ClipRRect(
-                                          borderRadius:
-                                              const BorderRadius
-                                                  .vertical(
-                                            top:
-                                                Radius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          child:
-                                              Image.network(
-                                            imageUrl,
-                                            fit: BoxFit
-                                                .cover,
-                                            width:
-                                                double.infinity,
-                                            errorBuilder:
-                                                (
-                                              context,
-                                              error,
-                                              stackTrace,
-                                            ) {
-                                              return const Center(
-                                                child:
-                                                    Icon(
-                                                  Icons
-                                                      .image,
-                                                  size:
-                                                      50,
-                                                  color: Colors
-                                                      .grey,
+                                  child:
+                                      imageUrl !=
+                                                  null &&
+                                              imageUrl
+                                                  .isNotEmpty
+                                          ? ClipRRect(
+                                              borderRadius:
+                                                  const BorderRadius
+                                                      .vertical(
+                                                top:
+                                                    Radius.circular(
+                                                  10,
                                                 ),
-                                              );
-                                            },
-                                          ),
-                                        )
-                                      : const Center(
-                                          child:
-                                              Icon(
-                                            Icons
-                                                .image,
-                                            size: 50,
-                                            color: Colors
-                                                .grey,
-                                          ),
-                                        ),
+                                              ),
+                                              child:
+                                                  Image.network(
+                                                imageUrl,
+                                                fit: BoxFit
+                                                    .cover,
+                                                width:
+                                                    double.infinity,
+                                                errorBuilder:
+                                                    (
+                                                  context,
+                                                  error,
+                                                  stackTrace,
+                                                ) {
+                                                  return const Center(
+                                                    child:
+                                                        Icon(
+                                                      Icons
+                                                          .image,
+                                                      size:
+                                                          50,
+                                                      color:
+                                                          Colors.grey,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            )
+                                          : const Center(
+                                              child:
+                                                  Icon(
+                                                Icons.image,
+                                                size: 50,
+                                                color:
+                                                    Colors.grey,
+                                              ),
+                                            ),
                                 ),
                               ),
 
-                              // --------------------------------
+                              // =================================================
                               // PRODUCT INFO
-                              // --------------------------------
+                              // =================================================
 
                               Padding(
                                 padding:
@@ -901,7 +909,7 @@ class _HomePageState extends State<HomePage> {
                                               .spaceBetween,
                                       children: [
                                         Text(
-                                          '\$$price',
+                                          '₩$price',
                                           style:
                                               const TextStyle(
                                             color: Colors
@@ -914,7 +922,10 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                         ),
 
+                                        // =================================================
                                         // ADD TO CART
+                                        // =================================================
+
                                         InkWell(
                                           borderRadius:
                                               BorderRadius
@@ -924,7 +935,7 @@ class _HomePageState extends State<HomePage> {
                                           onTap:
                                               () async {
                                             if (!isLoggedIn) {
-                                              Navigator
+                                              await Navigator
                                                   .push(
                                                 context,
                                                 MaterialPageRoute(
@@ -964,7 +975,8 @@ class _HomePageState extends State<HomePage> {
                                                   '$name added to cart',
                                                 ),
                                                 behavior:
-                                                    SnackBarBehavior.floating,
+                                                    SnackBarBehavior
+                                                        .floating,
                                                 duration:
                                                     const Duration(
                                                   seconds:
@@ -977,9 +989,7 @@ class _HomePageState extends State<HomePage> {
                                               Container(
                                             padding:
                                                 const EdgeInsets
-                                                    .all(
-                                              6,
-                                            ),
+                                                    .all(6),
                                             decoration:
                                                 BoxDecoration(
                                               color: Colors
@@ -995,8 +1005,8 @@ class _HomePageState extends State<HomePage> {
                                               Icons
                                                   .add_shopping_cart,
                                               size: 16,
-                                              color: Colors
-                                                  .white,
+                                              color:
+                                                  Colors.white,
                                             ),
                                           ),
                                         ),
@@ -1044,7 +1054,6 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                       ),
-
                       ElevatedButton(
                         style:
                             ElevatedButton.styleFrom(
@@ -1076,8 +1085,7 @@ class _HomePageState extends State<HomePage> {
 
           bottomNavigationBar:
               BottomNavigationBar(
-            currentIndex:
-                _selectedIndex,
+            currentIndex: _selectedIndex,
             onTap: _onNavTap,
             selectedItemColor:
                 Colors.redAccent,
@@ -1085,7 +1093,6 @@ class _HomePageState extends State<HomePage> {
                 Colors.grey,
             type:
                 BottomNavigationBarType.fixed,
-
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(
@@ -1093,160 +1100,28 @@ class _HomePageState extends State<HomePage> {
                 ),
                 label: 'Home',
               ),
-
               BottomNavigationBarItem(
                 icon: Icon(
                   Icons.category,
                 ),
                 label: 'Categories',
               ),
-
               BottomNavigationBarItem(
                 icon: Icon(
                   Icons.video_library,
                 ),
                 label: 'Videos',
               ),
-
               BottomNavigationBarItem(
                 icon: Icon(
                   Icons.shopping_cart_outlined,
                 ),
                 label: 'Cart',
               ),
-
               BottomNavigationBarItem(
                 icon: Icon(
                   Icons.person,
                 ),
-                label: 'Profile',
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-                                            if (!context.mounted) return;
-
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                content: Text('$name added to cart'),
-                                                behavior: SnackBarBehavior.floating,
-                                                duration: const Duration(seconds: 1),
-                                              ),
-                                            );
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: Colors.redAccent,
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: const Icon(
-                                              Icons.add_shopping_cart,
-                                              size: 16,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-
-          // =========================
-          // SIGN IN BANNER
-          // =========================
-          bottomSheet: isLoggedIn
-              ? null
-              : Container(
-                  color: Colors.orangeAccent,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Sign in for best experience!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor:
-                              Colors.orangeAccent,
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const LoginPage(),
-                            ),
-                          );
-                        },
-                        child: const Text('Sign In'),
-                      ),
-                    ],
-                  ),
-                ),
-
-          // =========================
-          // BOTTOM NAVIGATION
-          // =========================
-          bottomNavigationBar:
-              BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            onTap: _onNavTap,
-            selectedItemColor: Colors.redAccent,
-            unselectedItemColor: Colors.grey,
-            type: BottomNavigationBarType.fixed,
-
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.category),
-                label: 'Categories',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.favorite_border),
-                label: 'Favorites',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.shopping_cart_outlined,
-                ),
-                label: 'Cart',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person),
                 label: 'Profile',
               ),
             ],
