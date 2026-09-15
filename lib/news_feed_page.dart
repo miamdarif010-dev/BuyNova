@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 
 import 'login_page.dart';
 import 'cart_page.dart';
+import 'add_seller_video_page.dart';
 
 class NewsFeedPage extends StatefulWidget {
   const NewsFeedPage({super.key});
@@ -25,6 +26,10 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     super.dispose();
   }
 
+  // =========================================================
+  // LOGIN
+  // =========================================================
+
   void _openLogin() {
     Navigator.push(
       context,
@@ -34,17 +39,54 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     );
   }
 
+  // =========================================================
+  // POST VIDEO
+  // Everyone who is logged in can post
+  // =========================================================
+
+  void _openPostVideo() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      _openLogin();
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddSellerVideoPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('sellerVideos')
-            .where('status', isEqualTo: 'published')
-            .orderBy('createdAt', descending: true)
+            .where(
+              'status',
+              isEqualTo: 'published',
+            )
+            .orderBy(
+              'createdAt',
+              descending: true,
+            )
             .snapshots(),
+
         builder: (context, snapshot) {
+          // =====================================================
+          // ERROR
+          // =====================================================
+
           if (snapshot.hasError) {
             return Stack(
               children: [
@@ -66,7 +108,12 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
             );
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          // =====================================================
+          // LOADING
+          // =====================================================
+
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(
                 color: Colors.white,
@@ -76,17 +123,62 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
 
           final videos = snapshot.data?.docs ?? [];
 
+          // =====================================================
+          // NO VIDEOS
+          // =====================================================
+
           if (videos.isEmpty) {
             return Stack(
               children: [
-                const Center(
-                  child: Text(
-                    'No videos yet',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.video_library_outlined,
+                        color: Colors.white54,
+                        size: 70,
+                      ),
+                      const SizedBox(height: 15),
+                      const Text(
+                        'No videos yet',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // =================================================
+                      // POST FIRST VIDEO
+                      // =================================================
+
+                      ElevatedButton.icon(
+                        onPressed: _openPostVideo,
+                        icon: const Icon(Icons.add),
+                        label: const Text(
+                          'Post Video',
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          padding:
+                              const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 13,
+                          ),
+                          shape:
+                              RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(
+                              25,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 _topButtons(),
@@ -94,31 +186,49 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
             );
           }
 
+          // =====================================================
+          // REELS
+          // =====================================================
+
           return Stack(
             children: [
               PageView.builder(
                 controller: _pageController,
                 scrollDirection: Axis.vertical,
                 itemCount: videos.length,
+
                 onPageChanged: (index) {
                   setState(() {
                     _currentPage = index;
                   });
                 },
+
                 itemBuilder: (context, index) {
                   final data = videos[index].data();
 
                   return _ReelsVideoItem(
-                    key: ValueKey(videos[index].id),
+                    key: ValueKey(
+                      videos[index].id,
+                    ),
                     videoId: videos[index].id,
                     data: data,
-                    isActive: index == _currentPage,
-                    onLoginRequired: _openLogin,
+                    isActive:
+                        index == _currentPage,
+                    onLoginRequired:
+                        _openLogin,
                   );
                 },
               ),
 
+              // =====================================================
+              // TOP BUTTONS
+              // =====================================================
+
               _topButtons(),
+
+              // =====================================================
+              // TITLE
+              // =====================================================
 
               Positioned(
                 top: 58,
@@ -151,6 +261,12 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     );
   }
 
+  // =========================================================
+  // TOP BUTTONS
+  // + POST VIDEO
+  // CLOSE
+  // =========================================================
+
   Widget _topButtons() {
     return Positioned(
       top: 45,
@@ -158,14 +274,50 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
       child: SafeArea(
         child: Row(
           children: [
-            IconButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              icon: const Icon(
-                Icons.close,
-                color: Colors.white,
-                size: 30,
+            // ===================================================
+            // POST VIDEO BUTTON
+            // ===================================================
+
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: _openPostVideo,
+                tooltip: 'Post Video',
+                icon: const Icon(
+                  Icons.add,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // ===================================================
+            // CLOSE BUTTON
+            // ===================================================
+
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
             ),
           ],
@@ -174,6 +326,10 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     );
   }
 }
+
+// ===================================================================
+// REELS VIDEO ITEM
+// ===================================================================
 
 class _ReelsVideoItem extends StatefulWidget {
   final String videoId;
@@ -190,10 +346,12 @@ class _ReelsVideoItem extends StatefulWidget {
   });
 
   @override
-  State<_ReelsVideoItem> createState() => _ReelsVideoItemState();
+  State<_ReelsVideoItem> createState() =>
+      _ReelsVideoItemState();
 }
 
-class _ReelsVideoItemState extends State<_ReelsVideoItem> {
+class _ReelsVideoItemState
+    extends State<_ReelsVideoItem> {
   VideoPlayerController? _controller;
 
   bool _isInitialized = false;
@@ -206,19 +364,26 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
   int _viewCount = 0;
   int _shareCount = 0;
 
-  User? get currentUser => FirebaseAuth.instance.currentUser;
+  User? get currentUser =>
+      FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
 
-    _likeCount = _toInt(widget.data['likeCount']);
-    _commentCount = _toInt(widget.data['commentCount']);
-    _viewCount = _toInt(widget.data['viewCount']);
-    _shareCount = _toInt(widget.data['shareCount']);
+    _likeCount =
+        _toInt(widget.data['likeCount']);
+
+    _commentCount =
+        _toInt(widget.data['commentCount']);
+
+    _viewCount =
+        _toInt(widget.data['viewCount']);
+
+    _shareCount =
+        _toInt(widget.data['shareCount']);
 
     _loadVideo();
-
     _checkLike();
 
     if (widget.isActive) {
@@ -227,28 +392,39 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
   }
 
   @override
-  void didUpdateWidget(covariant _ReelsVideoItem oldWidget) {
+  void didUpdateWidget(
+    covariant _ReelsVideoItem oldWidget,
+  ) {
     super.didUpdateWidget(oldWidget);
 
-    if (widget.isActive && !oldWidget.isActive) {
+    if (widget.isActive &&
+        !oldWidget.isActive) {
       _playVideo();
       _recordView();
     }
 
-    if (!widget.isActive && oldWidget.isActive) {
+    if (!widget.isActive &&
+        oldWidget.isActive) {
       _pauseVideo();
     }
   }
 
+  // =========================================================
+  // LOAD VIDEO
+  // =========================================================
+
   Future<void> _loadVideo() async {
-    final videoUrl = widget.data['videoUrl']?.toString() ?? '';
+    final videoUrl =
+        widget.data['videoUrl']?.toString() ??
+            '';
 
     if (videoUrl.isEmpty) {
       return;
     }
 
     try {
-      final controller = VideoPlayerController.networkUrl(
+      final controller =
+          VideoPlayerController.networkUrl(
         Uri.parse(videoUrl),
       );
 
@@ -282,10 +458,17 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     }
   }
 
+  // =========================================================
+  // PLAY
+  // =========================================================
+
   Future<void> _playVideo() async {
     final controller = _controller;
 
-    if (controller == null || !_isInitialized) return;
+    if (controller == null ||
+        !_isInitialized) {
+      return;
+    }
 
     try {
       await controller.play();
@@ -297,6 +480,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       }
     } catch (_) {}
   }
+
+  // =========================================================
+  // PAUSE
+  // =========================================================
 
   Future<void> _pauseVideo() async {
     final controller = _controller;
@@ -314,10 +501,17 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     } catch (_) {}
   }
 
+  // =========================================================
+  // PLAY / PAUSE
+  // =========================================================
+
   Future<void> _togglePlayPause() async {
     final controller = _controller;
 
-    if (controller == null || !_isInitialized) return;
+    if (controller == null ||
+        !_isInitialized) {
+      return;
+    }
 
     if (controller.value.isPlaying) {
       await _pauseVideo();
@@ -326,18 +520,23 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     }
   }
 
+  // =========================================================
+  // CHECK LIKE
+  // =========================================================
+
   Future<void> _checkLike() async {
     final user = currentUser;
 
     if (user == null) return;
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('sellerVideos')
-          .doc(widget.videoId)
-          .collection('likes')
-          .doc(user.uid)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('sellerVideos')
+              .doc(widget.videoId)
+              .collection('likes')
+              .doc(user.uid)
+              .get();
 
       if (!mounted) return;
 
@@ -346,6 +545,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       });
     } catch (_) {}
   }
+
+  // =========================================================
+  // LIKE
+  // =========================================================
 
   Future<void> _toggleLike() async {
     final user = currentUser;
@@ -361,38 +564,69 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       _isLoadingLike = true;
     });
 
-    final videoRef = FirebaseFirestore.instance
-        .collection('sellerVideos')
-        .doc(widget.videoId);
+    final videoRef =
+        FirebaseFirestore.instance
+            .collection('sellerVideos')
+            .doc(widget.videoId);
 
-    final likeRef = videoRef.collection('likes').doc(user.uid);
+    final likeRef =
+        videoRef
+            .collection('likes')
+            .doc(user.uid);
 
     try {
-      final result = await FirebaseFirestore.instance.runTransaction(
+      final result =
+          await FirebaseFirestore.instance
+              .runTransaction(
         (transaction) async {
-          final likeSnapshot = await transaction.get(likeRef);
-          final videoSnapshot = await transaction.get(videoRef);
+          final likeSnapshot =
+              await transaction.get(
+            likeRef,
+          );
+
+          final videoSnapshot =
+              await transaction.get(
+            videoRef,
+          );
 
           final currentLikes =
-              _toInt(videoSnapshot.data()?['likeCount']);
+              _toInt(
+            videoSnapshot.data()?[
+                'likeCount'],
+          );
 
           if (likeSnapshot.exists) {
             transaction.delete(likeRef);
 
-            transaction.update(videoRef, {
-              'likeCount': currentLikes > 0 ? currentLikes - 1 : 0,
-            });
+            transaction.update(
+              videoRef,
+              {
+                'likeCount':
+                    currentLikes > 0
+                        ? currentLikes - 1
+                        : 0,
+              },
+            );
 
             return false;
           } else {
-            transaction.set(likeRef, {
-              'userId': user.uid,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
+            transaction.set(
+              likeRef,
+              {
+                'userId': user.uid,
+                'createdAt':
+                    FieldValue
+                        .serverTimestamp(),
+              },
+            );
 
-            transaction.update(videoRef, {
-              'likeCount': currentLikes + 1,
-            });
+            transaction.update(
+              videoRef,
+              {
+                'likeCount':
+                    currentLikes + 1,
+              },
+            );
 
             return true;
           }
@@ -412,9 +646,11 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       });
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
           const SnackBar(
-            content: Text('Could not update like'),
+            content:
+                Text('Could not update like'),
           ),
         );
       }
@@ -427,45 +663,68 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     }
   }
 
+  // =========================================================
+  // VIEW
+  // =========================================================
+
   Future<void> _recordView() async {
     final user = currentUser;
 
-    if (user == null) {
-      return;
-    }
+    if (user == null) return;
 
-    final viewRef = FirebaseFirestore.instance
-        .collection('sellerVideos')
-        .doc(widget.videoId)
-        .collection('views')
-        .doc(user.uid);
+    final viewRef =
+        FirebaseFirestore.instance
+            .collection('sellerVideos')
+            .doc(widget.videoId)
+            .collection('views')
+            .doc(user.uid);
 
-    final videoRef = FirebaseFirestore.instance
-        .collection('sellerVideos')
-        .doc(widget.videoId);
+    final videoRef =
+        FirebaseFirestore.instance
+            .collection('sellerVideos')
+            .doc(widget.videoId);
 
     try {
-      await FirebaseFirestore.instance.runTransaction(
+      await FirebaseFirestore.instance
+          .runTransaction(
         (transaction) async {
-          final viewSnapshot = await transaction.get(viewRef);
+          final viewSnapshot =
+              await transaction.get(
+            viewRef,
+          );
 
           if (viewSnapshot.exists) {
             return;
           }
 
-          final videoSnapshot = await transaction.get(videoRef);
+          final videoSnapshot =
+              await transaction.get(
+            videoRef,
+          );
 
           final currentViews =
-              _toInt(videoSnapshot.data()?['viewCount']);
+              _toInt(
+            videoSnapshot.data()?[
+                'viewCount'],
+          );
 
-          transaction.set(viewRef, {
-            'userId': user.uid,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
+          transaction.set(
+            viewRef,
+            {
+              'userId': user.uid,
+              'createdAt':
+                  FieldValue
+                      .serverTimestamp(),
+            },
+          );
 
-          transaction.update(videoRef, {
-            'viewCount': currentViews + 1,
-          });
+          transaction.update(
+            videoRef,
+            {
+              'viewCount':
+                  currentViews + 1,
+            },
+          );
         },
       );
 
@@ -477,22 +736,32 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     } catch (_) {}
   }
 
+  // =========================================================
+  // SHARE
+  // =========================================================
+
   Future<void> _shareVideo() async {
-    final videoUrl = widget.data['videoUrl']?.toString() ?? '';
+    final videoUrl =
+        widget.data['videoUrl']
+                ?.toString() ??
+            '';
 
     if (videoUrl.isEmpty) return;
 
     try {
       await Share.share(
-        'Check out this video on BuyNova!\n\n$videoUrl',
+        'Check out this video on BuyNova!\n\n'
+        '$videoUrl',
       );
 
-      final videoRef = FirebaseFirestore.instance
-          .collection('sellerVideos')
-          .doc(widget.videoId);
+      final videoRef =
+          FirebaseFirestore.instance
+              .collection('sellerVideos')
+              .doc(widget.videoId);
 
       await videoRef.update({
-        'shareCount': FieldValue.increment(1),
+        'shareCount':
+            FieldValue.increment(1),
       });
 
       if (mounted) {
@@ -502,6 +771,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       }
     } catch (_) {}
   }
+
+  // =========================================================
+  // COMMENTS
+  // =========================================================
 
   void _openComments() {
     showModalBottomSheet(
@@ -523,86 +796,125 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     );
   }
 
+  // =========================================================
+  // PRODUCT
+  // =========================================================
+
   void _openProduct() {
-    final productId = widget.data['productId']?.toString() ?? '';
+    final productId =
+        widget.data['productId']
+                ?.toString() ??
+            '';
 
     if (productId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
-          content: Text('No product attached to this video'),
+          content: Text(
+            'No product attached to this video',
+          ),
         ),
       );
+
       return;
     }
 
     final productName =
-        widget.data['productName']?.toString() ?? 'Product';
+        widget.data['productName']
+                ?.toString() ??
+            'Product';
 
     final productPrice =
-        _toDouble(widget.data['productPrice']);
+        _toDouble(
+      widget.data['productPrice'],
+    );
 
     final imageUrl =
-        widget.data['productImageUrl']?.toString() ??
-            widget.data['imageUrl']?.toString() ??
+        widget.data['productImageUrl']
+                ?.toString() ??
+            widget.data['imageUrl']
+                ?.toString() ??
             '';
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
+      shape:
+          const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(
           top: Radius.circular(24),
         ),
       ),
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding:
+                const EdgeInsets.all(20),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     if (imageUrl.isNotEmpty)
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(
+                          12,
+                        ),
                         child: Image.network(
                           imageUrl,
                           width: 70,
                           height: 70,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) {
+                          errorBuilder:
+                              (_, __, ___) {
                             return Container(
                               width: 70,
                               height: 70,
-                              color: Colors.grey.shade200,
-                              child: const Icon(
+                              color: Colors
+                                  .grey.shade200,
+                              child:
+                                  const Icon(
                                 Icons.image,
                               ),
                             );
                           },
                         ),
                       ),
+
                     const SizedBox(width: 14),
+
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            CrossAxisAlignment
+                                .start,
                         children: [
                           Text(
                             productName,
-                            style: const TextStyle(
+                            style:
+                                const TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(
+                            height: 5,
+                          ),
                           Text(
                             '₩${productPrice.toStringAsFixed(0)}',
-                            style: const TextStyle(
+                            style:
+                                const TextStyle(
                               fontSize: 17,
-                              fontWeight: FontWeight.w600,
+                              fontWeight:
+                                  FontWeight
+                                      .w600,
                             ),
                           ),
                         ],
@@ -610,22 +922,33 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 20),
+
                 SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
+                  width:
+                      double.infinity,
+                  child:
+                      ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pop(
+                        context,
+                      );
 
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const CartPage(),
+                          builder: (_) =>
+                              const CartPage(),
                         ),
                       );
                     },
-                    icon: const Icon(Icons.shopping_cart),
-                    label: const Text('Go to Cart'),
+                    icon: const Icon(
+                      Icons.shopping_cart,
+                    ),
+                    label: const Text(
+                      'Go to Cart',
+                    ),
                   ),
                 ),
               ],
@@ -636,21 +959,41 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     );
   }
 
+  // =========================================================
+  // USER NAME
+  // =========================================================
+
   String _sellerName() {
-    return widget.data['sellerName']?.toString() ??
-        widget.data['userName']?.toString() ??
+    return widget.data['sellerName']
+            ?.toString() ??
+        widget.data['userName']
+            ?.toString() ??
         'BuyNova User';
   }
 
+  // =========================================================
+  // CAPTION
+  // =========================================================
+
   String _caption() {
-    return widget.data['caption']?.toString() ?? '';
+    return widget.data['caption']
+            ?.toString() ??
+        '';
   }
+
+  // =========================================================
+  // DISPOSE
+  // =========================================================
 
   @override
   void dispose() {
     _controller?.dispose();
     super.dispose();
   }
+
+  // =========================================================
+  // BUILD REELS
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -661,34 +1004,57 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // =====================================================
+          // BLACK BACKGROUND
+          // =====================================================
+
           Container(
             color: Colors.black,
           ),
 
-          if (controller != null && _isInitialized)
+          // =====================================================
+          // VIDEO
+          // =====================================================
+
+          if (controller != null &&
+              _isInitialized)
             Center(
               child: FittedBox(
                 fit: BoxFit.cover,
                 child: SizedBox(
-                  width: controller.value.size.width,
-                  height: controller.value.size.height,
-                  child: VideoPlayer(controller),
+                  width:
+                      controller.value.size.width,
+                  height:
+                      controller.value.size.height,
+                  child:
+                      VideoPlayer(controller),
                 ),
               ),
             ),
 
+          // =====================================================
+          // LOADING
+          // =====================================================
+
           if (!_isInitialized)
             const Center(
-              child: CircularProgressIndicator(
+              child:
+                  CircularProgressIndicator(
                 color: Colors.white,
               ),
             ),
 
-          if (_isInitialized && !_isPlaying)
+          // =====================================================
+          // PLAY BUTTON
+          // =====================================================
+
+          if (_isInitialized &&
+              !_isPlaying)
             const Center(
               child: CircleAvatar(
                 radius: 34,
-                backgroundColor: Colors.black54,
+                backgroundColor:
+                    Colors.black54,
                 child: Icon(
                   Icons.play_arrow,
                   color: Colors.white,
@@ -697,7 +1063,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
               ),
             ),
 
-          // Bottom gradient
+          // =====================================================
+          // BOTTOM GRADIENT
+          // =====================================================
+
           Positioned(
             left: 0,
             right: 0,
@@ -705,10 +1074,14 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             height: 260,
             child: IgnorePointer(
               child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
+                decoration:
+                    const BoxDecoration(
+                  gradient:
+                      LinearGradient(
+                    begin:
+                        Alignment.bottomCenter,
+                    end:
+                        Alignment.topCenter,
                     colors: [
                       Colors.black87,
                       Colors.transparent,
@@ -719,99 +1092,149 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             ),
           ),
 
-          // Seller + caption + product
+          // =====================================================
+          // USER + CAPTION + PRODUCT
+          // =====================================================
+
           Positioned(
             left: 16,
             right: 90,
             bottom: 28,
             child: SafeArea(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
+                  // USER
                   Row(
                     children: [
                       const CircleAvatar(
                         radius: 21,
-                        backgroundColor: Colors.white24,
+                        backgroundColor:
+                            Colors.white24,
                         child: Icon(
                           Icons.person,
-                          color: Colors.white,
+                          color:
+                              Colors.white,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(
+                        width: 10,
+                      ),
                       Expanded(
                         child: Text(
                           '@${_sellerName()}',
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          overflow:
+                              TextOverflow
+                                  .ellipsis,
+                          style:
+                              const TextStyle(
+                            color:
+                                Colors.white,
                             fontSize: 17,
-                            fontWeight: FontWeight.bold,
+                            fontWeight:
+                                FontWeight
+                                    .bold,
                           ),
                         ),
                       ),
                     ],
                   ),
 
-                  if (_caption().isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                  // CAPTION
+                  if (_caption()
+                      .isNotEmpty) ...[
+                    const SizedBox(
+                      height: 10,
+                    ),
                     Text(
                       _caption(),
                       maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      overflow:
+                          TextOverflow
+                              .ellipsis,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
                         fontSize: 15,
                       ),
                     ),
                   ],
 
-                  if ((widget.data['productId']
+                  // PRODUCT
+                  if ((widget.data[
+                                  'productId']
                               ?.toString()
                               .isNotEmpty ??
                           false)) ...[
-                    const SizedBox(height: 14),
+                    const SizedBox(
+                      height: 14,
+                    ),
                     GestureDetector(
-                      onTap: _openProduct,
+                      onTap:
+                          _openProduct,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
                           horizontal: 14,
                           vertical: 11,
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              Colors.white,
                           borderRadius:
-                              BorderRadius.circular(24),
+                              BorderRadius
+                                  .circular(
+                            24,
+                          ),
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisSize:
+                              MainAxisSize
+                                  .min,
                           children: [
                             const Icon(
-                              Icons.shopping_bag,
-                              color: Colors.black,
+                              Icons
+                                  .shopping_bag,
+                              color:
+                                  Colors.black,
                               size: 20,
                             ),
-                            const SizedBox(width: 7),
+                            const SizedBox(
+                              width: 7,
+                            ),
                             Flexible(
                               child: Text(
-                                widget.data['productName']
+                                widget.data[
+                                            'productName']
                                         ?.toString() ??
                                     'View Product',
                                 maxLines: 1,
                                 overflow:
-                                    TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.black,
+                                    TextOverflow
+                                        .ellipsis,
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.black,
                                   fontWeight:
-                                      FontWeight.bold,
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(
+                              width: 5,
+                            ),
                             const Icon(
-                              Icons.arrow_forward_ios,
-                              color: Colors.black,
+                              Icons
+                                  .arrow_forward_ios,
+                              color:
+                                  Colors.black,
                               size: 15,
                             ),
                           ],
@@ -824,45 +1247,91 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             ),
           ),
 
-          // Right action buttons
+          // =====================================================
+          // RIGHT ACTION BUTTONS
+          // =====================================================
+
           Positioned(
             right: 12,
             bottom: 55,
             child: SafeArea(
               child: Column(
                 children: [
+                  // LIKE
                   _ActionButton(
                     icon: _isLiked
                         ? Icons.favorite
-                        : Icons.favorite_border,
-                    label: _formatCount(_likeCount),
+                        : Icons
+                            .favorite_border,
+                    label:
+                        _formatCount(
+                      _likeCount,
+                    ),
                     iconColor:
-                        _isLiked ? Colors.red : Colors.white,
-                    onTap: _toggleLike,
+                        _isLiked
+                            ? Colors.red
+                            : Colors.white,
+                    onTap:
+                        _toggleLike,
                   ),
-                  const SizedBox(height: 22),
+
+                  const SizedBox(
+                    height: 22,
+                  ),
+
+                  // COMMENT
                   _ActionButton(
-                    icon: Icons.comment,
-                    label: _formatCount(_commentCount),
-                    onTap: _openComments,
+                    icon:
+                        Icons.comment,
+                    label:
+                        _formatCount(
+                      _commentCount,
+                    ),
+                    onTap:
+                        _openComments,
                   ),
-                  const SizedBox(height: 22),
+
+                  const SizedBox(
+                    height: 22,
+                  ),
+
+                  // SHARE
                   _ActionButton(
                     icon: Icons.share,
-                    label: _formatCount(_shareCount),
-                    onTap: _shareVideo,
+                    label:
+                        _formatCount(
+                      _shareCount,
+                    ),
+                    onTap:
+                        _shareVideo,
                   ),
-                  const SizedBox(height: 22),
+
+                  const SizedBox(
+                    height: 22,
+                  ),
+
+                  // VIEWS
                   _ActionButton(
-                    icon: Icons.visibility,
-                    label: _formatCount(_viewCount),
+                    icon:
+                        Icons.visibility,
+                    label:
+                        _formatCount(
+                      _viewCount,
+                    ),
                     onTap: () {},
                   ),
-                  const SizedBox(height: 22),
+
+                  const SizedBox(
+                    height: 22,
+                  ),
+
+                  // BUY
                   _ActionButton(
-                    icon: Icons.shopping_cart,
+                    icon: Icons
+                        .shopping_cart,
                     label: 'Buy',
-                    onTap: _openProduct,
+                    onTap:
+                        _openProduct,
                   ),
                 ],
               ),
@@ -873,6 +1342,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     );
   }
 
+  // =========================================================
+  // INT
+  // =========================================================
+
   static int _toInt(dynamic value) {
     if (value is int) return value;
 
@@ -880,8 +1353,15 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       return value.toInt();
     }
 
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
+
+  // =========================================================
+  // DOUBLE
+  // =========================================================
 
   static double _toDouble(dynamic value) {
     if (value is double) return value;
@@ -890,8 +1370,15 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ?? 0;
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
+
+  // =========================================================
+  // FORMAT COUNT
+  // =========================================================
 
   static String _formatCount(int value) {
     if (value >= 1000000) {
@@ -905,6 +1392,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     return value.toString();
   }
 }
+
+// ===================================================================
+// ACTION BUTTON
+// ===================================================================
 
 class _ActionButton extends StatelessWidget {
   final IconData icon;
@@ -928,7 +1419,8 @@ class _ActionButton extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: const BoxDecoration(
+            decoration:
+                const BoxDecoration(
               color: Colors.black45,
               shape: BoxShape.circle,
             ),
@@ -941,10 +1433,12 @@ class _ActionButton extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style:
+                const TextStyle(
               color: Colors.white,
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight:
+                  FontWeight.w600,
             ),
           ),
         ],
@@ -953,7 +1447,12 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _CommentsSheet extends StatefulWidget {
+// ===================================================================
+// COMMENTS SHEET
+// ===================================================================
+
+class _CommentsSheet
+    extends StatefulWidget {
   final String videoId;
   final VoidCallback onCommentAdded;
 
@@ -963,16 +1462,24 @@ class _CommentsSheet extends StatefulWidget {
   });
 
   @override
-  State<_CommentsSheet> createState() => _CommentsSheetState();
+  State<_CommentsSheet> createState() =>
+      _CommentsSheetState();
 }
 
-class _CommentsSheetState extends State<_CommentsSheet> {
-  final TextEditingController _commentController =
+class _CommentsSheetState
+    extends State<_CommentsSheet> {
+  final TextEditingController
+      _commentController =
       TextEditingController();
 
   bool _sending = false;
 
-  User? get currentUser => FirebaseAuth.instance.currentUser;
+  User? get currentUser =>
+      FirebaseAuth.instance.currentUser;
+
+  // =========================================================
+  // SEND COMMENT
+  // =========================================================
 
   Future<void> _sendComment() async {
     final user = currentUser;
@@ -983,49 +1490,72 @@ class _CommentsSheetState extends State<_CommentsSheet> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => const LoginPage(),
+          builder: (_) =>
+              const LoginPage(),
         ),
       );
 
       return;
     }
 
-    final text = _commentController.text.trim();
+    final text =
+        _commentController.text.trim();
 
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending) {
+      return;
+    }
 
     setState(() {
       _sending = true;
     });
 
-    final videoRef = FirebaseFirestore.instance
-        .collection('sellerVideos')
-        .doc(widget.videoId);
+    final videoRef =
+        FirebaseFirestore.instance
+            .collection('sellerVideos')
+            .doc(widget.videoId);
 
-    final commentRef = videoRef.collection('comments').doc();
+    final commentRef =
+        videoRef.collection(
+      'comments',
+    ).doc();
 
     try {
-      await FirebaseFirestore.instance.runTransaction(
+      await FirebaseFirestore.instance
+          .runTransaction(
         (transaction) async {
           final videoSnapshot =
-              await transaction.get(videoRef);
-
-          final currentComments = _toInt(
-            videoSnapshot.data()?['commentCount'],
+              await transaction.get(
+            videoRef,
           );
 
-          transaction.set(commentRef, {
-            'userId': user.uid,
-            'userName': user.displayName ??
-                user.email ??
-                'BuyNova User',
-            'text': text,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
+          final currentComments =
+              _toInt(
+            videoSnapshot.data()?[
+                'commentCount'],
+          );
 
-          transaction.update(videoRef, {
-            'commentCount': currentComments + 1,
-          });
+          transaction.set(
+            commentRef,
+            {
+              'userId': user.uid,
+              'userName':
+                  user.displayName ??
+                      user.email ??
+                      'BuyNova User',
+              'text': text,
+              'createdAt':
+                  FieldValue
+                      .serverTimestamp(),
+            },
+          );
+
+          transaction.update(
+            videoRef,
+            {
+              'commentCount':
+                  currentComments + 1,
+            },
+          );
         },
       );
 
@@ -1034,17 +1564,21 @@ class _CommentsSheetState extends State<_CommentsSheet> {
       widget.onCommentAdded();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
           const SnackBar(
-            content: Text('Comment added'),
+            content:
+                Text('Comment added'),
           ),
         );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
           const SnackBar(
-            content: Text('Could not add comment'),
+            content:
+                Text('Could not add comment'),
           ),
         );
       }
@@ -1063,76 +1597,120 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     super.dispose();
   }
 
+  // =========================================================
+  // BUILD COMMENTS
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
     final bottomInset =
-        MediaQuery.of(context).viewInsets.bottom;
+        MediaQuery.of(context)
+            .viewInsets
+            .bottom;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.72,
+      height:
+          MediaQuery.of(context)
+                  .size
+                  .height *
+              0.72,
       padding: EdgeInsets.only(
         bottom: bottomInset,
       ),
-      decoration: const BoxDecoration(
+      decoration:
+          const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(
+        borderRadius:
+            BorderRadius.vertical(
           top: Radius.circular(24),
         ),
       ),
       child: Column(
         children: [
-          const SizedBox(height: 12),
+          const SizedBox(
+            height: 12,
+          ),
 
+          // DRAG HANDLE
           Container(
             width: 45,
             height: 5,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade400,
-              borderRadius: BorderRadius.circular(10),
+            decoration:
+                BoxDecoration(
+              color:
+                  Colors.grey.shade400,
+              borderRadius:
+                  BorderRadius.circular(
+                10,
+              ),
             ),
           ),
 
-          const SizedBox(height: 15),
+          const SizedBox(
+            height: 15,
+          ),
 
           const Text(
             'Comments',
-            style: TextStyle(
+            style:
+                TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
 
           const Divider(),
 
+          // ===================================================
+          // COMMENTS LIST
+          // ===================================================
+
           Expanded(
             child: StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('sellerVideos')
-                  .doc(widget.videoId)
-                  .collection('comments')
-                  .orderBy(
-                    'createdAt',
-                    descending: true,
-                  )
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
+                QuerySnapshot<
+                    Map<String,
+                        dynamic>>>(
+              stream:
+                  FirebaseFirestore.instance
+                      .collection(
+                          'sellerVideos')
+                      .doc(
+                          widget.videoId)
+                      .collection(
+                          'comments')
+                      .orderBy(
+                        'createdAt',
+                        descending:
+                            true,
+                      )
+                      .snapshots(),
+
+              builder:
+                  (context, snapshot) {
+                if (snapshot
+                        .connectionState ==
+                    ConnectionState
+                        .waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(),
+                    child:
+                        CircularProgressIndicator(),
                   );
                 }
 
                 final comments =
-                    snapshot.data?.docs ?? [];
+                    snapshot.data
+                            ?.docs ??
+                        [];
 
                 if (comments.isEmpty) {
                   return const Center(
                     child: Text(
                       'No comments yet',
-                      style: TextStyle(
-                        color: Colors.grey,
+                      style:
+                          TextStyle(
+                        color:
+                            Colors.grey,
                         fontSize: 16,
                       ),
                     ),
@@ -1140,28 +1718,39 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
                     horizontal: 16,
                   ),
-                  itemCount: comments.length,
-                  itemBuilder: (context, index) {
-                    final data = comments[index].data();
+                  itemCount:
+                      comments.length,
+                  itemBuilder:
+                      (context, index) {
+                    final data =
+                        comments[index]
+                            .data();
 
                     final name =
-                        data['userName']?.toString() ??
+                        data['userName']
+                                ?.toString() ??
                             'BuyNova User';
 
                     final text =
-                        data['text']?.toString() ?? '';
+                        data['text']
+                                ?.toString() ??
+                            '';
 
                     return Padding(
                       padding:
-                          const EdgeInsets.symmetric(
+                          const EdgeInsets
+                              .symmetric(
                         vertical: 9,
                       ),
                       child: Row(
                         crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            CrossAxisAlignment
+                                .start,
                         children: [
                           const CircleAvatar(
                             radius: 20,
@@ -1170,20 +1759,31 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                               size: 20,
                             ),
                           ),
-                          const SizedBox(width: 10),
+
+                          const SizedBox(
+                            width: 10,
+                          ),
+
                           Expanded(
                             child: Column(
                               crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                                  CrossAxisAlignment
+                                      .start,
                               children: [
                                 Text(
                                   name,
-                                  style: const TextStyle(
+                                  style:
+                                      const TextStyle(
                                     fontWeight:
-                                        FontWeight.bold,
+                                        FontWeight
+                                            .bold,
                                   ),
                                 ),
-                                const SizedBox(height: 3),
+
+                                const SizedBox(
+                                  height: 3,
+                                ),
+
                                 Text(text),
                               ],
                             ),
@@ -1197,8 +1797,14 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             ),
           ),
 
+          // ===================================================
+          // COMMENT INPUT
+          // ===================================================
+
           Padding(
-            padding: const EdgeInsets.fromLTRB(
+            padding:
+                const EdgeInsets
+                    .fromLTRB(
               12,
               8,
               12,
@@ -1208,43 +1814,62 @@ class _CommentsSheetState extends State<_CommentsSheet> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _commentController,
+                    controller:
+                        _commentController,
                     maxLength: 500,
-                    decoration: InputDecoration(
-                      hintText: 'Write a comment...',
+                    decoration:
+                        InputDecoration(
+                      hintText:
+                          'Write a comment...',
                       counterText: '',
                       filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(
+                      fillColor:
+                          Colors.grey
+                              .shade100,
+                      border:
+                          OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(25),
-                        borderSide: BorderSide.none,
+                            BorderRadius
+                                .circular(
+                          25,
+                        ),
+                        borderSide:
+                            BorderSide.none,
                       ),
                       contentPadding:
-                          const EdgeInsets.symmetric(
+                          const EdgeInsets
+                              .symmetric(
                         horizontal: 18,
                         vertical: 12,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+
+                const SizedBox(
+                  width: 8,
+                ),
+
                 CircleAvatar(
                   radius: 24,
                   child: IconButton(
-                    onPressed: _sending
-                        ? null
-                        : _sendComment,
+                    onPressed:
+                        _sending
+                            ? null
+                            : _sendComment,
                     icon: _sending
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child:
                                 CircularProgressIndicator(
-                              strokeWidth: 2,
+                              strokeWidth:
+                                  2,
                             ),
                           )
-                        : const Icon(Icons.send),
+                        : const Icon(
+                            Icons.send,
+                          ),
                   ),
                 ),
               ],
@@ -1255,6 +1880,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     );
   }
 
+  // =========================================================
+  // INT
+  // =========================================================
+
   static int _toInt(dynamic value) {
     if (value is int) return value;
 
@@ -1262,6 +1891,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
       return value.toInt();
     }
 
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 }
