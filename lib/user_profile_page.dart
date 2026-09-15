@@ -11,6 +11,7 @@ import 'my_products_page.dart';
 import 'add_seller_video_page.dart';
 import 'my_videos_page.dart';
 import 'entrepreneur_page.dart';
+import 'watch_earn_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -26,6 +27,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String _phone = '';
   String _profileImageUrl = '';
   String _sellerStatus = 'none';
+
+  int _pointsBalance = 0;
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
@@ -62,11 +65,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
         if (mounted) {
           setState(() {
-            _name = data['name'] ?? '';
-            _phone = data['phone'] ?? '';
-            _profileImageUrl = data['profileImageUrl'] ?? '';
+            _name = data['name']?.toString() ?? '';
+            _phone = data['phone']?.toString() ?? '';
+            _profileImageUrl =
+                data['profileImageUrl']?.toString() ?? '';
+
             _sellerStatus =
                 data['sellerStatus']?.toString() ?? 'none';
+
+            _pointsBalance =
+                (data['pointsBalance'] as num?)?.toInt() ?? 0;
           });
         }
       }
@@ -167,6 +175,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     _loadUserData();
   }
+
+  // =========================================================
+  // WATCH & EARN
+  // =========================================================
+
+  Future<void> _openWatchEarn() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WatchEarnPage(),
+      ),
+    );
+
+    _loadUserData();
+  }
+
+  // =========================================================
+  // COMING SOON
+  // =========================================================
 
   void _comingSoon(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -342,6 +369,49 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
+  // REWARDS SUMMARY CARD
+  // =========================================================
+
+  Widget _rewardsSummaryCard() {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 4,
+        ),
+        leading: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.orange.withValues(alpha: 0.12),
+          ),
+          child: const Icon(
+            Icons.stars_outlined,
+            color: Colors.orange,
+          ),
+        ),
+        title: const Text(
+          'My Rewards',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          '$_pointsBalance points available',
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
+        onTap: _openWatchEarn,
+      ),
+    );
+  }
+
+  // =========================================================
   // SELLER SECTION
   // =========================================================
 
@@ -467,254 +537,291 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // =================================================
-                  // PROFILE HEADER
-                  // =================================================
+          : RefreshIndicator(
+              onRefresh: _loadUserData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // =================================================
+                    // PROFILE HEADER
+                    // =================================================
 
-                  Center(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 8),
+                    Center(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 8),
 
-                        _profileImage(),
+                          _profileImage(),
 
-                        const SizedBox(height: 14),
+                          const SizedBox(height: 14),
 
-                        Text(
-                          _name.isEmpty ? 'User' : _name,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                          Text(
+                            _name.isEmpty ? 'User' : _name,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
 
-                        const SizedBox(height: 6),
+                          const SizedBox(height: 6),
 
-                        Text(
-                          user?.email ?? 'No Email',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.grey.shade600,
+                          Text(
+                            user?.email ?? 'No Email',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        ),
 
-                        if (_phone.isNotEmpty) ...[
-                          const SizedBox(height: 5),
-                          Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.phone,
-                                size: 16,
-                                color: Colors.grey.shade600,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _phone,
-                                style: TextStyle(
-                                  fontSize: 15,
+                          if (_phone.isNotEmpty) ...[
+                            const SizedBox(height: 5),
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.phone,
+                                  size: 16,
                                   color: Colors.grey.shade600,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  _phone,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
 
-                        const SizedBox(height: 18),
+                          const SizedBox(height: 18),
 
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: OutlinedButton.icon(
-                            onPressed: _openEditProfile,
-                            icon: const Icon(Icons.edit),
-                            label: const Text(
-                              'Edit Profile',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton.icon(
+                              onPressed: _openEditProfile,
+                              icon: const Icon(Icons.edit),
+                              label: const Text(
+                                'Edit Profile',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(height: 25),
+                    const SizedBox(height: 25),
 
-                  // =================================================
-                  // ADMIN
-                  // =================================================
+                    // =================================================
+                    // ADMIN
+                    // =================================================
 
-                  if (_isAdmin) ...[
+                    if (_isAdmin) ...[
+                      _sectionTitle(
+                        icon:
+                            Icons.admin_panel_settings_outlined,
+                        title: 'ADMIN',
+                      ),
+                      _menuItem(
+                        icon:
+                            Icons.dashboard_customize_outlined,
+                        title: 'Admin Panel',
+                        onTap: _openAdminPanel,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // =================================================
+                    // BUYER
+                    // =================================================
+
                     _sectionTitle(
-                      icon:
-                          Icons.admin_panel_settings_outlined,
-                      title: 'ADMIN',
+                      icon: Icons.shopping_bag_outlined,
+                      title: 'BUYER',
                     ),
+
                     _menuItem(
-                      icon:
-                          Icons.dashboard_customize_outlined,
-                      title: 'Admin Panel',
-                      onTap: _openAdminPanel,
+                      icon: Icons.receipt_long_outlined,
+                      title: 'My Orders',
+                      onTap: () =>
+                          _comingSoon('My Orders'),
                     ),
+
+                    _menuItem(
+                      icon: Icons.favorite_border,
+                      title: 'Favorites',
+                      onTap: () =>
+                          _comingSoon('Favorites'),
+                    ),
+
+                    _menuItem(
+                      icon: Icons.shopping_cart_outlined,
+                      title: 'My Cart',
+                      onTap: _openCart,
+                    ),
+
+                    _menuItem(
+                      icon: Icons.history,
+                      title: 'Recently Viewed',
+                      onTap: () =>
+                          _comingSoon('Recently Viewed'),
+                    ),
+
+                    _menuItem(
+                      icon: Icons.local_offer_outlined,
+                      title: 'Coupons',
+                      onTap: () =>
+                          _comingSoon('Coupons'),
+                    ),
+
                     const SizedBox(height: 16),
+
+                    // =================================================
+                    // EARN & REWARDS
+                    // =================================================
+
+                    _sectionTitle(
+                      icon: Icons.monetization_on_outlined,
+                      title: 'EARN & REWARDS',
+                    ),
+
+                    _menuItem(
+                      icon: Icons.play_circle_outline,
+                      title: 'Watch & Earn',
+                      onTap: _openWatchEarn,
+                    ),
+
+                    _rewardsSummaryCard(),
+
+                    _menuItem(
+                      icon: Icons.card_giftcard_outlined,
+                      title: 'Referral & Invite',
+                      onTap: () =>
+                          _comingSoon('Referral & Invite'),
+                    ),
+
+                    _menuItem(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: 'Withdraw Rewards',
+                      onTap: () =>
+                          _comingSoon('Withdraw Rewards'),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // =================================================
+                    // ENTREPRENEUR / RESELLER
+                    // =================================================
+
+                    _sectionTitle(
+                      icon: Icons.business_center_outlined,
+                      title: 'ENTREPRENEUR / RESELLER',
+                    ),
+
+                    _menuItem(
+                      icon: Icons.business_center_outlined,
+                      title: 'Entrepreneur / Reseller',
+                      onTap: _openEntrepreneur,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // =================================================
+                    // SELLER
+                    // =================================================
+
+                    _sectionTitle(
+                      icon: Icons.store_outlined,
+                      title: 'SELLER',
+                    ),
+
+                    ..._sellerSectionItems(),
+
+                    const SizedBox(height: 16),
+
+                    // =================================================
+                    // COMMUNICATION
+                    // =================================================
+
+                    _sectionTitle(
+                      icon: Icons.forum_outlined,
+                      title: 'COMMUNICATION',
+                    ),
+
+                    _menuItem(
+                      icon: Icons.chat_bubble_outline,
+                      title: 'Chat',
+                      onTap: () =>
+                          _comingSoon('Chat'),
+                    ),
+
+                    _menuItem(
+                      icon: Icons.message_outlined,
+                      title: 'Messages',
+                      onTap: () =>
+                          _comingSoon('Messages'),
+                    ),
+
+                    _menuItem(
+                      icon: Icons.notifications_none,
+                      title: 'Notifications',
+                      onTap: () =>
+                          _comingSoon('Notifications'),
+                    ),
+
+                    _menuItem(
+                      icon: Icons.support_agent_outlined,
+                      title: 'Contact Us',
+                      onTap: () =>
+                          _comingSoon('Contact Us'),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // =================================================
+                    // ACCOUNT
+                    // =================================================
+
+                    _sectionTitle(
+                      icon: Icons.manage_accounts_outlined,
+                      title: 'ACCOUNT',
+                    ),
+
+                    _menuItem(
+                      icon: Icons.security_outlined,
+                      title: 'Account & Security',
+                      onTap: () =>
+                          _comingSoon('Account & Security'),
+                    ),
+
+                    _menuItem(
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
+                      onTap: _openSettings,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    _menuItem(
+                      icon: Icons.logout,
+                      title: 'Logout',
+                      onTap: _logout,
+                      isDanger: true,
+                    ),
+
+                    const SizedBox(height: 20),
                   ],
-
-                  // =================================================
-                  // BUYER
-                  // =================================================
-
-                  _sectionTitle(
-                    icon: Icons.shopping_bag_outlined,
-                    title: 'BUYER',
-                  ),
-
-                  _menuItem(
-                    icon: Icons.receipt_long_outlined,
-                    title: 'My Orders',
-                    onTap: () =>
-                        _comingSoon('My Orders'),
-                  ),
-
-                  _menuItem(
-                    icon: Icons.favorite_border,
-                    title: 'Favorites',
-                    onTap: () =>
-                        _comingSoon('Favorites'),
-                  ),
-
-                  _menuItem(
-                    icon: Icons.shopping_cart_outlined,
-                    title: 'My Cart',
-                    onTap: _openCart,
-                  ),
-
-                  _menuItem(
-                    icon: Icons.history,
-                    title: 'Recently Viewed',
-                    onTap: () =>
-                        _comingSoon('Recently Viewed'),
-                  ),
-
-                  _menuItem(
-                    icon: Icons.local_offer_outlined,
-                    title: 'Coupons',
-                    onTap: () =>
-                        _comingSoon('Coupons'),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // =================================================
-                  // ENTREPRENEUR / RESELLER
-                  // =================================================
-
-                  _sectionTitle(
-                    icon: Icons.business_center_outlined,
-                    title: 'ENTREPRENEUR / RESELLER',
-                  ),
-
-                  _menuItem(
-                    icon: Icons.business_center_outlined,
-                    title: 'Entrepreneur / Reseller',
-                    onTap: _openEntrepreneur,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // =================================================
-                  // SELLER
-                  // =================================================
-
-                  _sectionTitle(
-                    icon: Icons.store_outlined,
-                    title: 'SELLER',
-                  ),
-
-                  ..._sellerSectionItems(),
-
-                  const SizedBox(height: 16),
-
-                  // =================================================
-                  // COMMUNICATION
-                  // =================================================
-
-                  _sectionTitle(
-                    icon: Icons.forum_outlined,
-                    title: 'COMMUNICATION',
-                  ),
-
-                  _menuItem(
-                    icon: Icons.chat_bubble_outline,
-                    title: 'Chat',
-                    onTap: () =>
-                        _comingSoon('Chat'),
-                  ),
-
-                  _menuItem(
-                    icon: Icons.message_outlined,
-                    title: 'Messages',
-                    onTap: () =>
-                        _comingSoon('Messages'),
-                  ),
-
-                  _menuItem(
-                    icon: Icons.notifications_none,
-                    title: 'Notifications',
-                    onTap: () =>
-                        _comingSoon('Notifications'),
-                  ),
-
-                  _menuItem(
-                    icon: Icons.support_agent_outlined,
-                    title: 'Contact Us',
-                    onTap: () =>
-                        _comingSoon('Contact Us'),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // =================================================
-                  // ACCOUNT
-                  // =================================================
-
-                  _sectionTitle(
-                    icon: Icons.manage_accounts_outlined,
-                    title: 'ACCOUNT',
-                  ),
-
-                  _menuItem(
-                    icon: Icons.security_outlined,
-                    title: 'Account & Security',
-                    onTap: () =>
-                        _comingSoon('Account & Security'),
-                  ),
-
-                  _menuItem(
-                    icon: Icons.settings_outlined,
-                    title: 'Settings',
-                    onTap: _openSettings,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  _menuItem(
-                    icon: Icons.logout,
-                    title: 'Logout',
-                    onTap: _logout,
-                    isDanger: true,
-                  ),
-
-                  const SizedBox(height: 20),
-                ],
+                ),
               ),
             ),
     );
