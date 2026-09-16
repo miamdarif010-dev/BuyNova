@@ -10,6 +10,7 @@ import 'cart_page.dart';
 import 'categories_page.dart';
 import 'news_feed_page.dart';
 import 'watch_earn_page.dart';
+import 'app_settings.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -37,6 +38,104 @@ class _HomePageState extends State<HomePage> {
     'Toys',
     'Grocery',
   ];
+
+  // =========================================================
+  // CURRENCY
+  // =========================================================
+
+  String _currencySymbol(String currency) {
+    switch (currency) {
+      case 'BDT':
+        return '৳';
+
+      case 'USD':
+        return '\$';
+
+      case 'INR':
+        return '₹';
+
+      case 'EUR':
+        return '€';
+
+      case 'KRW':
+      default:
+        return '₩';
+    }
+  }
+
+  String _currencyName(String currency) {
+    switch (currency) {
+      case 'BDT':
+        return 'Bangladeshi Taka';
+
+      case 'USD':
+        return 'US Dollar';
+
+      case 'INR':
+        return 'Indian Rupee';
+
+      case 'EUR':
+        return 'Euro';
+
+      case 'KRW':
+      default:
+        return 'Korean Won';
+    }
+  }
+
+  // =========================================================
+  // CURRENCY CONVERSION
+  //
+  // Base currency = KRW
+  //
+  // These are initial approximate rates.
+  // They can be replaced with live exchange rates later.
+  // =========================================================
+
+  double _convertPrice(
+    double krwPrice,
+    String currency,
+  ) {
+    switch (currency) {
+      // 1 KRW ≈ 0.09 BDT
+      case 'BDT':
+        return krwPrice * 0.09;
+
+      // 1 KRW ≈ 0.00075 USD
+      case 'USD':
+        return krwPrice * 0.00075;
+
+      // 1 KRW ≈ 0.063 INR
+      case 'INR':
+        return krwPrice * 0.063;
+
+      // 1 KRW ≈ 0.00064 EUR
+      case 'EUR':
+        return krwPrice * 0.00064;
+
+      case 'KRW':
+      default:
+        return krwPrice;
+    }
+  }
+
+  String _formatPrice(
+    double krwPrice,
+    String currency,
+  ) {
+    final convertedPrice = _convertPrice(
+      krwPrice,
+      currency,
+    );
+
+    final symbol = _currencySymbol(currency);
+
+    if (currency == 'KRW') {
+      return '$symbol${convertedPrice.toStringAsFixed(0)}';
+    }
+
+    return '$symbol${convertedPrice.toStringAsFixed(2)}';
+  }
 
   // =========================================================
   // BOTTOM NAVIGATION
@@ -72,6 +171,10 @@ class _HomePageState extends State<HomePage> {
           });
         }
       }
+
+      setState(() {
+        _selectedIndex = 0;
+      });
 
       return;
     }
@@ -209,316 +312,174 @@ class _HomePageState extends State<HomePage> {
         final user = authSnapshot.data;
         final isLoggedIn = user != null;
 
-        return Scaffold(
-          // ===================================================
-          // DRAWER / SIDE MENU
-          // ===================================================
+        return ValueListenableBuilder<String>(
+          valueListenable: AppSettings.currency,
+          builder: (
+            context,
+            currency,
+            child,
+          ) {
+            return Scaffold(
+              // ===================================================
+              // DRAWER / SIDE MENU
+              // ===================================================
 
-          drawer: Drawer(
-            child: SafeArea(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  // =================================================
-                  // HEADER
-                  // =================================================
-
-                  DrawerHeader(
-                    decoration: const BoxDecoration(
-                      color: Colors.redAccent,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.shopping_bag,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'BuyNova',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // =================================================
-                  // 1. ACCOUNT
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.person_outline,
-                    ),
-                    title: const Text('Account'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _openAccount(isLoggedIn);
-                    },
-                  ),
-
-                  // =================================================
-                  // 2. HOME
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.home_outlined,
-                    ),
-                    title: const Text('Home'),
-                    onTap: () {
-                      Navigator.pop(context);
-
-                      setState(() {
-                        _selectedIndex = 0;
-                      });
-                    },
-                  ),
-
-                  // =================================================
-                  // 3. CATEGORIES
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.category_outlined,
-                    ),
-                    title: const Text('Categories'),
-                    onTap: () async {
-                      Navigator.pop(context);
-
-                      final result =
-                          await Navigator.push<String>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const CategoriesPage(),
-                        ),
-                      );
-
-                      if (result != null && mounted) {
-                        final matchIndex =
-                            categories.indexOf(result);
-
-                        if (matchIndex != -1) {
-                          setState(() {
-                            _selectedCategory =
-                                matchIndex;
-                          });
-                        }
-                      }
-                    },
-                  ),
-
-                  // =================================================
-                  // 4. ADD PRODUCT
-                  // =================================================
-
-                  if (isLoggedIn)
-                    ListTile(
-                      leading: const Icon(
-                        Icons.add_circle_outline,
-                      ),
-                      title: const Text(
-                        'Add Product',
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const AddProductPage(),
-                          ),
-                        );
-                      },
-                    ),
-
-                  // =================================================
-                  // 5. VIDEOS
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.video_library_outlined,
-                    ),
-                    title: const Text('Videos'),
-                    subtitle: const Text(
-                      'Watch Reels & Videos',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _openVideos();
-                    },
-                  ),
-
-                  // =================================================
-                  // 6. CART
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.shopping_cart_outlined,
-                    ),
-                    title: const Text('Cart'),
-                    onTap: () {
-                      Navigator.pop(context);
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const CartPage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  // =================================================
-                  // 7. WATCH & EARN
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.ondemand_video_outlined,
-                    ),
-                    title: const Text(
-                      'Watch & Earn',
-                    ),
-                    subtitle: const Text(
-                      'Watch videos & earn points',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _openWatchEarn();
-                    },
-                  ),
-
-                  // =================================================
-                  // 8. SETTINGS
-                  // =================================================
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.settings_outlined,
-                    ),
-                    title: const Text('Settings'),
-                    onTap: () {
-                      Navigator.pop(context);
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const SettingsPage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  // =================================================
-                  // 9. LOGOUT
-                  // =================================================
-
-                  if (isLoggedIn)
-                    ListTile(
-                      leading: const Icon(
-                        Icons.logout,
-                      ),
-                      title: const Text('Logout'),
-                      onTap: () async {
-                        Navigator.pop(context);
-
-                        await FirebaseAuth.instance
-                            .signOut();
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          // ===================================================
-          // APP BAR
-          // ===================================================
-
-          appBar: AppBar(
-            backgroundColor: Colors.redAccent,
-            elevation: 0,
-            leading: Builder(
-              builder: (context) {
-                return IconButton(
-                  icon: const Icon(
-                    Icons.menu,
-                    color: Colors.white,
-                  ),
-                  onPressed: () {
-                    Scaffold.of(context).openDrawer();
-                  },
-                );
-              },
-            ),
-            title: const Text(
-              'BuyNova',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-            actions: [
-              // =================================================
-              // NOTIFICATIONS
-              // =================================================
-
-              IconButton(
-                icon: const Icon(
-                  Icons.notifications_outlined,
-                  color: Colors.white,
-                ),
-                onPressed: () {},
-              ),
-
-              // =================================================
-              // CART
-              // =================================================
-
-              StreamBuilder<QuerySnapshot>(
-                stream:
-                    isLoggedIn ? CartService.stream : null,
-                builder: (context, cartSnapshot) {
-                  int cartCount = 0;
-
-                  for (final doc
-                      in cartSnapshot.data?.docs ?? []) {
-                    final data =
-                        doc.data()
-                            as Map<String, dynamic>;
-
-                    final qty =
-                        data['quantity'] is num
-                            ? (data['quantity'] as num)
-                                .toInt()
-                            : 1;
-
-                    cartCount += qty;
-                  }
-
-                  return Stack(
-                    clipBehavior: Clip.none,
+              drawer: Drawer(
+                child: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
                     children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.shopping_cart_outlined,
-                          color: Colors.white,
+                      // =================================================
+                      // HEADER
+                      // =================================================
+
+                      DrawerHeader(
+                        decoration: const BoxDecoration(
+                          color: Colors.redAccent,
                         ),
-                        onPressed: () {
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.shopping_bag,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'BuyNova',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // =================================================
+                      // 1. ACCOUNT
+                      // =================================================
+
+                      ListTile(
+                        leading: const Icon(
+                          Icons.person_outline,
+                        ),
+                        title: const Text('Account'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _openAccount(isLoggedIn);
+                        },
+                      ),
+
+                      // =================================================
+                      // 2. HOME
+                      // =================================================
+
+                      ListTile(
+                        leading: const Icon(
+                          Icons.home_outlined,
+                        ),
+                        title: const Text('Home'),
+                        onTap: () {
+                          Navigator.pop(context);
+
+                          setState(() {
+                            _selectedIndex = 0;
+                          });
+                        },
+                      ),
+
+                      // =================================================
+                      // 3. CATEGORIES
+                      // =================================================
+
+                      ListTile(
+                        leading: const Icon(
+                          Icons.category_outlined,
+                        ),
+                        title: const Text('Categories'),
+                        onTap: () async {
+                          Navigator.pop(context);
+
+                          final result =
+                              await Navigator.push<String>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const CategoriesPage(),
+                            ),
+                          );
+
+                          if (result != null && mounted) {
+                            final matchIndex =
+                                categories.indexOf(result);
+
+                            if (matchIndex != -1) {
+                              setState(() {
+                                _selectedCategory =
+                                    matchIndex;
+                              });
+                            }
+                          }
+                        },
+                      ),
+
+                      // =================================================
+                      // 4. ADD PRODUCT
+                      // =================================================
+
+                      if (isLoggedIn)
+                        ListTile(
+                          leading: const Icon(
+                            Icons.add_circle_outline,
+                          ),
+                          title: const Text(
+                            'Add Product',
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AddProductPage(),
+                              ),
+                            );
+                          },
+                        ),
+
+                      // =================================================
+                      // 5. VIDEOS
+                      // =================================================
+
+                      ListTile(
+                        leading: const Icon(
+                          Icons.video_library_outlined,
+                        ),
+                        title: const Text('Videos'),
+                        subtitle: const Text(
+                          'Watch Reels & Videos',
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _openVideos();
+                        },
+                      ),
+
+                      // =================================================
+                      // 6. CART
+                      // =================================================
+
+                      ListTile(
+                        leading: const Icon(
+                          Icons.shopping_cart_outlined,
+                        ),
+                        title: const Text('Cart'),
+                        onTap: () {
+                          Navigator.pop(context);
+
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -528,589 +489,836 @@ class _HomePageState extends State<HomePage> {
                           );
                         },
                       ),
-                      if (cartCount > 0)
-                        Positioned(
-                          right: 6,
-                          top: 6,
-                          child: Container(
-                            padding:
-                                const EdgeInsets.all(3),
-                            decoration:
-                                const BoxDecoration(
+
+                      // =================================================
+                      // 7. WATCH & EARN
+                      // =================================================
+
+                      ListTile(
+                        leading: const Icon(
+                          Icons.ondemand_video_outlined,
+                        ),
+                        title: const Text(
+                          'Watch & Earn',
+                        ),
+                        subtitle: const Text(
+                          'Watch videos & earn points',
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _openWatchEarn();
+                        },
+                      ),
+
+                      // =================================================
+                      // 8. SETTINGS
+                      // =================================================
+
+                      ListTile(
+                        leading: const Icon(
+                          Icons.settings_outlined,
+                        ),
+                        title: const Text('Settings'),
+                        onTap: () {
+                          Navigator.pop(context);
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const SettingsPage(),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // =================================================
+                      // 9. LOGOUT
+                      // =================================================
+
+                      if (isLoggedIn)
+                        ListTile(
+                          leading: const Icon(
+                            Icons.logout,
+                          ),
+                          title: const Text('Logout'),
+                          onTap: () async {
+                            Navigator.pop(context);
+
+                            await FirebaseAuth
+                                .instance
+                                .signOut();
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ===================================================
+              // APP BAR
+              // ===================================================
+
+              appBar: AppBar(
+                backgroundColor: Colors.redAccent,
+                elevation: 0,
+                leading: Builder(
+                  builder: (context) {
+                    return IconButton(
+                      icon: const Icon(
+                        Icons.menu,
+                        color: Colors.white,
+                      ),
+                      onPressed: () {
+                        Scaffold.of(context)
+                            .openDrawer();
+                      },
+                    );
+                  },
+                ),
+                title: const Text(
+                  'BuyNova',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+                actions: [
+                  // =================================================
+                  // CURRENT CURRENCY
+                  // =================================================
+
+                  Center(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.only(
+                        right: 2,
+                      ),
+                      child: Text(
+                        _currencySymbol(currency),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // =================================================
+                  // NOTIFICATIONS
+                  // =================================================
+
+                  IconButton(
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {},
+                  ),
+
+                  // =================================================
+                  // CART
+                  // =================================================
+
+                  StreamBuilder<QuerySnapshot>(
+                    stream: isLoggedIn
+                        ? CartService.stream
+                        : null,
+                    builder: (
+                      context,
+                      cartSnapshot,
+                    ) {
+                      int cartCount = 0;
+
+                      for (final doc
+                          in cartSnapshot.data?.docs ??
+                              []) {
+                        final data =
+                            doc.data()
+                                as Map<String,
+                                    dynamic>;
+
+                        final qty =
+                            data['quantity'] is num
+                                ? (data['quantity']
+                                        as num)
+                                    .toInt()
+                                : 1;
+
+                        cartCount += qty;
+                      }
+
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons
+                                  .shopping_cart_outlined,
                               color: Colors.white,
-                              shape: BoxShape.circle,
                             ),
-                            constraints:
-                                const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const CartPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          if (cartCount > 0)
+                            Positioned(
+                              right: 6,
+                              top: 6,
+                              child: Container(
+                                padding:
+                                    const EdgeInsets
+                                        .all(3),
+                                decoration:
+                                    const BoxDecoration(
+                                  color: Colors.white,
+                                  shape:
+                                      BoxShape.circle,
+                                ),
+                                constraints:
+                                    const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  '$cartCount',
+                                  textAlign:
+                                      TextAlign.center,
+                                  style:
+                                      const TextStyle(
+                                    color:
+                                        Colors.redAccent,
+                                    fontSize: 10,
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                             ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+
+              // ===================================================
+              // BODY
+              // ===================================================
+
+              body: Column(
+                children: [
+                  // =================================================
+                  // SEARCH BAR
+                  // =================================================
+
+                  Container(
+                    color: Colors.redAccent,
+                    padding:
+                        const EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      12,
+                    ),
+                    child: Container(
+                      height: 42,
+                      decoration:
+                          BoxDecoration(
+                        color: Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(
+                          21,
+                        ),
+                      ),
+                      child: const TextField(
+                        decoration:
+                            InputDecoration(
+                          hintText:
+                              'Search products...',
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.grey,
+                          ),
+                          border:
+                              InputBorder.none,
+                          contentPadding:
+                              EdgeInsets.symmetric(
+                            vertical: 8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // =================================================
+                  // CATEGORIES
+                  // =================================================
+
+                  Container(
+                    height: 58,
+                    color: Colors.white,
+                    child: ListView.builder(
+                      scrollDirection:
+                          Axis.horizontal,
+                      physics:
+                          const BouncingScrollPhysics(),
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      itemCount:
+                          categories.length,
+                      itemBuilder:
+                          (context, index) {
+                        final isSelected =
+                            _selectedCategory ==
+                                index;
+
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory =
+                                  index;
+                            });
+                          },
+                          child:
+                              AnimatedContainer(
+                            duration:
+                                const Duration(
+                              milliseconds: 200,
+                            ),
+                            margin:
+                                const EdgeInsets
+                                    .symmetric(
+                              horizontal: 5,
+                            ),
+                            padding:
+                                const EdgeInsets
+                                    .symmetric(
+                              horizontal: 17,
+                              vertical: 8,
+                            ),
+                            decoration:
+                                BoxDecoration(
+                              color: isSelected
+                                  ? Colors.redAccent
+                                  : Colors
+                                      .grey
+                                      .shade100,
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(
+                                20,
+                              ),
+                              border:
+                                  Border.all(
+                                color: isSelected
+                                    ? Colors
+                                        .redAccent
+                                    : Colors
+                                        .grey
+                                        .shade300,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                categories[index],
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors
+                                          .black87,
+                                  fontWeight:
+                                      isSelected
+                                          ? FontWeight
+                                              .bold
+                                          : FontWeight
+                                              .w500,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // =================================================
+                  // PRODUCT GRID
+                  // =================================================
+
+                  Expanded(
+                    child:
+                        StreamBuilder<QuerySnapshot>(
+                      stream:
+                          FirebaseFirestore
+                              .instance
+                              .collection(
+                                'products',
+                              )
+                              .snapshots(),
+                      builder:
+                          (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return const Center(
                             child: Text(
-                              '$cartCount',
-                              textAlign:
-                                  TextAlign.center,
-                              style: const TextStyle(
+                              'Failed to load products',
+                              style: TextStyle(
+                                fontSize: 16,
                                 color:
-                                    Colors.redAccent,
-                                fontSize: 10,
+                                    Colors.grey,
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (snapshot
+                                .connectionState ==
+                            ConnectionState
+                                .waiting) {
+                          return const Center(
+                            child:
+                                CircularProgressIndicator(),
+                          );
+                        }
+
+                        final docs =
+                            snapshot.data?.docs ??
+                                [];
+
+                        if (docs.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'No products found yet',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color:
+                                    Colors.grey,
+                              ),
+                            ),
+                          );
+                        }
+
+                        return GridView.builder(
+                          padding:
+                              const EdgeInsets
+                                  .all(8),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio:
+                                0.75,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                          itemCount: docs.length,
+                          itemBuilder:
+                              (context, index) {
+                            final data =
+                                docs[index]
+                                        .data()
+                                    as Map<String,
+                                        dynamic>;
+
+                            final name =
+                                data['name']
+                                        ?.toString() ??
+                                    'Unnamed Product';
+
+                            final rawPrice =
+                                data['price'] is num
+                                    ? (data['price']
+                                            as num)
+                                        .toDouble()
+                                    : 0.0;
+
+                            final displayPrice =
+                                _formatPrice(
+                              rawPrice,
+                              currency,
+                            );
+
+                            final imageUrl =
+                                data['imageUrl']
+                                    ?.toString();
+
+                            return Card(
+                              elevation: 2,
+                              shape:
+                                  RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  10,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment
+                                        .start,
+                                children: [
+                                  // =============================================
+                                  // IMAGE
+                                  // =============================================
+
+                                  Expanded(
+                                    child:
+                                        Container(
+                                      width: double
+                                          .infinity,
+                                      decoration:
+                                          BoxDecoration(
+                                        color: Colors
+                                            .grey[300],
+                                        borderRadius:
+                                            const BorderRadius
+                                                .vertical(
+                                          top: Radius
+                                              .circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      child:
+                                          imageUrl !=
+                                                      null &&
+                                                  imageUrl
+                                                      .isNotEmpty
+                                              ? ClipRRect(
+                                                  borderRadius:
+                                                      const BorderRadius
+                                                          .vertical(
+                                                    top:
+                                                        Radius.circular(
+                                                      10,
+                                                    ),
+                                                  ),
+                                                  child:
+                                                      Image.network(
+                                                    imageUrl,
+                                                    fit:
+                                                        BoxFit.cover,
+                                                    width:
+                                                        double.infinity,
+                                                    errorBuilder:
+                                                        (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) {
+                                                      return const Center(
+                                                        child:
+                                                            Icon(
+                                                          Icons.image,
+                                                          size:
+                                                              50,
+                                                          color:
+                                                              Colors.grey,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                )
+                                              : const Center(
+                                                  child:
+                                                      Icon(
+                                                    Icons
+                                                        .image,
+                                                    size:
+                                                        50,
+                                                    color:
+                                                        Colors.grey,
+                                                  ),
+                                                ),
+                                    ),
+                                  ),
+
+                                  // =============================================
+                                  // PRODUCT INFO
+                                  // =============================================
+
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets
+                                            .all(8),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment
+                                              .start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style:
+                                              const TextStyle(
+                                            fontWeight:
+                                                FontWeight.bold,
+                                          ),
+                                          maxLines: 1,
+                                          overflow:
+                                              TextOverflow
+                                                  .ellipsis,
+                                        ),
+
+                                        const SizedBox(
+                                          height: 4,
+                                        ),
+
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment
+                                                  .spaceBetween,
+                                          children: [
+                                            // =====================================
+                                            // CURRENCY PRICE
+                                            // =====================================
+
+                                            Flexible(
+                                              child:
+                                                  Text(
+                                                displayPrice,
+                                                style:
+                                                    const TextStyle(
+                                                  color:
+                                                      Colors.redAccent,
+                                                  fontWeight:
+                                                      FontWeight.bold,
+                                                  fontSize:
+                                                      16,
+                                                ),
+                                                maxLines:
+                                                    1,
+                                                overflow:
+                                                    TextOverflow
+                                                        .ellipsis,
+                                              ),
+                                            ),
+
+                                            const SizedBox(
+                                              width: 5,
+                                            ),
+
+                                            // =====================================
+                                            // ADD TO CART
+                                            // =====================================
+
+                                            InkWell(
+                                              borderRadius:
+                                                  BorderRadius
+                                                      .circular(
+                                                20,
+                                              ),
+                                              onTap:
+                                                  () async {
+                                                if (!isLoggedIn) {
+                                                  await Navigator
+                                                      .push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder:
+                                                          (context) =>
+                                                              const LoginPage(),
+                                                    ),
+                                                  );
+                                                  return;
+                                                }
+
+                                                await CartService
+                                                    .addItem(
+                                                  id: docs[index]
+                                                      .id,
+                                                  name:
+                                                      name,
+                                                  price:
+                                                      rawPrice,
+                                                  imageUrl:
+                                                      imageUrl,
+                                                );
+
+                                                if (!context
+                                                    .mounted) {
+                                                  return;
+                                                }
+
+                                                ScaffoldMessenger
+                                                    .of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content:
+                                                        Text(
+                                                      '$name added to cart',
+                                                    ),
+                                                    behavior:
+                                                        SnackBarBehavior
+                                                            .floating,
+                                                    duration:
+                                                        const Duration(
+                                                      seconds:
+                                                          1,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                              child:
+                                                  Container(
+                                                padding:
+                                                    const EdgeInsets
+                                                        .all(
+                                                  6,
+                                                ),
+                                                decoration:
+                                                    BoxDecoration(
+                                                  color:
+                                                      Colors.redAccent,
+                                                  borderRadius:
+                                                      BorderRadius
+                                                          .circular(
+                                                    20,
+                                                  ),
+                                                ),
+                                                child:
+                                                    const Icon(
+                                                  Icons
+                                                      .add_shopping_cart,
+                                                  size:
+                                                      16,
+                                                  color:
+                                                      Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              // ===================================================
+              // SIGN IN BANNER
+              // ===================================================
+
+              bottomSheet: isLoggedIn
+                  ? null
+                  : Container(
+                      color: Colors.orangeAccent,
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment
+                                .spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Sign in for best experience!',
+                              style: TextStyle(
+                                color: Colors.white,
                                 fontWeight:
                                     FontWeight.bold,
                               ),
                             ),
                           ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-
-          // ===================================================
-          // BODY
-          // ===================================================
-
-          body: Column(
-            children: [
-              // =================================================
-              // SEARCH BAR
-              // =================================================
-
-              Container(
-                color: Colors.redAccent,
-                padding:
-                    const EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  12,
-                ),
-                child: Container(
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius:
-                        BorderRadius.circular(21),
-                  ),
-                  child: const TextField(
-                    decoration:
-                        InputDecoration(
-                      hintText:
-                          'Search products...',
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: Colors.grey,
-                      ),
-                      border:
-                          InputBorder.none,
-                      contentPadding:
-                          EdgeInsets.symmetric(
-                        vertical: 8,
+                          ElevatedButton(
+                            style:
+                                ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  Colors.white,
+                              foregroundColor:
+                                  Colors
+                                      .orangeAccent,
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) =>
+                                          const LoginPage(),
+                                ),
+                              );
+                            },
+                            child:
+                                const Text('Sign In'),
+                          ),
+                        ],
                       ),
                     ),
+
+              // ===================================================
+              // BOTTOM NAVIGATION
+              // ===================================================
+
+              bottomNavigationBar:
+                  BottomNavigationBar(
+                currentIndex: _selectedIndex,
+                onTap: _onNavTap,
+                selectedItemColor:
+                    Colors.redAccent,
+                unselectedItemColor:
+                    Colors.grey,
+                type:
+                    BottomNavigationBarType.fixed,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(
+                      Icons.home,
+                    ),
+                    label: 'Home',
                   ),
-                ),
-              ),
-
-              // =================================================
-              // CATEGORIES
-              // =================================================
-
-              Container(
-                height: 58,
-                color: Colors.white,
-                child: ListView.builder(
-                  scrollDirection:
-                      Axis.horizontal,
-                  physics:
-                      const BouncingScrollPhysics(),
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 9,
+                  BottomNavigationBarItem(
+                    icon: Icon(
+                      Icons.category,
+                    ),
+                    label: 'Categories',
                   ),
-                  itemCount:
-                      categories.length,
-                  itemBuilder:
-                      (context, index) {
-                    final isSelected =
-                        _selectedCategory ==
-                            index;
-
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedCategory =
-                              index;
-                        });
-                      },
-                      child:
-                          AnimatedContainer(
-                        duration:
-                            const Duration(
-                          milliseconds: 200,
-                        ),
-                        margin:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 5,
-                        ),
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 17,
-                          vertical: 8,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          color: isSelected
-                              ? Colors.redAccent
-                              : Colors.grey.shade100,
-                          borderRadius:
-                              BorderRadius.circular(
-                            20,
-                          ),
-                          border:
-                              Border.all(
-                            color: isSelected
-                                ? Colors.redAccent
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            categories[index],
-                            style: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.black87,
-                              fontWeight:
-                                  isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // =================================================
-              // PRODUCT GRID
-              // =================================================
-
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream:
-                      FirebaseFirestore.instance
-                          .collection('products')
-                          .snapshots(),
-                  builder:
-                      (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return const Center(
-                        child: Text(
-                          'Failed to load products',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(
-                        child:
-                            CircularProgressIndicator(),
-                      );
-                    }
-
-                    final docs =
-                        snapshot.data?.docs ?? [];
-
-                    if (docs.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'No products found yet',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return GridView.builder(
-                      padding:
-                          const EdgeInsets.all(8),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.75,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                      ),
-                      itemCount: docs.length,
-                      itemBuilder:
-                          (context, index) {
-                        final data =
-                            docs[index].data()
-                                as Map<String,
-                                    dynamic>;
-
-                        final name =
-                            data['name']
-                                    ?.toString() ??
-                                'Unnamed Product';
-
-                        final rawPrice =
-                            data['price'] is num
-                                ? (data['price']
-                                        as num)
-                                    .toDouble()
-                                : 0.0;
-
-                        final price =
-                            rawPrice
-                                .toStringAsFixed(0);
-
-                        final imageUrl =
-                            data['imageUrl']
-                                ?.toString();
-
-                        return Card(
-                          elevation: 2,
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(
-                              10,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              // =================================================
-                              // IMAGE
-                              // =================================================
-
-                              Expanded(
-                                child: Container(
-                                  width:
-                                      double.infinity,
-                                  decoration:
-                                      BoxDecoration(
-                                    color:
-                                        Colors.grey[300],
-                                    borderRadius:
-                                        const BorderRadius
-                                            .vertical(
-                                      top:
-                                          Radius.circular(
-                                        10,
-                                      ),
-                                    ),
-                                  ),
-                                  child:
-                                      imageUrl !=
-                                                  null &&
-                                              imageUrl
-                                                  .isNotEmpty
-                                          ? ClipRRect(
-                                              borderRadius:
-                                                  const BorderRadius
-                                                      .vertical(
-                                                top:
-                                                    Radius.circular(
-                                                  10,
-                                                ),
-                                              ),
-                                              child:
-                                                  Image.network(
-                                                imageUrl,
-                                                fit: BoxFit
-                                                    .cover,
-                                                width:
-                                                    double.infinity,
-                                                errorBuilder:
-                                                    (
-                                                  context,
-                                                  error,
-                                                  stackTrace,
-                                                ) {
-                                                  return const Center(
-                                                    child:
-                                                        Icon(
-                                                      Icons
-                                                          .image,
-                                                      size:
-                                                          50,
-                                                      color:
-                                                          Colors.grey,
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            )
-                                          : const Center(
-                                              child:
-                                                  Icon(
-                                                Icons.image,
-                                                size: 50,
-                                                color:
-                                                    Colors.grey,
-                                              ),
-                                            ),
-                                ),
-                              ),
-
-                              // =================================================
-                              // PRODUCT INFO
-                              // =================================================
-
-                              Padding(
-                                padding:
-                                    const EdgeInsets.all(
-                                  8,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style:
-                                          const TextStyle(
-                                        fontWeight:
-                                            FontWeight.bold,
-                                      ),
-                                      maxLines: 1,
-                                      overflow:
-                                          TextOverflow.ellipsis,
-                                    ),
-
-                                    const SizedBox(
-                                      height: 4,
-                                    ),
-
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment
-                                              .spaceBetween,
-                                      children: [
-                                        Text(
-                                          '₩$price',
-                                          style:
-                                              const TextStyle(
-                                            color: Colors
-                                                .redAccent,
-                                            fontWeight:
-                                                FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-
-                                        // =================================================
-                                        // ADD TO CART
-                                        // =================================================
-
-                                        InkWell(
-                                          borderRadius:
-                                              BorderRadius
-                                                  .circular(
-                                            20,
-                                          ),
-                                          onTap:
-                                              () async {
-                                            if (!isLoggedIn) {
-                                              await Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder:
-                                                      (context) =>
-                                                          const LoginPage(),
-                                                ),
-                                              );
-                                              return;
-                                            }
-
-                                            await CartService
-                                                .addItem(
-                                              id: docs[index].id,
-                                              name: name,
-                                              price: rawPrice,
-                                              imageUrl: imageUrl,
-                                            );
-
-                                            if (!context
-                                                .mounted) {
-                                              return;
-                                            }
-
-                                            ScaffoldMessenger
-                                                .of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content:
-                                                    Text(
-                                                  '$name added to cart',
-                                                ),
-                                                behavior:
-                                                    SnackBarBehavior
-                                                        .floating,
-                                                duration:
-                                                    const Duration(
-                                                  seconds: 1,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          child: Container(
-                                            padding:
-                                                const EdgeInsets.all(
-                                              6,
-                                            ),
-                                            decoration:
-                                                BoxDecoration(
-                                              color:
-                                                  Colors.redAccent,
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                20,
-                                              ),
-                                            ),
-                                            child:
-                                                const Icon(
-                                              Icons
-                                                  .add_shopping_cart,
-                                              size: 16,
-                                              color:
-                                                  Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-
-          // ===================================================
-          // SIGN IN BANNER
-          // ===================================================
-
-          bottomSheet: isLoggedIn
-              ? null
-              : Container(
-                  color: Colors.orangeAccent,
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+                  BottomNavigationBarItem(
+                    icon: Icon(
+                      Icons.video_library,
+                    ),
+                    label: 'Videos',
                   ),
-                  child: Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Sign in for best experience!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      ElevatedButton(
-                        style:
-                            ElevatedButton.styleFrom(
-                          backgroundColor:
-                              Colors.white,
-                          foregroundColor:
-                              Colors.orangeAccent,
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) =>
-                                      const LoginPage(),
-                            ),
-                          );
-                        },
-                        child:
-                            const Text('Sign In'),
-                      ),
-                    ],
+                  BottomNavigationBarItem(
+                    icon: Icon(
+                      Icons
+                          .shopping_cart_outlined,
+                    ),
+                    label: 'Cart',
                   ),
-                ),
-
-          // ===================================================
-          // BOTTOM NAVIGATION
-          // ===================================================
-
-          bottomNavigationBar:
-              BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            onTap: _onNavTap,
-            selectedItemColor:
-                Colors.redAccent,
-            unselectedItemColor:
-                Colors.grey,
-            type:
-                BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.home,
-                ),
-                label: 'Home',
+                  BottomNavigationBarItem(
+                    icon: Icon(
+                      Icons.person,
+                    ),
+                    label: 'Profile',
+                  ),
+                ],
               ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.category,
-                ),
-                label: 'Categories',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.video_library,
-                ),
-                label: 'Videos',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.shopping_cart_outlined,
-                ),
-                label: 'Cart',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.person,
-                ),
-                label: 'Profile',
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
