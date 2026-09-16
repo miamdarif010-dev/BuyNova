@@ -40,7 +40,7 @@ class _HomePageState extends State<HomePage> {
   ];
 
   // =========================================================
-  // CURRENCY
+  // CURRENCY SYMBOL
   // =========================================================
 
   String _currencySymbol(String currency) {
@@ -63,33 +63,13 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  String _currencyName(String currency) {
-    switch (currency) {
-      case 'BDT':
-        return 'Bangladeshi Taka';
-
-      case 'USD':
-        return 'US Dollar';
-
-      case 'INR':
-        return 'Indian Rupee';
-
-      case 'EUR':
-        return 'Euro';
-
-      case 'KRW':
-      default:
-        return 'Korean Won';
-    }
-  }
-
   // =========================================================
   // CURRENCY CONVERSION
   //
   // Base currency = KRW
   //
-  // These are initial approximate rates.
-  // They can be replaced with live exchange rates later.
+  // These are approximate rates for now.
+  // Live exchange rates can be connected later.
   // =========================================================
 
   double _convertPrice(
@@ -113,11 +93,16 @@ class _HomePageState extends State<HomePage> {
       case 'EUR':
         return krwPrice * 0.00064;
 
+      // Base currency
       case 'KRW':
       default:
         return krwPrice;
     }
   }
+
+  // =========================================================
+  // FORMAT PRICE
+  // =========================================================
 
   String _formatPrice(
     double krwPrice,
@@ -172,9 +157,11 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
-      setState(() {
-        _selectedIndex = 0;
-      });
+      if (mounted) {
+        setState(() {
+          _selectedIndex = 0;
+        });
+      }
 
       return;
     }
@@ -570,8 +557,7 @@ class _HomePageState extends State<HomePage> {
                         color: Colors.white,
                       ),
                       onPressed: () {
-                        Scaffold.of(context)
-                            .openDrawer();
+                        Scaffold.of(context).openDrawer();
                       },
                     );
                   },
@@ -591,8 +577,7 @@ class _HomePageState extends State<HomePage> {
 
                   Center(
                     child: Padding(
-                      padding:
-                          const EdgeInsets.only(
+                      padding: const EdgeInsets.only(
                         right: 2,
                       ),
                       child: Text(
@@ -600,8 +585,7 @@ class _HomePageState extends State<HomePage> {
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 17,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -634,17 +618,14 @@ class _HomePageState extends State<HomePage> {
                       int cartCount = 0;
 
                       for (final doc
-                          in cartSnapshot.data?.docs ??
-                              []) {
+                          in cartSnapshot.data?.docs ?? []) {
                         final data =
                             doc.data()
-                                as Map<String,
-                                    dynamic>;
+                                as Map<String, dynamic>;
 
                         final qty =
                             data['quantity'] is num
-                                ? (data['quantity']
-                                        as num)
+                                ? (data['quantity'] as num)
                                     .toInt()
                                 : 1;
 
@@ -656,8 +637,7 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           IconButton(
                             icon: const Icon(
-                              Icons
-                                  .shopping_cart_outlined,
+                              Icons.shopping_cart_outlined,
                               color: Colors.white,
                             ),
                             onPressed: () {
@@ -676,13 +656,11 @@ class _HomePageState extends State<HomePage> {
                               top: 6,
                               child: Container(
                                 padding:
-                                    const EdgeInsets
-                                        .all(3),
+                                    const EdgeInsets.all(3),
                                 decoration:
                                     const BoxDecoration(
                                   color: Colors.white,
-                                  shape:
-                                      BoxShape.circle,
+                                  shape: BoxShape.circle,
                                 ),
                                 constraints:
                                     const BoxConstraints(
@@ -691,12 +669,9 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 child: Text(
                                   '$cartCount',
-                                  textAlign:
-                                      TextAlign.center,
-                                  style:
-                                      const TextStyle(
-                                    color:
-                                        Colors.redAccent,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
                                     fontSize: 10,
                                     fontWeight:
                                         FontWeight.bold,
@@ -723,8 +698,7 @@ class _HomePageState extends State<HomePage> {
 
                   Container(
                     color: Colors.redAccent,
-                    padding:
-                        const EdgeInsets.fromLTRB(
+                    padding: const EdgeInsets.fromLTRB(
                       16,
                       0,
                       16,
@@ -732,25 +706,19 @@ class _HomePageState extends State<HomePage> {
                     ),
                     child: Container(
                       height: 42,
-                      decoration:
-                          BoxDecoration(
+                      decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius:
-                            BorderRadius.circular(
-                          21,
-                        ),
+                            BorderRadius.circular(21),
                       ),
                       child: const TextField(
-                        decoration:
-                            InputDecoration(
-                          hintText:
-                              'Search products...',
+                        decoration: InputDecoration(
+                          hintText: 'Search products...',
                           prefixIcon: Icon(
                             Icons.search,
                             color: Colors.grey,
                           ),
-                          border:
-                              InputBorder.none,
+                          border: InputBorder.none,
                           contentPadding:
                               EdgeInsets.symmetric(
                             vertical: 8,
@@ -768,67 +736,47 @@ class _HomePageState extends State<HomePage> {
                     height: 58,
                     color: Colors.white,
                     child: ListView.builder(
-                      scrollDirection:
-                          Axis.horizontal,
+                      scrollDirection: Axis.horizontal,
                       physics:
                           const BouncingScrollPhysics(),
-                      padding:
-                          const EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 9,
                       ),
-                      itemCount:
-                          categories.length,
-                      itemBuilder:
-                          (context, index) {
+                      itemCount: categories.length,
+                      itemBuilder: (context, index) {
                         final isSelected =
-                            _selectedCategory ==
-                                index;
+                            _selectedCategory == index;
 
                         return GestureDetector(
                           onTap: () {
                             setState(() {
-                              _selectedCategory =
-                                  index;
+                              _selectedCategory = index;
                             });
                           },
-                          child:
-                              AnimatedContainer(
-                            duration:
-                                const Duration(
+                          child: AnimatedContainer(
+                            duration: const Duration(
                               milliseconds: 200,
                             ),
                             margin:
-                                const EdgeInsets
-                                    .symmetric(
+                                const EdgeInsets.symmetric(
                               horizontal: 5,
                             ),
                             padding:
-                                const EdgeInsets
-                                    .symmetric(
+                                const EdgeInsets.symmetric(
                               horizontal: 17,
                               vertical: 8,
                             ),
-                            decoration:
-                                BoxDecoration(
+                            decoration: BoxDecoration(
                               color: isSelected
                                   ? Colors.redAccent
-                                  : Colors
-                                      .grey
-                                      .shade100,
+                                  : Colors.grey.shade100,
                               borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                20,
-                              ),
-                              border:
-                                  Border.all(
+                                  BorderRadius.circular(20),
+                              border: Border.all(
                                 color: isSelected
-                                    ? Colors
-                                        .redAccent
-                                    : Colors
-                                        .grey
-                                        .shade300,
+                                    ? Colors.redAccent
+                                    : Colors.grey.shade300,
                               ),
                             ),
                             child: Center(
@@ -837,14 +785,10 @@ class _HomePageState extends State<HomePage> {
                                 style: TextStyle(
                                   color: isSelected
                                       ? Colors.white
-                                      : Colors
-                                          .black87,
-                                  fontWeight:
-                                      isSelected
-                                          ? FontWeight
-                                              .bold
-                                          : FontWeight
-                                              .w500,
+                                      : Colors.black87,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
                                   fontSize: 14,
                                 ),
                               ),
@@ -860,34 +804,25 @@ class _HomePageState extends State<HomePage> {
                   // =================================================
 
                   Expanded(
-                    child:
-                        StreamBuilder<QuerySnapshot>(
-                      stream:
-                          FirebaseFirestore
-                              .instance
-                              .collection(
-                                'products',
-                              )
-                              .snapshots(),
-                      builder:
-                          (context, snapshot) {
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('products')
+                          .snapshots(),
+                      builder: (context, snapshot) {
                         if (snapshot.hasError) {
                           return const Center(
                             child: Text(
                               'Failed to load products',
                               style: TextStyle(
                                 fontSize: 16,
-                                color:
-                                    Colors.grey,
+                                color: Colors.grey,
                               ),
                             ),
                           );
                         }
 
-                        if (snapshot
-                                .connectionState ==
-                            ConnectionState
-                                .waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return const Center(
                             child:
                                 CircularProgressIndicator(),
@@ -895,8 +830,7 @@ class _HomePageState extends State<HomePage> {
                         }
 
                         final docs =
-                            snapshot.data?.docs ??
-                                [];
+                            snapshot.data?.docs ?? [];
 
                         if (docs.isEmpty) {
                           return const Center(
@@ -904,8 +838,7 @@ class _HomePageState extends State<HomePage> {
                               'No products found yet',
                               style: TextStyle(
                                 fontSize: 16,
-                                color:
-                                    Colors.grey,
+                                color: Colors.grey,
                               ),
                             ),
                           );
@@ -913,13 +846,11 @@ class _HomePageState extends State<HomePage> {
 
                         return GridView.builder(
                           padding:
-                              const EdgeInsets
-                                  .all(8),
+                              const EdgeInsets.all(8),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            childAspectRatio:
-                                0.75,
+                            childAspectRatio: 0.75,
                             crossAxisSpacing: 8,
                             mainAxisSpacing: 8,
                           ),
@@ -927,20 +858,16 @@ class _HomePageState extends State<HomePage> {
                           itemBuilder:
                               (context, index) {
                             final data =
-                                docs[index]
-                                        .data()
-                                    as Map<String,
-                                        dynamic>;
+                                docs[index].data()
+                                    as Map<String, dynamic>;
 
                             final name =
-                                data['name']
-                                        ?.toString() ??
+                                data['name']?.toString() ??
                                     'Unnamed Product';
 
                             final rawPrice =
                                 data['price'] is num
-                                    ? (data['price']
-                                            as num)
+                                    ? (data['price'] as num)
                                         .toDouble()
                                     : 0.0;
 
@@ -951,49 +878,41 @@ class _HomePageState extends State<HomePage> {
                             );
 
                             final imageUrl =
-                                data['imageUrl']
-                                    ?.toString();
+                                data['imageUrl']?.toString();
 
                             return Card(
                               elevation: 2,
                               shape:
                                   RoundedRectangleBorder(
                                 borderRadius:
-                                    BorderRadius
-                                        .circular(
+                                    BorderRadius.circular(
                                   10,
                                 ),
                               ),
                               child: Column(
                                 crossAxisAlignment:
-                                    CrossAxisAlignment
-                                        .start,
+                                    CrossAxisAlignment.start,
                                 children: [
                                   // =============================================
                                   // IMAGE
                                   // =============================================
 
                                   Expanded(
-                                    child:
-                                        Container(
-                                      width: double
-                                          .infinity,
+                                    child: Container(
+                                      width: double.infinity,
                                       decoration:
                                           BoxDecoration(
-                                        color: Colors
-                                            .grey[300],
+                                        color: Colors.grey[300],
                                         borderRadius:
                                             const BorderRadius
                                                 .vertical(
-                                          top: Radius
-                                              .circular(
+                                          top: Radius.circular(
                                             10,
                                           ),
                                         ),
                                       ),
                                       child:
-                                          imageUrl !=
-                                                      null &&
+                                          imageUrl != null &&
                                                   imageUrl
                                                       .isNotEmpty
                                               ? ClipRRect(
@@ -1008,8 +927,7 @@ class _HomePageState extends State<HomePage> {
                                                   child:
                                                       Image.network(
                                                     imageUrl,
-                                                    fit:
-                                                        BoxFit.cover,
+                                                    fit: BoxFit.cover,
                                                     width:
                                                         double.infinity,
                                                     errorBuilder:
@@ -1022,8 +940,7 @@ class _HomePageState extends State<HomePage> {
                                                         child:
                                                             Icon(
                                                           Icons.image,
-                                                          size:
-                                                              50,
+                                                          size: 50,
                                                           color:
                                                               Colors.grey,
                                                         ),
@@ -1032,12 +949,9 @@ class _HomePageState extends State<HomePage> {
                                                   ),
                                                 )
                                               : const Center(
-                                                  child:
-                                                      Icon(
-                                                    Icons
-                                                        .image,
-                                                    size:
-                                                        50,
+                                                  child: Icon(
+                                                    Icons.image,
+                                                    size: 50,
                                                     color:
                                                         Colors.grey,
                                                   ),
@@ -1051,12 +965,12 @@ class _HomePageState extends State<HomePage> {
 
                                   Padding(
                                     padding:
-                                        const EdgeInsets
-                                            .all(8),
+                                        const EdgeInsets.all(
+                                      8,
+                                    ),
                                     child: Column(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment
-                                              .start,
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           name,
@@ -1067,8 +981,7 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                           maxLines: 1,
                                           overflow:
-                                              TextOverflow
-                                                  .ellipsis,
+                                              TextOverflow.ellipsis,
                                         ),
 
                                         const SizedBox(
@@ -1085,8 +998,7 @@ class _HomePageState extends State<HomePage> {
                                             // =====================================
 
                                             Flexible(
-                                              child:
-                                                  Text(
+                                              child: Text(
                                                 displayPrice,
                                                 style:
                                                     const TextStyle(
@@ -1094,11 +1006,9 @@ class _HomePageState extends State<HomePage> {
                                                       Colors.redAccent,
                                                   fontWeight:
                                                       FontWeight.bold,
-                                                  fontSize:
-                                                      16,
+                                                  fontSize: 16,
                                                 ),
-                                                maxLines:
-                                                    1,
+                                                maxLines: 1,
                                                 overflow:
                                                     TextOverflow
                                                         .ellipsis,
@@ -1119,8 +1029,7 @@ class _HomePageState extends State<HomePage> {
                                                       .circular(
                                                 20,
                                               ),
-                                              onTap:
-                                                  () async {
+                                              onTap: () async {
                                                 if (!isLoggedIn) {
                                                   await Navigator
                                                       .push(
@@ -1138,16 +1047,13 @@ class _HomePageState extends State<HomePage> {
                                                     .addItem(
                                                   id: docs[index]
                                                       .id,
-                                                  name:
-                                                      name,
-                                                  price:
-                                                      rawPrice,
+                                                  name: name,
+                                                  price: rawPrice,
                                                   imageUrl:
                                                       imageUrl,
                                                 );
 
-                                                if (!context
-                                                    .mounted) {
+                                                if (!context.mounted) {
                                                   return;
                                                 }
 
@@ -1156,8 +1062,7 @@ class _HomePageState extends State<HomePage> {
                                                   context,
                                                 ).showSnackBar(
                                                   SnackBar(
-                                                    content:
-                                                        Text(
+                                                    content: Text(
                                                       '$name added to cart',
                                                     ),
                                                     behavior:
@@ -1165,14 +1070,12 @@ class _HomePageState extends State<HomePage> {
                                                             .floating,
                                                     duration:
                                                         const Duration(
-                                                      seconds:
-                                                          1,
+                                                      seconds: 1,
                                                     ),
                                                   ),
                                                 );
                                               },
-                                              child:
-                                                  Container(
+                                              child: Container(
                                                 padding:
                                                     const EdgeInsets
                                                         .all(
@@ -1192,8 +1095,7 @@ class _HomePageState extends State<HomePage> {
                                                     const Icon(
                                                   Icons
                                                       .add_shopping_cart,
-                                                  size:
-                                                      16,
+                                                  size: 16,
                                                   color:
                                                       Colors.white,
                                                 ),
@@ -1230,8 +1132,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Row(
                         mainAxisAlignment:
-                            MainAxisAlignment
-                                .spaceBetween,
+                            MainAxisAlignment.spaceBetween,
                         children: [
                           const Expanded(
                             child: Text(
@@ -1249,16 +1150,14 @@ class _HomePageState extends State<HomePage> {
                               backgroundColor:
                                   Colors.white,
                               foregroundColor:
-                                  Colors
-                                      .orangeAccent,
+                                  Colors.orangeAccent,
                             ),
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder:
-                                      (context) =>
-                                          const LoginPage(),
+                                  builder: (context) =>
+                                      const LoginPage(),
                                 ),
                               );
                             },
@@ -1285,34 +1184,25 @@ class _HomePageState extends State<HomePage> {
                     BottomNavigationBarType.fixed,
                 items: const [
                   BottomNavigationBarItem(
-                    icon: Icon(
-                      Icons.home,
-                    ),
+                    icon: Icon(Icons.home),
                     label: 'Home',
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(
-                      Icons.category,
-                    ),
+                    icon: Icon(Icons.category),
                     label: 'Categories',
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(
-                      Icons.video_library,
-                    ),
+                    icon: Icon(Icons.video_library),
                     label: 'Videos',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(
-                      Icons
-                          .shopping_cart_outlined,
+                      Icons.shopping_cart_outlined,
                     ),
                     label: 'Cart',
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(
-                      Icons.person,
-                    ),
+                    icon: Icon(Icons.person),
                     label: 'Profile',
                   ),
                 ],
