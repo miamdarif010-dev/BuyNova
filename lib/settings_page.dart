@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -7,14 +9,16 @@ import 'app_settings.dart';
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  // =========================================================
-  // LOGOUT
-  // =========================================================
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   Future<void> _logout(BuildContext context) async {
-    final confirm = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Logout'),
           content: const Text(
@@ -23,165 +27,106 @@ class SettingsPage extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context, false);
+                Navigator.pop(dialogContext, false);
               },
               child: const Text('Cancel'),
             ),
-            TextButton(
+            FilledButton(
               onPressed: () {
-                Navigator.pop(context, true);
+                Navigator.pop(dialogContext, true);
               },
-              child: const Text(
-                'Logout',
-                style: TextStyle(
-                  color: Colors.red,
-                ),
-              ),
+              child: const Text('Logout'),
             ),
           ],
         );
       },
     );
 
-    if (confirm != true) return;
+    if (confirmed != true) return;
 
     await FirebaseAuth.instance.signOut();
 
     if (!context.mounted) return;
 
-    Navigator.of(context).pushAndRemoveUntil(
+    Navigator.pushAndRemoveUntil(
+      context,
       MaterialPageRoute(
-        builder: (context) => const LoginPage(),
+        builder: (_) => const LoginPage(),
       ),
       (route) => false,
     );
   }
 
-  // =========================================================
-  // DELETE ACCOUNT
-  // =========================================================
-
-  Future<void> _deleteAccountConfirm(
-    BuildContext context,
-  ) async {
-    final confirm = await showDialog<bool>(
+  Future<void> _deleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Delete Account'),
           content: const Text(
-            'This will permanently delete your account. '
-            'This action cannot be undone. Continue?',
+            'Are you sure you want to delete your account?\n\n'
+            'This action cannot be undone.',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context, false);
+                Navigator.pop(dialogContext, false);
               },
               child: const Text('Cancel'),
             ),
-            TextButton(
+            FilledButton(
               onPressed: () {
-                Navigator.pop(context, true);
+                Navigator.pop(dialogContext, true);
               },
-              child: const Text(
-                'Delete',
-                style: TextStyle(
-                  color: Colors.red,
-                ),
-              ),
+              child: const Text('Delete'),
             ),
           ],
         );
       },
     );
 
-    if (confirm != true) return;
+    if (confirmed != true) return;
 
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Full account deletion will be connected later.',
-        ),
-      ),
+    _showMessage(
+      context,
+      'Account deletion will be connected later.',
     );
   }
 
-  // =========================================================
-  // LANGUAGE
-  // =========================================================
-
-  void _showLanguageDialog(
-    BuildContext context,
-  ) {
+  void _showLanguageDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return ValueListenableBuilder<String>(
           valueListenable: AppSettings.language,
-          builder: (
-            context,
-            currentLanguage,
-            child,
-          ) {
+          builder: (context, language, child) {
             return AlertDialog(
               title: const Text('Language'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioListTile<String>(
-                    title: const Text('English'),
-                    value: 'English',
-                    groupValue: currentLanguage,
-                    onChanged: (value) async {
-                      if (value == null) return;
+              content: RadioGroup<String>(
+                groupValue: language,
+                onChanged: (value) {
+                  if (value == null) return;
 
-                      await AppSettings.setLanguage(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  RadioListTile<String>(
-                    title: const Text('বাংলা'),
-                    value: 'বাংলা',
-                    groupValue: currentLanguage,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setLanguage(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  RadioListTile<String>(
-                    title: const Text('한국어'),
-                    value: '한국어',
-                    groupValue: currentLanguage,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setLanguage(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-                ],
+                  AppSettings.setLanguage(value);
+                  Navigator.pop(dialogContext);
+                },
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<String>(
+                      value: 'English',
+                      title: Text('English'),
+                    ),
+                    RadioListTile<String>(
+                      value: 'বাংলা',
+                      title: Text('বাংলা'),
+                    ),
+                    RadioListTile<String>(
+                      value: '한국어',
+                      title: Text('한국어'),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -190,128 +135,48 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // =========================================================
-  // CURRENCY
-  // =========================================================
-
-  void _showCurrencyDialog(
-    BuildContext context,
-  ) {
+  void _showCurrencyDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return ValueListenableBuilder<String>(
           valueListenable: AppSettings.currency,
-          builder: (
-            context,
-            currentCurrency,
-            child,
-          ) {
+          builder: (context, currency, child) {
             return AlertDialog(
               title: const Text('Currency'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // KRW
-                  RadioListTile<String>(
-                    title: const Text(
-                      '₩ Korean Won',
+              content: RadioGroup<String>(
+                groupValue: currency,
+                onChanged: (value) {
+                  if (value == null) return;
+
+                  AppSettings.setCurrency(value);
+                  Navigator.pop(dialogContext);
+                },
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<String>(
+                      value: 'KRW',
+                      title: Text('₩ Korean Won'),
                     ),
-                    value: 'KRW',
-                    groupValue: currentCurrency,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setCurrency(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  // BDT
-                  RadioListTile<String>(
-                    title: const Text(
-                      '৳ Bangladeshi Taka',
+                    RadioListTile<String>(
+                      value: 'BDT',
+                      title: Text('৳ Bangladeshi Taka'),
                     ),
-                    value: 'BDT',
-                    groupValue: currentCurrency,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setCurrency(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  // USD
-                  RadioListTile<String>(
-                    title: const Text(
-                      '\$ US Dollar',
+                    RadioListTile<String>(
+                      value: 'USD',
+                      title: Text('\$ US Dollar'),
                     ),
-                    value: 'USD',
-                    groupValue: currentCurrency,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setCurrency(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  // INR
-                  RadioListTile<String>(
-                    title: const Text(
-                      '₹ Indian Rupee',
+                    RadioListTile<String>(
+                      value: 'INR',
+                      title: Text('₹ Indian Rupee'),
                     ),
-                    value: 'INR',
-                    groupValue: currentCurrency,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setCurrency(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  // EUR
-                  RadioListTile<String>(
-                    title: const Text(
-                      '€ Euro',
+                    RadioListTile<String>(
+                      value: 'EUR',
+                      title: Text('€ Euro'),
                     ),
-                    value: 'EUR',
-                    groupValue: currentCurrency,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setCurrency(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -320,98 +185,44 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // =========================================================
-  // VIDEO QUALITY
-  // =========================================================
-
-  void _showVideoQualityDialog(
-    BuildContext context,
-  ) {
+  void _showVideoQualityDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return ValueListenableBuilder<String>(
           valueListenable: AppSettings.videoQuality,
-          builder: (
-            context,
-            currentQuality,
-            child,
-          ) {
+          builder: (context, quality, child) {
             return AlertDialog(
-              title: const Text(
-                'Video Quality',
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioListTile<String>(
-                    title: const Text('Auto'),
-                    value: 'Auto',
-                    groupValue: currentQuality,
-                    onChanged: (value) async {
-                      if (value == null) return;
+              title: const Text('Video Quality'),
+              content: RadioGroup<String>(
+                groupValue: quality,
+                onChanged: (value) {
+                  if (value == null) return;
 
-                      await AppSettings.setVideoQuality(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  RadioListTile<String>(
-                    title: const Text('Low'),
-                    value: 'Low',
-                    groupValue: currentQuality,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setVideoQuality(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  RadioListTile<String>(
-                    title: const Text('Medium'),
-                    value: 'Medium',
-                    groupValue: currentQuality,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setVideoQuality(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-
-                  RadioListTile<String>(
-                    title: const Text('High'),
-                    value: 'High',
-                    groupValue: currentQuality,
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      await AppSettings.setVideoQuality(
-                        value,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-                ],
+                  AppSettings.setVideoQuality(value);
+                  Navigator.pop(dialogContext);
+                },
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<String>(
+                      value: 'Auto',
+                      title: Text('Auto'),
+                    ),
+                    RadioListTile<String>(
+                      value: 'Low',
+                      title: Text('Low'),
+                    ),
+                    RadioListTile<String>(
+                      value: 'Medium',
+                      title: Text('Medium'),
+                    ),
+                    RadioListTile<String>(
+                      value: 'High',
+                      title: Text('High'),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -419,773 +230,737 @@ class SettingsPage extends StatelessWidget {
       },
     );
   }
-
-  // =========================================================
-  // CLEAR CACHE
-  // =========================================================
-
-  Future<void> _clearCache(
-    BuildContext context,
-  ) async {
-    await AppSettings.clearCache();
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Temporary app settings reset successfully.',
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // SECTION HEADER
-  // =========================================================
-
-  Widget _sectionHeader(
-    String title,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        20,
-        16,
-        8,
-      ),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // SWITCH TILE
-  // =========================================================
-
-  Widget _settingSwitch({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required ValueNotifier<bool> notifier,
-    required Future<void> Function(bool)
-        onChanged,
-  }) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: notifier,
-      builder: (
-        context,
-        value,
-        child,
-      ) {
-        return SwitchListTile(
-          secondary: Icon(icon),
-          title: Text(title),
-          subtitle: Text(subtitle),
-          value: value,
-          onChanged: onChanged,
-        );
-      },
-    );
-  }
-
-  // =========================================================
-  // NORMAL TILE
-  // =========================================================
-
-  Widget _tile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required VoidCallback onTap,
-    Color? iconColor,
-    Color? textColor,
-  }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: iconColor,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 15,
-        ),
-      ),
-      subtitle: subtitle == null
-          ? null
-          : Text(subtitle),
-      trailing: const Icon(
-        Icons.chevron_right,
-        color: Colors.grey,
-      ),
-      onTap: onTap,
-    );
-  }
-
-  // =========================================================
-  // COMING SOON
-  // =========================================================
-
-  void _comingSoon(
-    BuildContext context,
-    String feature,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '$feature will be connected later.',
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // BUILD
-  // =========================================================
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
         centerTitle: true,
-        backgroundColor: Colors.redAccent,
-        foregroundColor: Colors.white,
       ),
-
       body: ListView(
-        padding: const EdgeInsets.only(
-          bottom: 24,
-        ),
+        padding: const EdgeInsets.only(bottom: 30),
         children: [
           // =====================================================
-          // 1. GENERAL
+          // GENERAL
           // =====================================================
 
-          _sectionHeader('GENERAL'),
+          const _SectionTitle(
+            icon: Icons.tune,
+            title: 'General',
+          ),
 
-          Card(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 12,
-            ),
-            child: Column(
-              children: [
-                // Notifications
-                ValueListenableBuilder<bool>(
-                  valueListenable:
-                      AppSettings.notifications,
-                  builder: (
-                    context,
-                    value,
-                    child,
-                  ) {
-                    return SwitchListTile(
-                      secondary: const Icon(
-                        Icons.notifications_outlined,
-                      ),
-                      title: const Text(
-                        'Notifications',
-                      ),
-                      subtitle: const Text(
-                        'Receive BuyNova notifications',
-                      ),
-                      value: value,
-                      onChanged: (newValue) {
-                        AppSettings.setNotifications(
-                          newValue,
-                        );
-                      },
-                    );
-                  },
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.notifications,
+            builder: (context, value, child) {
+              return SwitchListTile(
+                secondary: const Icon(
+                  Icons.notifications_outlined,
                 ),
-
-                const Divider(height: 1),
-
-                // Dark Mode
-                ValueListenableBuilder<ThemeMode>(
-                  valueListenable:
-                      AppSettings.themeMode,
-                  builder: (
-                    context,
-                    mode,
-                    child,
-                  ) {
-                    final isDark =
-                        mode == ThemeMode.dark;
-
-                    return SwitchListTile(
-                      secondary: const Icon(
-                        Icons.dark_mode_outlined,
-                      ),
-                      title: const Text(
-                        'Dark Mode',
-                      ),
-                      subtitle: const Text(
-                        'Use dark appearance',
-                      ),
-                      value: isDark,
-                      onChanged: (value) {
-                        AppSettings.setDarkMode(
-                          value,
-                        );
-                      },
-                    );
-                  },
+                title: const Text('Notifications'),
+                subtitle: const Text(
+                  'Receive BuyNova notifications',
                 ),
+                value: value,
+                onChanged: (newValue) {
+                  AppSettings.setNotifications(newValue);
+                },
+              );
+            },
+          ),
 
-                const Divider(height: 1),
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: AppSettings.themeMode,
+            builder: (context, themeMode, child) {
+              final isDark = themeMode == ThemeMode.dark;
 
-                // Language
-                ValueListenableBuilder<String>(
-                  valueListenable:
-                      AppSettings.language,
-                  builder: (
-                    context,
-                    value,
-                    child,
-                  ) {
-                    return _tile(
-                      icon:
-                          Icons.language_outlined,
-                      title: 'Language',
-                      subtitle: value,
-                      onTap: () {
-                        _showLanguageDialog(
-                          context,
-                        );
-                      },
-                    );
-                  },
+              return SwitchListTile(
+                secondary: Icon(
+                  isDark
+                      ? Icons.dark_mode
+                      : Icons.light_mode_outlined,
                 ),
-
-                const Divider(height: 1),
-
-                // Currency
-                ValueListenableBuilder<String>(
-                  valueListenable:
-                      AppSettings.currency,
-                  builder: (
-                    context,
-                    value,
-                    child,
-                  ) {
-                    String text;
-
-                    switch (value) {
-                      case 'BDT':
-                        text =
-                            '৳ Bangladeshi Taka';
-                        break;
-
-                      case 'USD':
-                        text =
-                            '\$ US Dollar';
-                        break;
-
-                      case 'INR':
-                        text =
-                            '₹ Indian Rupee';
-                        break;
-
-                      case 'EUR':
-                        text =
-                            '€ Euro';
-                        break;
-
-                      case 'KRW':
-                      default:
-                        text =
-                            '₩ Korean Won';
-                    }
-
-                    return _tile(
-                      icon:
-                          Icons.currency_exchange,
-                      title: 'Currency',
-                      subtitle: text,
-                      onTap: () {
-                        _showCurrencyDialog(
-                          context,
-                        );
-                      },
-                    );
-                  },
+                title: const Text('Dark Mode'),
+                subtitle: Text(
+                  isDark
+                      ? 'Dark theme is enabled'
+                      : 'Use light theme',
                 ),
-              ],
-            ),
+                value: isDark,
+                onChanged: (value) {
+                  AppSettings.setDarkMode(value);
+                },
+              );
+            },
+          ),
+
+          ValueListenableBuilder<String>(
+            valueListenable: AppSettings.language,
+            builder: (context, language, child) {
+              return ListTile(
+                leading: const Icon(
+                  Icons.language_outlined,
+                ),
+                title: const Text('Language'),
+                subtitle: Text(language),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                ),
+                onTap: () {
+                  _showLanguageDialog(context);
+                },
+              );
+            },
+          ),
+
+          ValueListenableBuilder<String>(
+            valueListenable: AppSettings.currency,
+            builder: (context, currency, child) {
+              String currencyName;
+
+              switch (currency) {
+                case 'BDT':
+                  currencyName = '৳ Bangladeshi Taka';
+                  break;
+                case 'USD':
+                  currencyName = '\$ US Dollar';
+                  break;
+                case 'INR':
+                  currencyName = '₹ Indian Rupee';
+                  break;
+                case 'EUR':
+                  currencyName = '€ Euro';
+                  break;
+                case 'KRW':
+                default:
+                  currencyName = '₩ Korean Won';
+              }
+
+              return ListTile(
+                leading: const Icon(
+                  Icons.currency_exchange,
+                ),
+                title: const Text('Currency'),
+                subtitle: Text(currencyName),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                ),
+                onTap: () {
+                  _showCurrencyDialog(context);
+                },
+              );
+            },
           ),
 
           // =====================================================
-          // 2. VIDEO & MEDIA
+          // SHOPPING
           // =====================================================
 
-          _sectionHeader('VIDEO & MEDIA'),
+          const _SectionTitle(
+            icon: Icons.shopping_bag_outlined,
+            title: 'Shopping',
+          ),
 
-          Card(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 12,
+          ListTile(
+            leading: const Icon(
+              Icons.local_shipping_outlined,
             ),
-            child: Column(
-              children: [
-                // Auto Play
-                _settingSwitch(
-                  icon:
-                      Icons.play_circle_outline,
-                  title:
-                      'Auto Play Videos',
-                  subtitle:
-                      'Automatically play videos when opened',
-                  notifier:
-                      AppSettings.autoPlayVideos,
-                  onChanged:
-                      AppSettings.setAutoPlayVideos,
-                ),
-
-                const Divider(height: 1),
-
-                // Sound
-                _settingSwitch(
-                  icon:
-                      Icons.volume_up_outlined,
-                  title: 'Video Sound',
-                  subtitle:
-                      'Enable sound when videos play',
-                  notifier:
-                      AppSettings.videoSound,
-                  onChanged:
-                      AppSettings.setVideoSound,
-                ),
-
-                const Divider(height: 1),
-
-                // Vibration
-                _settingSwitch(
-                  icon: Icons.vibration,
-                  title: 'Vibration',
-                  subtitle:
-                      'Allow vibration feedback',
-                  notifier:
-                      AppSettings.vibration,
-                  onChanged:
-                      AppSettings.setVibration,
-                ),
-
-                const Divider(height: 1),
-
-                // Data Saver
-                _settingSwitch(
-                  icon:
-                      Icons.data_saver_off,
-                  title: 'Data Saver',
-                  subtitle:
-                      'Reduce mobile data usage',
-                  notifier:
-                      AppSettings.dataSaver,
-                  onChanged:
-                      AppSettings.setDataSaver,
-                ),
-
-                const Divider(height: 1),
-
-                // Video Quality
-                ValueListenableBuilder<String>(
-                  valueListenable:
-                      AppSettings.videoQuality,
-                  builder: (
-                    context,
-                    value,
-                    child,
-                  ) {
-                    return _tile(
-                      icon:
-                          Icons.high_quality_outlined,
-                      title:
-                          'Video Quality',
-                      subtitle: value,
-                      onTap: () {
-                        _showVideoQualityDialog(
-                          context,
-                        );
-                      },
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                // Reduce Motion
-                _settingSwitch(
-                  icon:
-                      Icons.animation_outlined,
-                  title: 'Reduce Motion',
-                  subtitle:
-                      'Reduce animations in the app',
-                  notifier:
-                      AppSettings.reduceMotion,
-                  onChanged:
-                      AppSettings.setReduceMotion,
-                ),
-
-                const Divider(height: 1),
-
-                // Clear temporary settings
-                _tile(
-                  icon:
-                      Icons.cleaning_services_outlined,
-                  title: 'Clear Cache',
-                  subtitle:
-                      'Reset temporary app settings',
-                  onTap: () {
-                    _clearCache(context);
-                  },
-                ),
-              ],
+            title: const Text('Delivery Preferences'),
+            subtitle: const Text(
+              'Manage delivery options',
             ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Delivery Preferences will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.location_on_outlined,
+            ),
+            title: const Text('Shopping Location'),
+            subtitle: const Text(
+              'Set your preferred delivery location',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Shopping Location will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.local_offer_outlined,
+            ),
+            title: const Text('Coupons'),
+            subtitle: const Text(
+              'Manage your coupons',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Coupons will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.favorite_border,
+            ),
+            title: const Text('Favorites'),
+            subtitle: const Text(
+              'Manage favorite products',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Favorites will be connected later.',
+              );
+            },
           ),
 
           // =====================================================
-          // 3. ACCOUNT & SECURITY
+          // VIDEOS
           // =====================================================
 
-          _sectionHeader(
-            'ACCOUNT & SECURITY',
+          const _SectionTitle(
+            icon: Icons.video_library_outlined,
+            title: 'Videos',
           ),
 
-          Card(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 12,
-            ),
-            child: Column(
-              children: [
-                _tile(
-                  icon: Icons.lock_outline,
-                  title: 'Change Password',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Password change',
-                    );
-                  },
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.autoPlayVideos,
+            builder: (context, value, child) {
+              return SwitchListTile(
+                secondary: const Icon(
+                  Icons.play_circle_outline,
                 ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon: Icons.email_outlined,
-                  title: 'Email',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Email management',
-                    );
-                  },
+                title: const Text('Auto Play Videos'),
+                subtitle: const Text(
+                  'Automatically play videos',
                 ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon: Icons.phone_outlined,
-                  title: 'Phone Number',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Phone management',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon:
-                      Icons.security_outlined,
-                  title:
-                      'Login & Security',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Login & Security',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon:
-                      Icons.delete_outline,
-                  title: 'Delete Account',
-                  iconColor: Colors.red,
-                  textColor: Colors.red,
-                  onTap: () {
-                    _deleteAccountConfirm(
-                      context,
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon: Icons.logout,
-                  title: 'Logout',
-                  iconColor: Colors.red,
-                  textColor: Colors.red,
-                  onTap: () {
-                    _logout(context);
-                  },
-                ),
-              ],
-            ),
+                value: value,
+                onChanged: (newValue) {
+                  AppSettings.setAutoPlayVideos(newValue);
+                },
+              );
+            },
           ),
 
-          // =====================================================
-          // 4. PRIVACY
-          // =====================================================
-
-          _sectionHeader('PRIVACY'),
-
-          Card(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 12,
-            ),
-            child: Column(
-              children: [
-                _tile(
-                  icon:
-                      Icons.privacy_tip_outlined,
-                  title:
-                      'Privacy & Security',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Privacy & Security',
-                    );
-                  },
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.videoSound,
+            builder: (context, value, child) {
+              return SwitchListTile(
+                secondary: const Icon(
+                  Icons.volume_up_outlined,
                 ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon: Icons.shield_outlined,
-                  title: 'Privacy Settings',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Privacy Settings',
-                    );
-                  },
+                title: const Text('Video Sound'),
+                subtitle: const Text(
+                  'Play sound automatically',
                 ),
+                value: value,
+                onChanged: (newValue) {
+                  AppSettings.setVideoSound(newValue);
+                },
+              );
+            },
+          ),
 
-                const Divider(height: 1),
-
-                _tile(
-                  icon:
-                      Icons.data_usage_outlined,
-                  title:
-                      'Data & Personalization',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Data & Personalization',
-                    );
-                  },
+          ValueListenableBuilder<String>(
+            valueListenable: AppSettings.videoQuality,
+            builder: (context, quality, child) {
+              return ListTile(
+                leading: const Icon(
+                  Icons.high_quality_outlined,
                 ),
-              ],
-            ),
+                title: const Text('Video Quality'),
+                subtitle: Text(quality),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                ),
+                onTap: () {
+                  _showVideoQualityDialog(context);
+                },
+              );
+            },
+          ),
+
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.dataSaver,
+            builder: (context, value, child) {
+              return SwitchListTile(
+                secondary: const Icon(
+                  Icons.data_saver_on_outlined,
+                ),
+                title: const Text('Data Saver'),
+                subtitle: const Text(
+                  'Reduce mobile data usage',
+                ),
+                value: value,
+                onChanged: (newValue) {
+                  AppSettings.setDataSaver(newValue);
+                },
+              );
+            },
+          ),
+
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.reduceMotion,
+            builder: (context, value, child) {
+              return SwitchListTile(
+                secondary: const Icon(
+                  Icons.animation_outlined,
+                ),
+                title: const Text('Reduce Motion'),
+                subtitle: const Text(
+                  'Reduce animations in the app',
+                ),
+                value: value,
+                onChanged: (newValue) {
+                  AppSettings.setReduceMotion(newValue);
+                },
+              );
+            },
+          ),
+
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.vibration,
+            builder: (context, value, child) {
+              return SwitchListTile(
+                secondary: const Icon(
+                  Icons.vibration_outlined,
+                ),
+                title: const Text('Vibration'),
+                subtitle: const Text(
+                  'Use vibration for interactions',
+                ),
+                value: value,
+                onChanged: (newValue) {
+                  AppSettings.setVibration(newValue);
+                },
+              );
+            },
           ),
 
           // =====================================================
-          // 5. HELP & SUPPORT
+          // ACCOUNT & SECURITY
           // =====================================================
 
-          _sectionHeader(
-            'HELP & SUPPORT',
+          const _SectionTitle(
+            icon: Icons.security_outlined,
+            title: 'Account & Security',
           ),
 
-          Card(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 12,
-            ),
-            child: Column(
-              children: [
-                _tile(
-                  icon: Icons.help_outline,
-                  title: 'Help & Support',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Help & Support',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon: Icons.quiz_outlined,
-                  title: 'FAQ',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'FAQ',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon: Icons.contact_support_outlined,
-                  title: 'Contact Us',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Contact Us',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon:
-                      Icons.report_problem_outlined,
-                  title:
-                      'Report a Problem',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Report a Problem',
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // =====================================================
-          // 6. ABOUT BUYNOVA
-          // =====================================================
-
-          _sectionHeader(
-            'ABOUT BUYNOVA',
-          ),
-
-          Card(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 12,
-            ),
-            child: Column(
-              children: [
-                _tile(
-                  icon:
-                      Icons.info_outline,
-                  title: 'About BuyNova',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'About BuyNova',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon:
-                      Icons.description_outlined,
-                  title:
-                      'Terms & Conditions',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Terms & Conditions',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon:
-                      Icons.policy_outlined,
-                  title:
-                      'Privacy Policy',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Privacy Policy',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon: Icons.star_outline,
-                  title: 'Rate BuyNova',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'Rate BuyNova',
-                    );
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                _tile(
-                  icon:
-                      Icons.system_update_outlined,
-                  title: 'App Version',
-                  subtitle: '1.0.0',
-                  onTap: () {
-                    _comingSoon(
-                      context,
-                      'App Version',
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Center(
-            child: Text(
-              'BuyNova',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
+          if (user != null)
+            ListTile(
+              leading: const Icon(
+                Icons.lock_outline,
               ),
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          Center(
-            child: Text(
-              'Version 1.0.0',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade500,
+              title: const Text('Change Password'),
+              trailing: const Icon(
+                Icons.chevron_right,
               ),
+              onTap: () {
+                _showMessage(
+                  context,
+                  'Change Password will be connected later.',
+                );
+              },
             ),
+
+          if (user != null)
+            ListTile(
+              leading: const Icon(
+                Icons.email_outlined,
+              ),
+              title: const Text('Email Address'),
+              subtitle: Text(
+                user.email ?? 'Not available',
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+              ),
+              onTap: () {
+                _showMessage(
+                  context,
+                  'Email settings will be connected later.',
+                );
+              },
+            ),
+
+          if (user != null)
+            ListTile(
+              leading: const Icon(
+                Icons.phone_outlined,
+              ),
+              title: const Text('Phone Number'),
+              subtitle: const Text(
+                'Manage phone number',
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+              ),
+              onTap: () {
+                _showMessage(
+                  context,
+                  'Phone settings will be connected later.',
+                );
+              },
+            ),
+
+          if (user != null)
+            ListTile(
+              leading: const Icon(
+                Icons.login_outlined,
+              ),
+              title: const Text('Login & Security'),
+              subtitle: const Text(
+                'Manage login and security',
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+              ),
+              onTap: () {
+                _showMessage(
+                  context,
+                  'Login & Security will be connected later.',
+                );
+              },
+            ),
+
+          if (user != null)
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+              ),
+              title: const Text('Delete Account'),
+              subtitle: const Text(
+                'Permanently delete your account',
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+              ),
+              onTap: () {
+                _deleteAccount(context);
+              },
+            ),
+
+          // =====================================================
+          // PRIVACY
+          // =====================================================
+
+          const _SectionTitle(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy',
           ),
 
-          const SizedBox(height: 16),
+          ListTile(
+            leading: const Icon(
+              Icons.visibility_outlined,
+            ),
+            title: const Text('Privacy Settings'),
+            subtitle: const Text(
+              'Control your privacy',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Privacy Settings will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.block_outlined,
+            ),
+            title: const Text('Blocked Users'),
+            subtitle: const Text(
+              'Manage blocked users',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Blocked Users will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.perm_media_outlined,
+            ),
+            title: const Text('Media Permissions'),
+            subtitle: const Text(
+              'Manage photo and video permissions',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Media Permissions will be connected later.',
+              );
+            },
+          ),
+
+          // =====================================================
+          // HELP & SUPPORT
+          // =====================================================
+
+          const _SectionTitle(
+            icon: Icons.help_outline,
+            title: 'Help & Support',
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.help_center_outlined,
+            ),
+            title: const Text('Help Center'),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Help Center will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.support_agent_outlined,
+            ),
+            title: const Text('Contact Support'),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Contact Support will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.report_problem_outlined,
+            ),
+            title: const Text('Report a Problem'),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Report a Problem will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.question_answer_outlined,
+            ),
+            title: const Text('FAQ'),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'FAQ will be connected later.',
+              );
+            },
+          ),
+
+          // =====================================================
+          // ABOUT
+          // =====================================================
+
+          const _SectionTitle(
+            icon: Icons.info_outline,
+            title: 'About',
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.info_outline,
+            ),
+            title: const Text('About BuyNova'),
+            subtitle: const Text(
+              'BuyNova shopping platform',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              showAboutDialog(
+                context: context,
+                applicationName: 'BuyNova',
+                applicationVersion: '1.0.0',
+                applicationLegalese:
+                    '© BuyNova',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.description_outlined,
+            ),
+            title: const Text('Terms & Conditions'),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Terms & Conditions will be connected later.',
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.policy_outlined,
+            ),
+            title: const Text('Privacy Policy'),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () {
+              _showMessage(
+                context,
+                'Privacy Policy will be connected later.',
+              );
+            },
+          ),
+
+          // =====================================================
+          // CLEAR TEMPORARY SETTINGS
+          // =====================================================
+
+          const _SectionTitle(
+            icon: Icons.cleaning_services_outlined,
+            title: 'Storage',
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.cleaning_services_outlined,
+            ),
+            title: const Text('Clear Temporary Settings'),
+            subtitle: const Text(
+              'Reset temporary video settings',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () async {
+              await AppSettings.clearCache();
+
+              if (!context.mounted) return;
+
+              _showMessage(
+                context,
+                'Temporary settings cleared.',
+              );
+            },
+          ),
+
+          // =====================================================
+          // LOGOUT
+          // =====================================================
+
+          if (user != null) ...[
+            const Divider(
+              height: 30,
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.logout,
+              ),
+              title: const Text('Logout'),
+              onTap: () {
+                _logout(context);
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================
+// SECTION TITLE
+// =============================================================
+
+class _SectionTitle extends StatelessWidget {
+  final IconData icon;
+  final String title;
+
+  const _SectionTitle({
+    required this.icon,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        20,
+        24,
+        20,
+        8,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 21,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            title,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
         ],
       ),
     );
