@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -243,6 +241,7 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 30),
         children: [
+
           // =====================================================
           // GENERAL
           // =====================================================
@@ -350,91 +349,6 @@ class SettingsPage extends StatelessWidget {
                 onTap: () {
                   _showCurrencyDialog(context);
                 },
-              );
-            },
-          ),
-
-          // =====================================================
-          // SHOPPING
-          // =====================================================
-
-          const _SectionTitle(
-            icon: Icons.shopping_bag_outlined,
-            title: 'Shopping',
-          ),
-
-          ListTile(
-            leading: const Icon(
-              Icons.local_shipping_outlined,
-            ),
-            title: const Text('Delivery Preferences'),
-            subtitle: const Text(
-              'Manage delivery options',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
-            onTap: () {
-              _showMessage(
-                context,
-                'Delivery Preferences will be connected later.',
-              );
-            },
-          ),
-
-          ListTile(
-            leading: const Icon(
-              Icons.location_on_outlined,
-            ),
-            title: const Text('Shopping Location'),
-            subtitle: const Text(
-              'Set your preferred delivery location',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
-            onTap: () {
-              _showMessage(
-                context,
-                'Shopping Location will be connected later.',
-              );
-            },
-          ),
-
-          ListTile(
-            leading: const Icon(
-              Icons.local_offer_outlined,
-            ),
-            title: const Text('Coupons'),
-            subtitle: const Text(
-              'Manage your coupons',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
-            onTap: () {
-              _showMessage(
-                context,
-                'Coupons will be connected later.',
-              );
-            },
-          ),
-
-          ListTile(
-            leading: const Icon(
-              Icons.favorite_border,
-            ),
-            title: const Text('Favorites'),
-            subtitle: const Text(
-              'Manage favorite products',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
-            onTap: () {
-              _showMessage(
-                context,
-                'Favorites will be connected later.',
               );
             },
           ),
@@ -805,6 +719,38 @@ class SettingsPage extends StatelessWidget {
           ),
 
           // =====================================================
+          // STORAGE
+          // =====================================================
+
+          const _SectionTitle(
+            icon: Icons.cleaning_services_outlined,
+            title: 'Storage',
+          ),
+
+          ListTile(
+            leading: const Icon(
+              Icons.cleaning_services_outlined,
+            ),
+            title: const Text('Clear Temporary Settings'),
+            subtitle: const Text(
+              'Reset temporary video settings',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: () async {
+              await AppSettings.clearCache();
+
+              if (!context.mounted) return;
+
+              _showMessage(
+                context,
+                'Temporary settings cleared.',
+              );
+            },
+          ),
+
+          // =====================================================
           // ABOUT
           // =====================================================
 
@@ -829,8 +775,7 @@ class SettingsPage extends StatelessWidget {
                 context: context,
                 applicationName: 'BuyNova',
                 applicationVersion: '1.0.0',
-                applicationLegalese:
-                    '© BuyNova',
+                applicationLegalese: '© BuyNova',
               );
             },
           ),
@@ -863,38 +808,6 @@ class SettingsPage extends StatelessWidget {
               _showMessage(
                 context,
                 'Privacy Policy will be connected later.',
-              );
-            },
-          ),
-
-          // =====================================================
-          // CLEAR TEMPORARY SETTINGS
-          // =====================================================
-
-          const _SectionTitle(
-            icon: Icons.cleaning_services_outlined,
-            title: 'Storage',
-          ),
-
-          ListTile(
-            leading: const Icon(
-              Icons.cleaning_services_outlined,
-            ),
-            title: const Text('Clear Temporary Settings'),
-            subtitle: const Text(
-              'Reset temporary video settings',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
-            onTap: () async {
-              await AppSettings.clearCache();
-
-              if (!context.mounted) return;
-
-              _showMessage(
-                context,
-                'Temporary settings cleared.',
               );
             },
           ),
