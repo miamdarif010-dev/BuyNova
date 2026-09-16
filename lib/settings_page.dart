@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'login_page.dart';
 import 'app_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
 
   Future<void> _logout(BuildContext context) async {
     final confirm = await showDialog<bool>(
@@ -30,7 +33,9 @@ class SettingsPage extends StatelessWidget {
               },
               child: const Text(
                 'Logout',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(
+                  color: Colors.red,
+                ),
               ),
             ),
           ],
@@ -52,7 +57,13 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _deleteAccountConfirm(BuildContext context) async {
+  // =========================================================
+  // DELETE ACCOUNT
+  // =========================================================
+
+  Future<void> _deleteAccountConfirm(
+    BuildContext context,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -75,7 +86,9 @@ class SettingsPage extends StatelessWidget {
               },
               child: const Text(
                 'Delete',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(
+                  color: Colors.red,
+                ),
               ),
             ),
           ],
@@ -96,13 +109,23 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  void _showLanguageDialog(BuildContext context) {
+  // =========================================================
+  // LANGUAGE
+  // =========================================================
+
+  void _showLanguageDialog(
+    BuildContext context,
+  ) {
     showDialog(
       context: context,
       builder: (context) {
         return ValueListenableBuilder<String>(
           valueListenable: AppSettings.language,
-          builder: (context, currentLanguage, child) {
+          builder: (
+            context,
+            currentLanguage,
+            child,
+          ) {
             return AlertDialog(
               title: const Text('Language'),
               content: Column(
@@ -115,13 +138,16 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setLanguage(value);
+                      await AppSettings.setLanguage(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
                       }
                     },
                   ),
+
                   RadioListTile<String>(
                     title: const Text('বাংলা'),
                     value: 'বাংলা',
@@ -129,13 +155,16 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setLanguage(value);
+                      await AppSettings.setLanguage(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
                       }
                     },
                   ),
+
                   RadioListTile<String>(
                     title: const Text('한국어'),
                     value: '한국어',
@@ -143,7 +172,9 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setLanguage(value);
+                      await AppSettings.setLanguage(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
@@ -159,54 +190,121 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  void _showCurrencyDialog(BuildContext context) {
+  // =========================================================
+  // CURRENCY
+  // =========================================================
+
+  void _showCurrencyDialog(
+    BuildContext context,
+  ) {
     showDialog(
       context: context,
       builder: (context) {
         return ValueListenableBuilder<String>(
           valueListenable: AppSettings.currency,
-          builder: (context, currentCurrency, child) {
+          builder: (
+            context,
+            currentCurrency,
+            child,
+          ) {
             return AlertDialog(
               title: const Text('Currency'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // KRW
                   RadioListTile<String>(
-                    title: const Text('₩ Korean Won'),
+                    title: const Text(
+                      '₩ Korean Won',
+                    ),
                     value: 'KRW',
                     groupValue: currentCurrency,
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setCurrency(value);
+                      await AppSettings.setCurrency(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
                       }
                     },
                   ),
-                  RadioListTile<String>(
-                    title: const Text('\$ US Dollar'),
-                    value: 'USD',
-                    groupValue: currentCurrency,
-                    onChanged: (value) async {
-                      if (value == null) return;
 
-                      await AppSettings.setCurrency(value);
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
+                  // BDT
                   RadioListTile<String>(
-                    title: const Text('৳ Bangladeshi Taka'),
+                    title: const Text(
+                      '৳ Bangladeshi Taka',
+                    ),
                     value: 'BDT',
                     groupValue: currentCurrency,
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setCurrency(value);
+                      await AppSettings.setCurrency(
+                        value,
+                      );
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+
+                  // USD
+                  RadioListTile<String>(
+                    title: const Text(
+                      '\$ US Dollar',
+                    ),
+                    value: 'USD',
+                    groupValue: currentCurrency,
+                    onChanged: (value) async {
+                      if (value == null) return;
+
+                      await AppSettings.setCurrency(
+                        value,
+                      );
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+
+                  // INR
+                  RadioListTile<String>(
+                    title: const Text(
+                      '₹ Indian Rupee',
+                    ),
+                    value: 'INR',
+                    groupValue: currentCurrency,
+                    onChanged: (value) async {
+                      if (value == null) return;
+
+                      await AppSettings.setCurrency(
+                        value,
+                      );
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+
+                  // EUR
+                  RadioListTile<String>(
+                    title: const Text(
+                      '€ Euro',
+                    ),
+                    value: 'EUR',
+                    groupValue: currentCurrency,
+                    onChanged: (value) async {
+                      if (value == null) return;
+
+                      await AppSettings.setCurrency(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
@@ -222,15 +320,27 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  void _showVideoQualityDialog(BuildContext context) {
+  // =========================================================
+  // VIDEO QUALITY
+  // =========================================================
+
+  void _showVideoQualityDialog(
+    BuildContext context,
+  ) {
     showDialog(
       context: context,
       builder: (context) {
         return ValueListenableBuilder<String>(
           valueListenable: AppSettings.videoQuality,
-          builder: (context, currentQuality, child) {
+          builder: (
+            context,
+            currentQuality,
+            child,
+          ) {
             return AlertDialog(
-              title: const Text('Video Quality'),
+              title: const Text(
+                'Video Quality',
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -241,13 +351,16 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setVideoQuality(value);
+                      await AppSettings.setVideoQuality(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
                       }
                     },
                   ),
+
                   RadioListTile<String>(
                     title: const Text('Low'),
                     value: 'Low',
@@ -255,13 +368,16 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setVideoQuality(value);
+                      await AppSettings.setVideoQuality(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
                       }
                     },
                   ),
+
                   RadioListTile<String>(
                     title: const Text('Medium'),
                     value: 'Medium',
@@ -269,13 +385,16 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setVideoQuality(value);
+                      await AppSettings.setVideoQuality(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
                       }
                     },
                   ),
+
                   RadioListTile<String>(
                     title: const Text('High'),
                     value: 'High',
@@ -283,7 +402,9 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) async {
                       if (value == null) return;
 
-                      await AppSettings.setVideoQuality(value);
+                      await AppSettings.setVideoQuality(
+                        value,
+                      );
 
                       if (context.mounted) {
                         Navigator.pop(context);
@@ -299,19 +420,33 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _clearCache(BuildContext context) async {
+  // =========================================================
+  // CLEAR CACHE
+  // =========================================================
+
+  Future<void> _clearCache(
+    BuildContext context,
+  ) async {
     await AppSettings.clearCache();
 
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Cache cleared successfully.'),
+        content: Text(
+          'Temporary app settings reset successfully.',
+        ),
       ),
     );
   }
 
-  Widget _sectionHeader(String title) {
+  // =========================================================
+  // SECTION HEADER
+  // =========================================================
+
+  Widget _sectionHeader(
+    String title,
+  ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         16,
@@ -331,16 +466,25 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // SWITCH TILE
+  // =========================================================
+
   Widget _settingSwitch({
     required IconData icon,
     required String title,
     required String subtitle,
     required ValueNotifier<bool> notifier,
-    required Future<void> Function(bool) onChanged,
+    required Future<void> Function(bool)
+        onChanged,
   }) {
     return ValueListenableBuilder<bool>(
       valueListenable: notifier,
-      builder: (context, value, child) {
+      builder: (
+        context,
+        value,
+        child,
+      ) {
         return SwitchListTile(
           secondary: Icon(icon),
           title: Text(title),
@@ -351,6 +495,10 @@ class SettingsPage extends StatelessWidget {
       },
     );
   }
+
+  // =========================================================
+  // NORMAL TILE
+  // =========================================================
 
   Widget _tile({
     required IconData icon,
@@ -383,6 +531,27 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // COMING SOON
+  // =========================================================
+
+  void _comingSoon(
+    BuildContext context,
+    String feature,
+  ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$feature will be connected later.',
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -392,8 +561,11 @@ class SettingsPage extends StatelessWidget {
         backgroundColor: Colors.redAccent,
         foregroundColor: Colors.white,
       ),
+
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.only(
+          bottom: 24,
+        ),
         children: [
           // =====================================================
           // 1. GENERAL
@@ -407,14 +579,22 @@ class SettingsPage extends StatelessWidget {
             ),
             child: Column(
               children: [
+                // Notifications
                 ValueListenableBuilder<bool>(
-                  valueListenable: AppSettings.notifications,
-                  builder: (context, value, child) {
+                  valueListenable:
+                      AppSettings.notifications,
+                  builder: (
+                    context,
+                    value,
+                    child,
+                  ) {
                     return SwitchListTile(
                       secondary: const Icon(
                         Icons.notifications_outlined,
                       ),
-                      title: const Text('Notifications'),
+                      title: const Text(
+                        'Notifications',
+                      ),
                       subtitle: const Text(
                         'Receive BuyNova notifications',
                       ),
@@ -430,9 +610,15 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Dark Mode
                 ValueListenableBuilder<ThemeMode>(
-                  valueListenable: AppSettings.themeMode,
-                  builder: (context, mode, child) {
+                  valueListenable:
+                      AppSettings.themeMode,
+                  builder: (
+                    context,
+                    mode,
+                    child,
+                  ) {
                     final isDark =
                         mode == ThemeMode.dark;
 
@@ -440,7 +626,9 @@ class SettingsPage extends StatelessWidget {
                       secondary: const Icon(
                         Icons.dark_mode_outlined,
                       ),
-                      title: const Text('Dark Mode'),
+                      title: const Text(
+                        'Dark Mode',
+                      ),
                       subtitle: const Text(
                         'Use dark appearance',
                       ),
@@ -456,11 +644,18 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Language
                 ValueListenableBuilder<String>(
-                  valueListenable: AppSettings.language,
-                  builder: (context, value, child) {
+                  valueListenable:
+                      AppSettings.language,
+                  builder: (
+                    context,
+                    value,
+                    child,
+                  ) {
                     return _tile(
-                      icon: Icons.language_outlined,
+                      icon:
+                          Icons.language_outlined,
                       title: 'Language',
                       subtitle: value,
                       onTap: () {
@@ -474,24 +669,47 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Currency
                 ValueListenableBuilder<String>(
-                  valueListenable: AppSettings.currency,
-                  builder: (context, value, child) {
+                  valueListenable:
+                      AppSettings.currency,
+                  builder: (
+                    context,
+                    value,
+                    child,
+                  ) {
                     String text;
 
                     switch (value) {
-                      case 'USD':
-                        text = '\$ US Dollar';
-                        break;
                       case 'BDT':
-                        text = '৳ Bangladeshi Taka';
+                        text =
+                            '৳ Bangladeshi Taka';
                         break;
+
+                      case 'USD':
+                        text =
+                            '\$ US Dollar';
+                        break;
+
+                      case 'INR':
+                        text =
+                            '₹ Indian Rupee';
+                        break;
+
+                      case 'EUR':
+                        text =
+                            '€ Euro';
+                        break;
+
+                      case 'KRW':
                       default:
-                        text = '₩ Korean Won';
+                        text =
+                            '₩ Korean Won';
                     }
 
                     return _tile(
-                      icon: Icons.currency_exchange,
+                      icon:
+                          Icons.currency_exchange,
                       title: 'Currency',
                       subtitle: text,
                       onTap: () {
@@ -518,9 +736,12 @@ class SettingsPage extends StatelessWidget {
             ),
             child: Column(
               children: [
+                // Auto Play
                 _settingSwitch(
-                  icon: Icons.play_circle_outline,
-                  title: 'Auto Play Videos',
+                  icon:
+                      Icons.play_circle_outline,
+                  title:
+                      'Auto Play Videos',
                   subtitle:
                       'Automatically play videos when opened',
                   notifier:
@@ -531,8 +752,10 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Sound
                 _settingSwitch(
-                  icon: Icons.volume_up_outlined,
+                  icon:
+                      Icons.volume_up_outlined,
                   title: 'Video Sound',
                   subtitle:
                       'Enable sound when videos play',
@@ -544,6 +767,7 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Vibration
                 _settingSwitch(
                   icon: Icons.vibration,
                   title: 'Vibration',
@@ -557,8 +781,10 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Data Saver
                 _settingSwitch(
-                  icon: Icons.data_saver_off,
+                  icon:
+                      Icons.data_saver_off,
                   title: 'Data Saver',
                   subtitle:
                       'Reduce mobile data usage',
@@ -570,13 +796,20 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Video Quality
                 ValueListenableBuilder<String>(
                   valueListenable:
                       AppSettings.videoQuality,
-                  builder: (context, value, child) {
+                  builder: (
+                    context,
+                    value,
+                    child,
+                  ) {
                     return _tile(
-                      icon: Icons.high_quality_outlined,
-                      title: 'Video Quality',
+                      icon:
+                          Icons.high_quality_outlined,
+                      title:
+                          'Video Quality',
                       subtitle: value,
                       onTap: () {
                         _showVideoQualityDialog(
@@ -589,8 +822,10 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Reduce Motion
                 _settingSwitch(
-                  icon: Icons.animation_outlined,
+                  icon:
+                      Icons.animation_outlined,
                   title: 'Reduce Motion',
                   subtitle:
                       'Reduce animations in the app',
@@ -602,8 +837,10 @@ class SettingsPage extends StatelessWidget {
 
                 const Divider(height: 1),
 
+                // Clear temporary settings
                 _tile(
-                  icon: Icons.cleaning_services_outlined,
+                  icon:
+                      Icons.cleaning_services_outlined,
                   title: 'Clear Cache',
                   subtitle:
                       'Reset temporary app settings',
@@ -619,7 +856,9 @@ class SettingsPage extends StatelessWidget {
           // 3. ACCOUNT & SECURITY
           // =====================================================
 
-          _sectionHeader('ACCOUNT & SECURITY'),
+          _sectionHeader(
+            'ACCOUNT & SECURITY',
+          ),
 
           Card(
             margin: const EdgeInsets.symmetric(
@@ -631,13 +870,9 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.lock_outline,
                   title: 'Change Password',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Password change will be connected next.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Password change',
                     );
                   },
                 ),
@@ -648,13 +883,9 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.email_outlined,
                   title: 'Email',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Email management will be connected next.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Email management',
                     );
                   },
                 ),
@@ -665,13 +896,9 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.phone_outlined,
                   title: 'Phone Number',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Phone management will be connected next.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Phone management',
                     );
                   },
                 ),
@@ -679,16 +906,14 @@ class SettingsPage extends StatelessWidget {
                 const Divider(height: 1),
 
                 _tile(
-                  icon: Icons.security_outlined,
-                  title: 'Login & Security',
+                  icon:
+                      Icons.security_outlined,
+                  title:
+                      'Login & Security',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Login & Security will be connected next.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Login & Security',
                     );
                   },
                 ),
@@ -696,7 +921,8 @@ class SettingsPage extends StatelessWidget {
                 const Divider(height: 1),
 
                 _tile(
-                  icon: Icons.delete_outline,
+                  icon:
+                      Icons.delete_outline,
                   title: 'Delete Account',
                   iconColor: Colors.red,
                   textColor: Colors.red,
@@ -735,16 +961,14 @@ class SettingsPage extends StatelessWidget {
             child: Column(
               children: [
                 _tile(
-                  icon: Icons.privacy_tip_outlined,
-                  title: 'Privacy & Security',
+                  icon:
+                      Icons.privacy_tip_outlined,
+                  title:
+                      'Privacy & Security',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Privacy & Security will be connected next.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Privacy & Security',
                     );
                   },
                 ),
@@ -755,13 +979,9 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.shield_outlined,
                   title: 'Privacy Settings',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Privacy Settings will be connected next.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Privacy Settings',
                     );
                   },
                 ),
@@ -769,16 +989,14 @@ class SettingsPage extends StatelessWidget {
                 const Divider(height: 1),
 
                 _tile(
-                  icon: Icons.data_usage_outlined,
-                  title: 'Data & Personalization',
+                  icon:
+                      Icons.data_usage_outlined,
+                  title:
+                      'Data & Personalization',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Data & Personalization will be connected next.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Data & Personalization',
                     );
                   },
                 ),
@@ -790,7 +1008,9 @@ class SettingsPage extends StatelessWidget {
           // 5. HELP & SUPPORT
           // =====================================================
 
-          _sectionHeader('HELP & SUPPORT'),
+          _sectionHeader(
+            'HELP & SUPPORT',
+          ),
 
           Card(
             margin: const EdgeInsets.symmetric(
@@ -802,13 +1022,9 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.help_outline,
                   title: 'Help & Support',
                   onTap: () {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Help & Support will be added later.',
-                        ),
-                      ),
+                    _comingSoon(
+                      context,
+                      'Help & Support',
                     );
                   },
                 ),
@@ -819,4 +1035,159 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.quiz_outlined,
                   title: 'FAQ',
                   onTap: () {
-                   
+                    _comingSoon(
+                      context,
+                      'FAQ',
+                    );
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                _tile(
+                  icon: Icons.contact_support_outlined,
+                  title: 'Contact Us',
+                  onTap: () {
+                    _comingSoon(
+                      context,
+                      'Contact Us',
+                    );
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                _tile(
+                  icon:
+                      Icons.report_problem_outlined,
+                  title:
+                      'Report a Problem',
+                  onTap: () {
+                    _comingSoon(
+                      context,
+                      'Report a Problem',
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // =====================================================
+          // 6. ABOUT BUYNOVA
+          // =====================================================
+
+          _sectionHeader(
+            'ABOUT BUYNOVA',
+          ),
+
+          Card(
+            margin: const EdgeInsets.symmetric(
+              horizontal: 12,
+            ),
+            child: Column(
+              children: [
+                _tile(
+                  icon:
+                      Icons.info_outline,
+                  title: 'About BuyNova',
+                  onTap: () {
+                    _comingSoon(
+                      context,
+                      'About BuyNova',
+                    );
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                _tile(
+                  icon:
+                      Icons.description_outlined,
+                  title:
+                      'Terms & Conditions',
+                  onTap: () {
+                    _comingSoon(
+                      context,
+                      'Terms & Conditions',
+                    );
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                _tile(
+                  icon:
+                      Icons.policy_outlined,
+                  title:
+                      'Privacy Policy',
+                  onTap: () {
+                    _comingSoon(
+                      context,
+                      'Privacy Policy',
+                    );
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                _tile(
+                  icon: Icons.star_outline,
+                  title: 'Rate BuyNova',
+                  onTap: () {
+                    _comingSoon(
+                      context,
+                      'Rate BuyNova',
+                    );
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                _tile(
+                  icon:
+                      Icons.system_update_outlined,
+                  title: 'App Version',
+                  subtitle: '1.0.0',
+                  onTap: () {
+                    _comingSoon(
+                      context,
+                      'App Version',
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          Center(
+            child: Text(
+              'BuyNova',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          Center(
+            child: Text(
+              'Version 1.0.0',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
