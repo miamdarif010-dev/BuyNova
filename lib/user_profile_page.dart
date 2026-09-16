@@ -27,8 +27,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   String _sellerStatus = 'none';
   String _entrepreneurStatus = 'none';
-  String _sellerCode = '';
-  String _entrepreneurCode = '';
 
   int _pointsBalance = 0;
 
@@ -56,7 +54,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     if (user == null) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+        });
       }
       return;
     }
@@ -84,12 +84,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _entrepreneurStatus =
                 data['entrepreneurStatus']?.toString() ?? 'none';
 
-            _sellerCode =
-                data['sellerCode']?.toString() ?? '';
-
-            _entrepreneurCode =
-                data['entrepreneurCode']?.toString() ?? '';
-
             _pointsBalance =
                 (data['pointsBalance'] as num?)?.toInt() ?? 0;
           });
@@ -100,7 +94,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -116,7 +112,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
 
-    _loadUserData();
+    await _loadUserData();
   }
 
   Future<void> _openSettings() async {
@@ -172,7 +168,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
 
-    _loadUserData();
+    await _loadUserData();
   }
 
   Future<void> _openWatchEarn() async {
@@ -183,24 +179,26 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
 
-    _loadUserData();
+    await _loadUserData();
   }
 
   // =========================================================
-  // NOTIFICATION
+  // NOTIFICATIONS
   // =========================================================
 
   void _openNotifications() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Notifications system is not connected yet.'),
+        content: Text(
+          'Notifications system is not connected yet.',
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   // =========================================================
-  // NOT AVAILABLE FEATURES
+  // FEATURES NOT READY YET
   // =========================================================
 
   void _featureNotAvailable(String title) {
@@ -231,11 +229,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () {
+              Navigator.pop(context, false);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Navigator.pop(context, true);
+            },
             child: const Text('Send Request'),
           ),
         ],
@@ -276,7 +278,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to send seller request: $e'),
+          content: Text(
+            'Failed to send seller request: $e',
+          ),
         ),
       );
     }
@@ -296,11 +300,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () {
+              Navigator.pop(context, false);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Navigator.pop(context, true);
+            },
             child: const Text('Logout'),
           ),
         ],
@@ -324,7 +332,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (_profileImageUrl.isNotEmpty) {
       return CircleAvatar(
         radius: 58,
-        backgroundImage: NetworkImage(_profileImageUrl),
+        backgroundImage: NetworkImage(
+          _profileImageUrl,
+        ),
       );
     }
 
@@ -371,7 +381,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // MENU ITEM
+  // NORMAL MENU ITEM
   // =========================================================
 
   Widget _menuItem({
@@ -379,11 +389,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
     required String title,
     required VoidCallback onTap,
     bool isDanger = false,
-    Widget? trailing,
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(
+        bottom: 8,
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -401,18 +412,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
             color: isDanger ? Colors.red : null,
           ),
         ),
-        trailing: trailing ??
-            Icon(
-              Icons.chevron_right,
-              color: isDanger ? Colors.red : null,
-            ),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: isDanger ? Colors.red : null,
+        ),
         onTap: onTap,
       ),
     );
   }
 
   // =========================================================
-  // PLUS MENU ITEM
+  // MENU ITEM WITH PLUS BUTTON
   // =========================================================
 
   Widget _plusMenuItem({
@@ -423,7 +433,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(
+        bottom: 8,
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -448,7 +460,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
               ),
               onPressed: onAdd,
             ),
-            const Icon(Icons.chevron_right),
+            const Icon(
+              Icons.chevron_right,
+            ),
           ],
         ),
         onTap: onTap,
@@ -457,13 +471,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // REWARDS SUMMARY
+  // REWARDS CARD
   // =========================================================
 
   Widget _rewardsSummaryCard() {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(
+        bottom: 8,
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -474,7 +490,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
           height: 46,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.orange.withValues(alpha: 0.12),
+            color: Colors.orange.withValues(
+              alpha: 0.12,
+            ),
           ),
           child: const Icon(
             Icons.stars_outlined,
@@ -509,18 +527,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _menuItem(
           icon: Icons.storefront_outlined,
           title: 'Shop Profile',
-          onTap: () =>
-              _featureNotAvailable('Shop Profile'),
+          onTap: () {
+            _featureNotAvailable('Shop Profile');
+          },
         ),
 
         _menuItem(
           icon: Icons.location_on_outlined,
           title: 'Shop Location',
-          onTap: () =>
-              _featureNotAvailable('Shop Location'),
+          onTap: () {
+            _featureNotAvailable('Shop Location');
+          },
         ),
 
-        // My Products + Add Product
+        // My Products +
         _plusMenuItem(
           icon: Icons.inventory_2_outlined,
           title: 'My Products',
@@ -528,7 +548,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           onAdd: _openMyProducts,
         ),
 
-        // My Videos + Add Video
+        // My Videos +
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
@@ -539,22 +559,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _menuItem(
           icon: Icons.bar_chart_outlined,
           title: 'Sales / Orders',
-          onTap: () =>
-              _featureNotAvailable('Sales / Orders'),
+          onTap: () {
+            _featureNotAvailable('Sales / Orders');
+          },
         ),
 
         _menuItem(
           icon: Icons.account_balance_wallet_outlined,
           title: 'Earnings',
-          onTap: () =>
-              _featureNotAvailable('Earnings'),
+          onTap: () {
+            _featureNotAvailable('Earnings');
+          },
         ),
 
         _menuItem(
           icon: Icons.message_outlined,
           title: 'Messages',
-          onTap: () =>
-              _featureNotAvailable('Seller Messages'),
+          onTap: () {
+            _featureNotAvailable('Seller Messages');
+          },
         ),
       ];
     }
@@ -563,7 +586,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
       return [
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(
+            bottom: 8,
+          ),
           color: Colors.orange.shade50,
           child: const ListTile(
             leading: Icon(
@@ -588,7 +613,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
       return [
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(
+            bottom: 8,
+          ),
           color: Colors.red.shade50,
           child: ListTile(
             leading: const Icon(
@@ -635,17 +662,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _menuItem(
           icon: Icons.shopping_bag_outlined,
           title: 'Reseller Orders',
-          onTap: () =>
-              _featureNotAvailable('Reseller Orders'),
+          onTap: () {
+            _featureNotAvailable('Reseller Orders');
+          },
         ),
 
         _menuItem(
           icon: Icons.account_balance_wallet_outlined,
           title: 'My Profit',
-          onTap: () =>
-              _featureNotAvailable('My Profit'),
+          onTap: () {
+            _featureNotAvailable('My Profit');
+          },
         ),
 
+        // My Videos +
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
@@ -656,8 +686,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _menuItem(
           icon: Icons.message_outlined,
           title: 'Messages',
-          onTap: () =>
-              _featureNotAvailable('Reseller Messages'),
+          onTap: () {
+            _featureNotAvailable('Reseller Messages');
+          },
         ),
       ];
     }
@@ -666,7 +697,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
       return [
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(
+            bottom: 8,
+          ),
           color: Colors.orange.shade50,
           child: ListTile(
             leading: const Icon(
@@ -756,7 +789,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           const SizedBox(height: 14),
 
                           Text(
-                            _name.isEmpty ? 'User' : _name,
+                            _name.isEmpty
+                                ? 'User'
+                                : _name,
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -804,13 +839,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             width: double.infinity,
                             height: 48,
                             child: OutlinedButton.icon(
-                              onPressed: _openEditProfile,
-                              icon: const Icon(Icons.edit),
+                              onPressed:
+                                  _openEditProfile,
+                              icon: const Icon(
+                                Icons.edit,
+                              ),
                               label: const Text(
                                 'Edit Profile',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight:
+                                      FontWeight.bold,
                                 ),
                               ),
                             ),
@@ -854,15 +893,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon: Icons.receipt_long_outlined,
                       title: 'My Orders',
-                      onTap: () =>
-                          _featureNotAvailable('My Orders'),
+                      onTap: () {
+                        _featureNotAvailable(
+                          'My Orders',
+                        );
+                      },
                     ),
 
                     _menuItem(
                       icon: Icons.favorite_border,
                       title: 'Favorites',
-                      onTap: () =>
-                          _featureNotAvailable('Favorites'),
+                      onTap: () {
+                        _featureNotAvailable(
+                          'Favorites',
+                        );
+                      },
                     ),
 
                     _menuItem(
@@ -874,16 +919,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon: Icons.history,
                       title: 'Recently Viewed',
-                      onTap: () => _featureNotAvailable(
-                        'Recently Viewed',
-                      ),
+                      onTap: () {
+                        _featureNotAvailable(
+                          'Recently Viewed',
+                        );
+                      },
                     ),
 
                     _menuItem(
                       icon: Icons.local_offer_outlined,
                       title: 'Coupons',
-                      onTap: () =>
-                          _featureNotAvailable('Coupons'),
+                      onTap: () {
+                        _featureNotAvailable(
+                          'Coupons',
+                        );
+                      },
                     ),
 
                     // Buyer My Videos +
@@ -897,8 +947,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon: Icons.message_outlined,
                       title: 'Messages',
-                      onTap: () =>
-                          _featureNotAvailable('Messages'),
+                      onTap: () {
+                        _featureNotAvailable(
+                          'Messages',
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 16),
@@ -923,18 +976,22 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon: Icons.card_giftcard_outlined,
                       title: 'Referral & Invite',
-                      onTap: () => _featureNotAvailable(
-                        'Referral & Invite',
-                      ),
+                      onTap: () {
+                        _featureNotAvailable(
+                          'Referral & Invite',
+                        );
+                      },
                     ),
 
                     _menuItem(
                       icon: Icons
                           .account_balance_wallet_outlined,
                       title: 'Withdraw Rewards',
-                      onTap: () => _featureNotAvailable(
-                        'Withdraw Rewards',
-                      ),
+                      onTap: () {
+                        _featureNotAvailable(
+                          'Withdraw Rewards',
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 16),
@@ -945,7 +1002,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     _sectionTitle(
                       icon: Icons.business_center_outlined,
-                      title: 'ENTREPRENEUR / RESELLER',
+                      title:
+                          'ENTREPRENEUR / RESELLER',
                     ),
 
                     ..._entrepreneurSectionItems(),
@@ -966,7 +1024,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     const SizedBox(height: 20),
 
                     // =================================================
-                    // SETTINGS / LOGOUT
+                    // SETTINGS
                     // =================================================
 
                     _menuItem(
@@ -976,6 +1034,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     const SizedBox(height: 8),
+
+                    // =================================================
+                    // LOGOUT
+                    // =================================================
 
                     _menuItem(
                       icon: Icons.logout,
