@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_page.dart';
-import 'payment_methods_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -196,97 +195,7 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
 
-          // 3. SHOPPING
-          _sectionHeader('SHOPPING'),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            child: Column(
-              children: [
-                _tile(
-                  icon: Icons.location_on_outlined,
-                  title: 'Delivery Address',
-                  onTap: () => _comingSoon(context, 'Delivery Address'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.payment_outlined,
-                  title: 'Payment Methods',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const PaymentMethodsPage()),
-                  ),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.tune_outlined,
-                  title: 'Order Preferences',
-                  onTap: () => _comingSoon(context, 'Order Preferences'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.favorite_border,
-                  title: 'Favorites',
-                  onTap: () => _comingSoon(context, 'Favorites'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.shopping_cart_outlined,
-                  title: 'My Cart',
-                  onTap: () => _comingSoon(context, 'My Cart'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.history,
-                  title: 'Recently Viewed',
-                  onTap: () => _comingSoon(context, 'Recently Viewed'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.replay_outlined,
-                  title: 'Buy Again',
-                  onTap: () => _comingSoon(context, 'Buy Again'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.local_offer_outlined,
-                  title: 'Coupons & Discounts',
-                  onTap: () => _comingSoon(context, 'Coupons & Discounts'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.local_shipping_outlined,
-                  title: 'Delivery Options',
-                  onTap: () => _comingSoon(context, 'Delivery Options'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.notifications_active_outlined,
-                  title: 'Order Notifications',
-                  onTap: () => _comingSoon(context, 'Order Notifications'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.assignment_return_outlined,
-                  title: 'Returns & Refunds',
-                  onTap: () => _comingSoon(context, 'Returns & Refunds'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.rate_review_outlined,
-                  title: 'My Reviews',
-                  onTap: () => _comingSoon(context, 'My Reviews'),
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.card_giftcard_outlined,
-                  title: 'Gift Options',
-                  onTap: () => _comingSoon(context, 'Gift Options'),
-                ),
-              ],
-            ),
-          ),
-
-          // 4. PRIVACY
+          // 3. PRIVACY
           _sectionHeader('PRIVACY'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -313,7 +222,7 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
 
-          // 5. HELP & SUPPORT
+          // 4. HELP & SUPPORT
           _sectionHeader('HELP & SUPPORT'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -346,7 +255,7 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
 
-          // 6. ABOUT
+          // 5. ABOUT
           _sectionHeader('ABOUT BUYNOVA'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 12),
