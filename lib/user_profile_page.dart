@@ -21,6 +21,12 @@ class UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<UserProfilePage> {
   bool _isLoading = true;
 
+  // Section open / close
+  bool _buyerExpanded = false;
+  bool _earnExpanded = false;
+  bool _entrepreneurExpanded = false;
+  bool _sellerExpanded = false;
+
   String _name = '';
   String _phone = '';
   String _profileImageUrl = '';
@@ -186,11 +192,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // NOTIFICATIONS
   // =========================================================
 
-  void _openNotifications() {
+  void _openNotifications(String sectionName) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text(
-          'Notifications system is not connected yet.',
+          '$sectionName notifications are not connected yet.',
         ),
         behavior: SnackBarBehavior.floating,
       ),
@@ -348,34 +354,80 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // SECTION TITLE
+  // SECTION HEADER
   // =========================================================
 
-  Widget _sectionTitle({
+  Widget _expandableSectionHeader({
     required IconData icon,
     required String title,
+    required bool expanded,
+    required VoidCallback onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: 4,
-        bottom: 10,
-        top: 8,
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(
+        bottom: 8,
       ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 22,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 4,
+        ),
+        leading: Icon(
+          icon,
+          size: 25,
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+        trailing: Icon(
+          expanded
+              ? Icons.keyboard_arrow_up
+              : Icons.keyboard_arrow_down,
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  // =========================================================
+  // NOTIFICATION ROW
+  // =========================================================
+
+  Widget _sectionNotification({
+    required String sectionName,
+  }) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(
+        bottom: 8,
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 2,
+        ),
+        leading: const Icon(
+          Icons.notifications_none,
+          color: Colors.redAccent,
+        ),
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
-        ],
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
+        onTap: () {
+          _openNotifications(sectionName);
+        },
       ),
     );
   }
@@ -518,7 +570,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // SELLER SECTION
+  // SELLER SECTION ITEMS
   // =========================================================
 
   List<Widget> _sellerSectionItems() {
@@ -540,7 +592,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
           },
         ),
 
-        // My Products +
         _plusMenuItem(
           icon: Icons.inventory_2_outlined,
           title: 'My Products',
@@ -548,7 +599,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
           onAdd: _openMyProducts,
         ),
 
-        // My Videos +
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
@@ -647,7 +697,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // ENTREPRENEUR / RESELLER SECTION
+  // ENTREPRENEUR / RESELLER SECTION ITEMS
   // =========================================================
 
   List<Widget> _entrepreneurSectionItems() {
@@ -675,7 +725,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
           },
         ),
 
-        // My Videos +
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
@@ -747,17 +796,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ),
         ),
         centerTitle: true,
-
-        // ONE COMMON NOTIFICATION BUTTON
-        actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            icon: const Icon(
-              Icons.notifications_none,
-            ),
-            onPressed: _openNotifications,
-          ),
-        ],
       ),
 
       body: _isLoading
@@ -865,19 +903,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // =================================================
 
                     if (_isAdmin) ...[
-                      _sectionTitle(
-                        icon: Icons
-                            .admin_panel_settings_outlined,
-                        title: 'ADMIN',
-                      ),
-
                       _menuItem(
                         icon: Icons
-                            .dashboard_customize_outlined,
+                            .admin_panel_settings_outlined,
                         title: 'Admin Panel',
                         onTap: _openAdminPanel,
                       ),
-
                       const SizedBox(height: 16),
                     ],
 
@@ -885,141 +916,191 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // BUYER
                     // =================================================
 
-                    _sectionTitle(
+                    _expandableSectionHeader(
                       icon: Icons.shopping_bag_outlined,
                       title: 'BUYER',
-                    ),
-
-                    _menuItem(
-                      icon: Icons.receipt_long_outlined,
-                      title: 'My Orders',
+                      expanded: _buyerExpanded,
                       onTap: () {
-                        _featureNotAvailable(
-                          'My Orders',
-                        );
+                        setState(() {
+                          _buyerExpanded = !_buyerExpanded;
+                        });
                       },
                     ),
 
-                    _menuItem(
-                      icon: Icons.favorite_border,
-                      title: 'Favorites',
-                      onTap: () {
-                        _featureNotAvailable(
-                          'Favorites',
-                        );
-                      },
-                    ),
+                    if (_buyerExpanded) ...[
+                      _sectionNotification(
+                        sectionName: 'Buyer',
+                      ),
 
-                    _menuItem(
-                      icon: Icons.shopping_cart_outlined,
-                      title: 'My Cart',
-                      onTap: _openCart,
-                    ),
+                      _menuItem(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'My Orders',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'My Orders',
+                          );
+                        },
+                      ),
 
-                    _menuItem(
-                      icon: Icons.history,
-                      title: 'Recently Viewed',
-                      onTap: () {
-                        _featureNotAvailable(
-                          'Recently Viewed',
-                        );
-                      },
-                    ),
+                      _menuItem(
+                        icon: Icons.favorite_border,
+                        title: 'Favorites',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Favorites',
+                          );
+                        },
+                      ),
 
-                    _menuItem(
-                      icon: Icons.local_offer_outlined,
-                      title: 'Coupons',
-                      onTap: () {
-                        _featureNotAvailable(
-                          'Coupons',
-                        );
-                      },
-                    ),
+                      _menuItem(
+                        icon: Icons.shopping_cart_outlined,
+                        title: 'My Cart',
+                        onTap: _openCart,
+                      ),
 
-                    // Buyer My Videos +
-                    _plusMenuItem(
-                      icon: Icons.video_library_outlined,
-                      title: 'My Videos',
-                      onTap: _openMyVideos,
-                      onAdd: _openMyVideos,
-                    ),
+                      _menuItem(
+                        icon: Icons.history,
+                        title: 'Recently Viewed',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Recently Viewed',
+                          );
+                        },
+                      ),
 
-                    _menuItem(
-                      icon: Icons.message_outlined,
-                      title: 'Messages',
-                      onTap: () {
-                        _featureNotAvailable(
-                          'Messages',
-                        );
-                      },
-                    ),
+                      _menuItem(
+                        icon: Icons.local_offer_outlined,
+                        title: 'Coupons',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Coupons',
+                          );
+                        },
+                      ),
 
-                    const SizedBox(height: 16),
+                      _plusMenuItem(
+                        icon: Icons.video_library_outlined,
+                        title: 'My Videos',
+                        onTap: _openMyVideos,
+                        onAdd: _openMyVideos,
+                      ),
+
+                      _menuItem(
+                        icon: Icons.message_outlined,
+                        title: 'Messages',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Messages',
+                          );
+                        },
+                      ),
+                    ],
+
+                    const SizedBox(height: 8),
 
                     // =================================================
                     // EARN & REWARDS
                     // =================================================
 
-                    _sectionTitle(
+                    _expandableSectionHeader(
                       icon: Icons.monetization_on_outlined,
                       title: 'EARN & REWARDS',
-                    ),
-
-                    _menuItem(
-                      icon: Icons.play_circle_outline,
-                      title: 'Watch & Earn',
-                      onTap: _openWatchEarn,
-                    ),
-
-                    _rewardsSummaryCard(),
-
-                    _menuItem(
-                      icon: Icons.card_giftcard_outlined,
-                      title: 'Referral & Invite',
+                      expanded: _earnExpanded,
                       onTap: () {
-                        _featureNotAvailable(
-                          'Referral & Invite',
-                        );
+                        setState(() {
+                          _earnExpanded = !_earnExpanded;
+                        });
                       },
                     ),
 
-                    _menuItem(
-                      icon: Icons
-                          .account_balance_wallet_outlined,
-                      title: 'Withdraw Rewards',
-                      onTap: () {
-                        _featureNotAvailable(
-                          'Withdraw Rewards',
-                        );
-                      },
-                    ),
+                    if (_earnExpanded) ...[
+                      _sectionNotification(
+                        sectionName: 'Earn & Rewards',
+                      ),
 
-                    const SizedBox(height: 16),
+                      _menuItem(
+                        icon: Icons.play_circle_outline,
+                        title: 'Watch & Earn',
+                        onTap: _openWatchEarn,
+                      ),
+
+                      _rewardsSummaryCard(),
+
+                      _menuItem(
+                        icon: Icons.card_giftcard_outlined,
+                        title: 'Referral & Invite',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Referral & Invite',
+                          );
+                        },
+                      ),
+
+                      _menuItem(
+                        icon: Icons
+                            .account_balance_wallet_outlined,
+                        title: 'Withdraw Rewards',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Withdraw Rewards',
+                          );
+                        },
+                      ),
+                    ],
+
+                    const SizedBox(height: 8),
 
                     // =================================================
                     // ENTREPRENEUR / RESELLER
                     // =================================================
 
-                    _sectionTitle(
+                    _expandableSectionHeader(
                       icon: Icons.business_center_outlined,
                       title:
                           'ENTREPRENEUR / RESELLER',
+                      expanded: _entrepreneurExpanded,
+                      onTap: () {
+                        setState(() {
+                          _entrepreneurExpanded =
+                              !_entrepreneurExpanded;
+                        });
+                      },
                     ),
 
-                    ..._entrepreneurSectionItems(),
+                    if (_entrepreneurExpanded) ...[
+                      _sectionNotification(
+                        sectionName:
+                            'Entrepreneur / Reseller',
+                      ),
 
-                    const SizedBox(height: 16),
+                      ..._entrepreneurSectionItems(),
+                    ],
+
+                    const SizedBox(height: 8),
 
                     // =================================================
                     // SELLER
                     // =================================================
 
-                    _sectionTitle(
+                    _expandableSectionHeader(
                       icon: Icons.store_outlined,
                       title: 'SELLER',
+                      expanded: _sellerExpanded,
+                      onTap: () {
+                        setState(() {
+                          _sellerExpanded =
+                              !_sellerExpanded;
+                        });
+                      },
                     ),
 
-                    ..._sellerSectionItems(),
+                    if (_sellerExpanded) ...[
+                      _sectionNotification(
+                        sectionName: 'Seller',
+                      ),
+
+                      ..._sellerSectionItems(),
+                    ],
 
                     const SizedBox(height: 20),
 
