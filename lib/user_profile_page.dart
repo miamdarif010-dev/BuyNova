@@ -4,11 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'edit_profile_page.dart';
 import 'settings_page.dart';
-import 'add_product_page.dart';
 import 'cart_page.dart';
 import 'admin_panel_page.dart';
 import 'my_products_page.dart';
-import 'add_seller_video_page.dart';
 import 'my_videos_page.dart';
 import 'entrepreneur_page.dart';
 import 'watch_earn_page.dart';
@@ -26,13 +24,22 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String _name = '';
   String _phone = '';
   String _profileImageUrl = '';
+
   String _sellerStatus = 'none';
+  String _entrepreneurStatus = 'none';
+  String _sellerCode = '';
+  String _entrepreneurCode = '';
 
   int _pointsBalance = 0;
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
   bool get _isAdmin => currentUser?.email == kAdminEmail;
+
+  bool get _isSellerApproved => _sellerStatus == 'approved';
+
+  bool get _isEntrepreneurApproved =>
+      _entrepreneurStatus == 'approved';
 
   @override
   void initState() {
@@ -67,11 +74,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
           setState(() {
             _name = data['name']?.toString() ?? '';
             _phone = data['phone']?.toString() ?? '';
+
             _profileImageUrl =
                 data['profileImageUrl']?.toString() ?? '';
 
             _sellerStatus =
                 data['sellerStatus']?.toString() ?? 'none';
+
+            _entrepreneurStatus =
+                data['entrepreneurStatus']?.toString() ?? 'none';
+
+            _sellerCode =
+                data['sellerCode']?.toString() ?? '';
+
+            _entrepreneurCode =
+                data['entrepreneurCode']?.toString() ?? '';
 
             _pointsBalance =
                 (data['pointsBalance'] as num?)?.toInt() ?? 0;
@@ -111,29 +128,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  Future<void> _openAddProduct() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AddProductPage(),
-      ),
-    );
-  }
-
   Future<void> _openMyProducts() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const MyProductsPage(),
-      ),
-    );
-  }
-
-  Future<void> _openAddVideo() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AddSellerVideoPage(),
       ),
     );
   }
@@ -176,10 +175,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _loadUserData();
   }
 
-  // =========================================================
-  // WATCH & EARN
-  // =========================================================
-
   Future<void> _openWatchEarn() async {
     await Navigator.push(
       context,
@@ -192,20 +187,33 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // COMING SOON
+  // NOTIFICATION
   // =========================================================
 
-  void _comingSoon(String title) {
+  void _openNotifications() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$title coming soon'),
+      const SnackBar(
+        content: Text('Notifications system is not connected yet.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   // =========================================================
-  // BECOME A SELLER
+  // NOT AVAILABLE FEATURES
+  // =========================================================
+
+  void _featureNotAvailable(String title) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title is not available yet.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // =========================================================
+  // BECOME SELLER
   // =========================================================
 
   Future<void> _becomeSeller() async {
@@ -236,31 +244,42 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     if (confirm != true) return;
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set(
-      {
-        'name': _name,
-        'email': user.email,
-        'sellerStatus': 'pending',
-      },
-      SetOptions(merge: true),
-    );
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(
+        {
+          'name': _name,
+          'email': user.email,
+          'sellerStatus': 'pending',
+          'sellerRequestedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _sellerStatus = 'pending';
-    });
+      setState(() {
+        _sellerStatus = 'pending';
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Seller request sent! Waiting for admin approval.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Seller request sent! Waiting for admin approval.',
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send seller request: $e'),
+        ),
+      );
+    }
   }
 
   // =========================================================
@@ -268,6 +287,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // =========================================================
 
   Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text(
+          'Are you sure you want to logout?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
     await FirebaseAuth.instance.signOut();
 
     if (!mounted) return;
@@ -338,6 +379,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     required String title,
     required VoidCallback onTap,
     bool isDanger = false,
+    Widget? trailing,
   }) {
     return Card(
       elevation: 0,
@@ -359,9 +401,55 @@ class _UserProfilePageState extends State<UserProfilePage> {
             color: isDanger ? Colors.red : null,
           ),
         ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: isDanger ? Colors.red : null,
+        trailing: trailing ??
+            Icon(
+              Icons.chevron_right,
+              color: isDanger ? Colors.red : null,
+            ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  // =========================================================
+  // PLUS MENU ITEM
+  // =========================================================
+
+  Widget _plusMenuItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    required VoidCallback onAdd,
+  }) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 2,
+        ),
+        leading: Icon(icon),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Add',
+              icon: const Icon(
+                Icons.add_circle_outline,
+                color: Colors.redAccent,
+              ),
+              onPressed: onAdd,
+            ),
+            const Icon(Icons.chevron_right),
+          ],
         ),
         onTap: onTap,
       ),
@@ -369,7 +457,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // REWARDS SUMMARY CARD
+  // REWARDS SUMMARY
   // =========================================================
 
   Widget _rewardsSummaryCard() {
@@ -416,47 +504,57 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // =========================================================
 
   List<Widget> _sellerSectionItems() {
-    if (_sellerStatus == 'approved') {
+    if (_isSellerApproved) {
       return [
         _menuItem(
           icon: Icons.storefront_outlined,
           title: 'Shop Profile',
-          onTap: () => _comingSoon('Shop Profile'),
+          onTap: () =>
+              _featureNotAvailable('Shop Profile'),
         ),
+
         _menuItem(
           icon: Icons.location_on_outlined,
           title: 'Shop Location',
-          onTap: () => _comingSoon('Shop Location'),
+          onTap: () =>
+              _featureNotAvailable('Shop Location'),
         ),
-        _menuItem(
+
+        // My Products + Add Product
+        _plusMenuItem(
           icon: Icons.inventory_2_outlined,
           title: 'My Products',
           onTap: _openMyProducts,
+          onAdd: _openMyProducts,
         ),
-        _menuItem(
-          icon: Icons.add_box_outlined,
-          title: 'Add Product',
-          onTap: _openAddProduct,
-        ),
-        _menuItem(
-          icon: Icons.video_call_outlined,
-          title: 'Add Video',
-          onTap: _openAddVideo,
-        ),
-        _menuItem(
+
+        // My Videos + Add Video
+        _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
           onTap: _openMyVideos,
+          onAdd: _openMyVideos,
         ),
+
         _menuItem(
           icon: Icons.bar_chart_outlined,
           title: 'Sales / Orders',
-          onTap: () => _comingSoon('Sales / Orders'),
+          onTap: () =>
+              _featureNotAvailable('Sales / Orders'),
         ),
+
         _menuItem(
           icon: Icons.account_balance_wallet_outlined,
           title: 'Earnings',
-          onTap: () => _comingSoon('Earnings'),
+          onTap: () =>
+              _featureNotAvailable('Earnings'),
+        ),
+
+        _menuItem(
+          icon: Icons.message_outlined,
+          title: 'Messages',
+          onTap: () =>
+              _featureNotAvailable('Seller Messages'),
         ),
       ];
     }
@@ -474,6 +572,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
             ),
             title: Text(
               'Seller request pending',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             subtitle: Text(
               'An admin is reviewing your request.',
@@ -496,6 +597,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
             ),
             title: const Text(
               'Seller request rejected',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             subtitle: const Text(
               'Tap to request again.',
@@ -511,6 +615,84 @@ class _UserProfilePageState extends State<UserProfilePage> {
         icon: Icons.storefront_outlined,
         title: 'Become a Seller',
         onTap: _becomeSeller,
+      ),
+    ];
+  }
+
+  // =========================================================
+  // ENTREPRENEUR / RESELLER SECTION
+  // =========================================================
+
+  List<Widget> _entrepreneurSectionItems() {
+    if (_isEntrepreneurApproved) {
+      return [
+        _menuItem(
+          icon: Icons.storefront_outlined,
+          title: 'My Store',
+          onTap: _openEntrepreneur,
+        ),
+
+        _menuItem(
+          icon: Icons.shopping_bag_outlined,
+          title: 'Reseller Orders',
+          onTap: () =>
+              _featureNotAvailable('Reseller Orders'),
+        ),
+
+        _menuItem(
+          icon: Icons.account_balance_wallet_outlined,
+          title: 'My Profit',
+          onTap: () =>
+              _featureNotAvailable('My Profit'),
+        ),
+
+        _plusMenuItem(
+          icon: Icons.video_library_outlined,
+          title: 'My Videos',
+          onTap: _openMyVideos,
+          onAdd: _openMyVideos,
+        ),
+
+        _menuItem(
+          icon: Icons.message_outlined,
+          title: 'Messages',
+          onTap: () =>
+              _featureNotAvailable('Reseller Messages'),
+        ),
+      ];
+    }
+
+    if (_entrepreneurStatus == 'pending') {
+      return [
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(bottom: 8),
+          color: Colors.orange.shade50,
+          child: ListTile(
+            leading: const Icon(
+              Icons.hourglass_top,
+              color: Colors.orange,
+            ),
+            title: const Text(
+              'Entrepreneur request pending',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'Your request is waiting for admin approval.',
+            ),
+            onTap: _openEntrepreneur,
+          ),
+        ),
+      ];
+    }
+
+    return [
+      _menuItem(
+        icon: Icons.business_center_outlined,
+        title: 'Become an Entrepreneur / Reseller',
+        onTap: _openEntrepreneur,
       ),
     ];
   }
@@ -532,7 +714,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ),
         ),
         centerTitle: true,
+
+        // ONE COMMON NOTIFICATION BUTTON
+        actions: [
+          IconButton(
+            tooltip: 'Notifications',
+            icon: const Icon(
+              Icons.notifications_none,
+            ),
+            onPressed: _openNotifications,
+          ),
+        ],
       ),
+
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(),
@@ -540,13 +734,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
           : RefreshIndicator(
               onRefresh: _loadUserData,
               child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
+                physics:
+                    const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
+
                     // =================================================
-                    // PROFILE HEADER
+                    // PROFILE
                     // =================================================
 
                     Center(
@@ -585,14 +782,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                 Icon(
                                   Icons.phone,
                                   size: 16,
-                                  color: Colors.grey.shade600,
+                                  color:
+                                      Colors.grey.shade600,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   _phone,
                                   style: TextStyle(
                                     fontSize: 15,
-                                    color: Colors.grey.shade600,
+                                    color:
+                                        Colors.grey.shade600,
                                   ),
                                 ),
                               ],
@@ -628,16 +827,18 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     if (_isAdmin) ...[
                       _sectionTitle(
-                        icon:
-                            Icons.admin_panel_settings_outlined,
+                        icon: Icons
+                            .admin_panel_settings_outlined,
                         title: 'ADMIN',
                       ),
+
                       _menuItem(
-                        icon:
-                            Icons.dashboard_customize_outlined,
+                        icon: Icons
+                            .dashboard_customize_outlined,
                         title: 'Admin Panel',
                         onTap: _openAdminPanel,
                       ),
+
                       const SizedBox(height: 16),
                     ],
 
@@ -654,14 +855,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       icon: Icons.receipt_long_outlined,
                       title: 'My Orders',
                       onTap: () =>
-                          _comingSoon('My Orders'),
+                          _featureNotAvailable('My Orders'),
                     ),
 
                     _menuItem(
                       icon: Icons.favorite_border,
                       title: 'Favorites',
                       onTap: () =>
-                          _comingSoon('Favorites'),
+                          _featureNotAvailable('Favorites'),
                     ),
 
                     _menuItem(
@@ -673,15 +874,31 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon: Icons.history,
                       title: 'Recently Viewed',
-                      onTap: () =>
-                          _comingSoon('Recently Viewed'),
+                      onTap: () => _featureNotAvailable(
+                        'Recently Viewed',
+                      ),
                     ),
 
                     _menuItem(
                       icon: Icons.local_offer_outlined,
                       title: 'Coupons',
                       onTap: () =>
-                          _comingSoon('Coupons'),
+                          _featureNotAvailable('Coupons'),
+                    ),
+
+                    // Buyer My Videos +
+                    _plusMenuItem(
+                      icon: Icons.video_library_outlined,
+                      title: 'My Videos',
+                      onTap: _openMyVideos,
+                      onAdd: _openMyVideos,
+                    ),
+
+                    _menuItem(
+                      icon: Icons.message_outlined,
+                      title: 'Messages',
+                      onTap: () =>
+                          _featureNotAvailable('Messages'),
                     ),
 
                     const SizedBox(height: 16),
@@ -706,15 +923,18 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon: Icons.card_giftcard_outlined,
                       title: 'Referral & Invite',
-                      onTap: () =>
-                          _comingSoon('Referral & Invite'),
+                      onTap: () => _featureNotAvailable(
+                        'Referral & Invite',
+                      ),
                     ),
 
                     _menuItem(
-                      icon: Icons.account_balance_wallet_outlined,
+                      icon: Icons
+                          .account_balance_wallet_outlined,
                       title: 'Withdraw Rewards',
-                      onTap: () =>
-                          _comingSoon('Withdraw Rewards'),
+                      onTap: () => _featureNotAvailable(
+                        'Withdraw Rewards',
+                      ),
                     ),
 
                     const SizedBox(height: 16),
@@ -728,11 +948,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       title: 'ENTREPRENEUR / RESELLER',
                     ),
 
-                    _menuItem(
-                      icon: Icons.business_center_outlined,
-                      title: 'Entrepreneur / Reseller',
-                      onTap: _openEntrepreneur,
-                    ),
+                    ..._entrepreneurSectionItems(),
 
                     const SizedBox(height: 16),
 
@@ -747,62 +963,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     ..._sellerSectionItems(),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     // =================================================
-                    // COMMUNICATION
+                    // SETTINGS / LOGOUT
                     // =================================================
-
-                    _sectionTitle(
-                      icon: Icons.forum_outlined,
-                      title: 'COMMUNICATION',
-                    ),
-
-                    _menuItem(
-                      icon: Icons.chat_bubble_outline,
-                      title: 'Chat',
-                      onTap: () =>
-                          _comingSoon('Chat'),
-                    ),
-
-                    _menuItem(
-                      icon: Icons.message_outlined,
-                      title: 'Messages',
-                      onTap: () =>
-                          _comingSoon('Messages'),
-                    ),
-
-                    _menuItem(
-                      icon: Icons.notifications_none,
-                      title: 'Notifications',
-                      onTap: () =>
-                          _comingSoon('Notifications'),
-                    ),
-
-                    _menuItem(
-                      icon: Icons.support_agent_outlined,
-                      title: 'Contact Us',
-                      onTap: () =>
-                          _comingSoon('Contact Us'),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // =================================================
-                    // ACCOUNT
-                    // =================================================
-
-                    _sectionTitle(
-                      icon: Icons.manage_accounts_outlined,
-                      title: 'ACCOUNT',
-                    ),
-
-                    _menuItem(
-                      icon: Icons.security_outlined,
-                      title: 'Account & Security',
-                      onTap: () =>
-                          _comingSoon('Account & Security'),
-                    ),
 
                     _menuItem(
                       icon: Icons.settings_outlined,
