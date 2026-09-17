@@ -1,11 +1,33 @@
 import 'package:flutter/material.dart';
 
-import 'buyer_support_page.dart';
+import 'return_refund_page.dart';
 
-class BuyerPage extends StatelessWidget {
-  const BuyerPage({super.key});
+class BuyerSupportPage extends StatelessWidget {
+  const BuyerSupportPage({super.key});
 
-  Widget _menuItem({
+  void _showMessage(
+    BuildContext context,
+    String title,
+    String message,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _supportItem({
     required BuildContext context,
     required IconData icon,
     required String title,
@@ -14,6 +36,7 @@ class BuyerPage extends StatelessWidget {
   }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 1,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -51,7 +74,7 @@ class BuyerPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Buyer'),
+        title: const Text('Help & Support'),
         centerTitle: true,
       ),
       body: ListView(
@@ -72,22 +95,22 @@ class BuyerPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  Icons.shopping_bag_outlined,
+                  Icons.support_agent,
                   color: Colors.white,
                   size: 42,
                 ),
                 SizedBox(height: 12),
                 Text(
-                  'BuyNova Buyer',
+                  'How can we help you?',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 23,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Shop products and manage your orders.',
+                  'Find answers or contact BuyNova Support.',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -100,7 +123,7 @@ class BuyerPage extends StatelessWidget {
           const SizedBox(height: 24),
 
           const Text(
-            'Shopping',
+            'Support Categories',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -109,68 +132,128 @@ class BuyerPage extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          _menuItem(
+          _supportItem(
             context: context,
-            icon: Icons.favorite_border,
-            title: 'Favorites',
-            subtitle: 'View your favorite products.',
+            icon: Icons.help_outline,
+            title: 'Frequently Asked Questions',
+            subtitle: 'Find answers to common questions.',
             onTap: () {
-              Navigator.pushNamed(
+              _showMessage(
                 context,
-                '/favorites',
+                'FAQ',
+                'Frequently Asked Questions will be available here.',
               );
             },
           ),
 
-          _menuItem(
+          _supportItem(
             context: context,
-            icon: Icons.shopping_cart_outlined,
-            title: 'Cart',
-            subtitle: 'View products in your cart.',
+            icon: Icons.shopping_bag_outlined,
+            title: 'Order Help',
+            subtitle: 'Problems with your order?',
             onTap: () {
-              Navigator.pushNamed(
+              _showMessage(
                 context,
-                '/cart',
+                'Order Help',
+                'You can get help with order status, cancellation and order issues.',
               );
             },
           ),
 
-          _menuItem(
+          _supportItem(
             context: context,
-            icon: Icons.receipt_long_outlined,
-            title: 'My Orders',
-            subtitle: 'View and track your orders.',
+            icon: Icons.payment_outlined,
+            title: 'Payment Help',
+            subtitle: 'Payment and transaction problems.',
             onTap: () {
-              Navigator.pushNamed(
+              _showMessage(
                 context,
-                '/my-orders',
+                'Payment Help',
+                'Payment support will be available here.',
               );
             },
           ),
 
-          const SizedBox(height: 18),
-
-          const Text(
-            'Support',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          _supportItem(
+            context: context,
+            icon: Icons.local_shipping_outlined,
+            title: 'Delivery Help',
+            subtitle: 'Track or report a delivery problem.',
+            onTap: () {
+              _showMessage(
+                context,
+                'Delivery Help',
+                'Delivery support will be available here.',
+              );
+            },
           ),
 
-          const SizedBox(height: 12),
-
-          _menuItem(
+          // RETURN & REFUND
+          _supportItem(
             context: context,
-            icon: Icons.support_agent_outlined,
-            title: 'Help & Support',
-            subtitle: 'Get help with orders, payment and delivery.',
+            icon: Icons.assignment_return_outlined,
+            title: 'Return & Refund',
+            subtitle: 'Request a return or refund and check your requests.',
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const BuyerSupportPage(),
+                  builder: (_) => const ReturnRefundPage(),
                 ),
+              );
+            },
+          ),
+
+          _supportItem(
+            context: context,
+            icon: Icons.person_outline,
+            title: 'Account Help',
+            subtitle: 'Problems with your BuyNova account.',
+            onTap: () {
+              _showMessage(
+                context,
+                'Account Help',
+                'Account support will be available here.',
+              );
+            },
+          ),
+
+          const SizedBox(height: 14),
+
+          const Text(
+            'Contact Us',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          _supportItem(
+            context: context,
+            icon: Icons.chat_outlined,
+            title: 'Contact BuyNova Support',
+            subtitle: 'Chat with our support team.',
+            onTap: () {
+              _showMessage(
+                context,
+                'BuyNova Support',
+                'Live support chat will be connected here.',
+              );
+            },
+          ),
+
+          _supportItem(
+            context: context,
+            icon: Icons.email_outlined,
+            title: 'Email Support',
+            subtitle: 'Send us your question or problem.',
+            onTap: () {
+              _showMessage(
+                context,
+                'Email Support',
+                'Email support will be connected here.',
               );
             },
           ),
@@ -179,7 +262,7 @@ class BuyerPage extends StatelessWidget {
 
           Center(
             child: Text(
-              'BuyNova Buyer',
+              'BuyNova Support',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 13,
