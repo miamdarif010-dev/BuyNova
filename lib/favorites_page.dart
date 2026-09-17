@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'cart_page.dart';
+
 class FavoritesPage extends StatelessWidget {
   const FavoritesPage({super.key});
 
@@ -27,11 +29,24 @@ class FavoritesPage extends StatelessWidget {
     if (price is num) {
       value = price.toDouble();
     } else {
-      value =
-          double.tryParse(price?.toString() ?? '0') ?? 0;
+      value = double.tryParse(
+            price?.toString() ?? '0',
+          ) ??
+          0;
     }
 
     return '₩${value.toStringAsFixed(0)}';
+  }
+
+  double _priceAsDouble(dynamic price) {
+    if (price is num) {
+      return price.toDouble();
+    }
+
+    return double.tryParse(
+          price?.toString() ?? '0',
+        ) ??
+        0;
   }
 
   Future<void> _removeFavorite(
@@ -74,23 +89,122 @@ class FavoritesPage extends StatelessWidget {
     }
   }
 
+  Future<void> _addToCart(
+    BuildContext context,
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
+    final user = _user;
+
+    if (user == null) return;
+
+    final data = document.data() ?? {};
+
+    final name = (
+      data['productName'] ??
+      data['name'] ??
+      'BuyNova Product'
+    ).toString();
+
+    final imageUrl = (
+      data['productImageUrl'] ??
+      data['imageUrl'] ??
+      ''
+    ).toString();
+
+    final price = _priceAsDouble(
+      data['price'] ??
+          data['sellingPrice'] ??
+          0,
+    );
+
+    try {
+      final cartRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('cart')
+          .doc(document.id);
+
+      final existing = await cartRef.get();
+
+      if (existing.exists) {
+        final existingData =
+            existing.data() ?? {};
+
+        final oldQuantity =
+            existingData['quantity'] is num
+                ? (existingData['quantity'] as num).toInt()
+                : 1;
+
+        await cartRef.update({
+          'quantity': oldQuantity + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await cartRef.set({
+          'productId': document.id,
+          'productName': name,
+          'productImageUrl': imageUrl,
+          'price': price,
+          'quantity': 1,
+          'userId': user.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$name added to Cart.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'VIEW CART',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const CartPage(),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not add to Cart: $e',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _favoriteCard(
     BuildContext context,
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final data = document.data() ?? {};
 
-    final name =
-        (data['productName'] ??
-                data['name'] ??
-                'BuyNova Product')
-            .toString();
+    final name = (
+      data['productName'] ??
+      data['name'] ??
+      'BuyNova Product'
+    ).toString();
 
-    final imageUrl =
-        (data['productImageUrl'] ??
-                data['imageUrl'] ??
-                '')
-            .toString();
+    final imageUrl = (
+      data['productImageUrl'] ??
+      data['imageUrl'] ??
+      ''
+    ).toString();
 
     final price =
         data['price'] ??
@@ -106,13 +220,16 @@ class FavoritesPage extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             // PRODUCT IMAGE
             Container(
               width: 82,
               height: 82,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius:
+                    BorderRadius.circular(10),
                 color: Colors.grey.shade100,
               ),
               child: imageUrl.isNotEmpty
@@ -154,21 +271,23 @@ class FavoritesPage extends StatelessWidget {
                   Text(
                     name,
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    overflow:
+                        TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
 
                   if (category.isNotEmpty)
                     Text(
                       category,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color:
+                            Colors.grey.shade600,
                       ),
                     ),
 
@@ -182,13 +301,45 @@ class FavoritesPage extends StatelessWidget {
                       color: Colors.redAccent,
                     ),
                   ),
+
+                  const SizedBox(height: 8),
+
+                  // ADD TO CART
+                  SizedBox(
+                    height: 36,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        _addToCart(
+                          context,
+                          document,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.shopping_cart_outlined,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Add to Cart',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
 
-            // REMOVE BUTTON
+            // REMOVE FAVORITE
             IconButton(
-              tooltip: 'Remove from Favorites',
+              tooltip:
+                  'Remove from Favorites',
               onPressed: () {
                 _removeFavorite(
                   context,
@@ -220,7 +371,8 @@ class FavoritesPage extends StatelessWidget {
               height: 95,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.redAccent.withValues(
+                color:
+                    Colors.redAccent.withValues(
                   alpha: 0.08,
                 ),
               ),
@@ -290,7 +442,6 @@ class FavoritesPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-
       body: StreamBuilder<
           QuerySnapshot<Map<String, dynamic>>>(
         stream: _favoritesStream(),
@@ -308,9 +459,7 @@ class FavoritesPage extends StatelessWidget {
                       size: 50,
                       color: Colors.redAccent,
                     ),
-
                     const SizedBox(height: 12),
-
                     const Text(
                       'Could not load Favorites.',
                       style: TextStyle(
@@ -318,9 +467,7 @@ class FavoritesPage extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(height: 8),
-
                     Text(
                       snapshot.error.toString(),
                       textAlign: TextAlign.center,
