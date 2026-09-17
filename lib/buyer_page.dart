@@ -3,14 +3,20 @@ import 'package:flutter/material.dart';
 import 'cart_page.dart';
 import 'my_orders_page.dart';
 import 'my_videos_page.dart';
+import 'favorites_page.dart';
 
 class BuyerPage extends StatelessWidget {
   const BuyerPage({super.key});
 
-  void _comingSoon(BuildContext context, String title) {
+  void _comingSoon(
+    BuildContext context,
+    String title,
+  ) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$title is not available yet.'),
+        content: Text(
+          '$title is not available yet.',
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -27,7 +33,8 @@ class BuyerPage extends StatelessWidget {
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
+        contentPadding:
+            const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 4,
         ),
@@ -55,6 +62,15 @@ class BuyerPage extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => const MyOrdersPage(),
+      ),
+    );
+  }
+
+  void _openFavorites(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FavoritesPage(),
       ),
     );
   }
@@ -89,7 +105,6 @@ class BuyerPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -189,10 +204,7 @@ class BuyerPage extends StatelessWidget {
               iconColor: Colors.redAccent,
               title: 'Favorites',
               onTap: () {
-                _comingSoon(
-                  context,
-                  'Favorites',
-                );
+                _openFavorites(context);
               },
             ),
 
