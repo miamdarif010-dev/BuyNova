@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'buyer_page.dart';
 import 'edit_profile_page.dart';
 import 'settings_page.dart';
 import 'cart_page.dart';
@@ -21,8 +22,6 @@ class UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<UserProfilePage> {
   bool _isLoading = true;
 
-  // Section open / close
-  bool _buyerExpanded = false;
   bool _earnExpanded = false;
   bool _entrepreneurExpanded = false;
   bool _sellerExpanded = false;
@@ -31,29 +30,31 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String _phone = '';
   String _profileImageUrl = '';
 
-  String _sellerStatus = 'none';
-  String _entrepreneurStatus = 'none';
+  String _sellerStatus = '';
+  String _entrepreneurStatus = '';
 
   int _pointsBalance = 0;
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
-  bool get _isAdmin => currentUser?.email == kAdminEmail;
+  bool get _isAdmin {
+    return currentUser?.email?.toLowerCase() ==
+        'miamdarif010@gmail.com';
+  }
 
-  bool get _isSellerApproved => _sellerStatus == 'approved';
+  bool get _isSellerApproved {
+    return _sellerStatus == 'approved';
+  }
 
-  bool get _isEntrepreneurApproved =>
-      _entrepreneurStatus == 'approved';
+  bool get _isEntrepreneurApproved {
+    return _entrepreneurStatus == 'approved';
+  }
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
   }
-
-  // =========================================================
-  // LOAD USER DATA
-  // =========================================================
 
   Future<void> _loadUserData() async {
     final user = currentUser;
@@ -73,56 +74,62 @@ class _UserProfilePageState extends State<UserProfilePage> {
           .doc(user.uid)
           .get();
 
-      if (doc.exists) {
-        final data = doc.data() ?? {};
+      final data = doc.data();
 
-        if (mounted) {
-          setState(() {
-            _name = data['name']?.toString() ?? '';
-            _phone = data['phone']?.toString() ?? '';
+      if (mounted) {
+        setState(() {
+          _name = (data?['name'] ?? '').toString();
+          _phone = (data?['phone'] ?? '').toString();
+          _profileImageUrl =
+              (data?['profileImageUrl'] ?? '').toString();
 
-            _profileImageUrl =
-                data['profileImageUrl']?.toString() ?? '';
+          _sellerStatus =
+              (data?['sellerStatus'] ?? '').toString();
 
-            _sellerStatus =
-                data['sellerStatus']?.toString() ?? 'none';
+          _entrepreneurStatus =
+              (data?['entrepreneurStatus'] ?? '').toString();
 
-            _entrepreneurStatus =
-                data['entrepreneurStatus']?.toString() ?? 'none';
+          _pointsBalance =
+              (data?['pointsBalance'] ?? 0) is int
+                  ? data?['pointsBalance'] ?? 0
+                  : int.tryParse(
+                        (data?['pointsBalance'] ?? '0').toString(),
+                      ) ??
+                      0;
 
-            _pointsBalance =
-                (data['pointsBalance'] as num?)?.toInt() ?? 0;
-          });
-        }
+          _isLoading = false;
+        });
       }
     } catch (e) {
-      debugPrint('Profile loading error: $e');
-    }
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not load profile: $e',
+            ),
+          ),
+        );
+      }
     }
   }
 
-  // =========================================================
-  // NAVIGATION
-  // =========================================================
-
-  Future<void> _openEditProfile() async {
-    await Navigator.push(
+  void _openEditProfile() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const EditProfilePage(),
       ),
-    );
-
-    await _loadUserData();
+    ).then((_) {
+      _loadUserData();
+    });
   }
 
-  Future<void> _openSettings() async {
-    await Navigator.push(
+  void _openSettings() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const SettingsPage(),
@@ -130,8 +137,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  Future<void> _openMyProducts() async {
-    await Navigator.push(
+  void _openMyProducts() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const MyProductsPage(),
@@ -139,8 +146,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  Future<void> _openMyVideos() async {
-    await Navigator.push(
+  void _openMyVideos() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const MyVideosPage(),
@@ -148,8 +155,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  Future<void> _openCart() async {
-    await Navigator.push(
+  void _openCart() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const CartPage(),
@@ -157,8 +164,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  Future<void> _openAdminPanel() async {
-    await Navigator.push(
+  void _openAdminPanel() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const AdminPanelPage(),
@@ -166,91 +173,46 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  Future<void> _openEntrepreneur() async {
-    await Navigator.push(
+  void _openEntrepreneur() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const EntrepreneurPage(),
       ),
     );
-
-    await _loadUserData();
   }
 
-  Future<void> _openWatchEarn() async {
-    await Navigator.push(
+  void _openWatchEarn() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const WatchEarnPage(),
       ),
     );
-
-    await _loadUserData();
   }
 
-  // =========================================================
-  // NOTIFICATIONS
-  // =========================================================
-
-  void _openNotifications(String sectionName) {
+  void _notification(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '$sectionName notifications are not connected yet.',
-        ),
+        content: Text('$title notifications coming soon.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
-
-  // =========================================================
-  // FEATURES NOT READY YET
-  // =========================================================
 
   void _featureNotAvailable(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$title is not available yet.'),
+        content: Text('$title is coming soon.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
-
-  // =========================================================
-  // BECOME SELLER
-  // =========================================================
 
   Future<void> _becomeSeller() async {
     final user = currentUser;
 
     if (user == null) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Become a Seller'),
-        content: const Text(
-          'Send a request to become a seller? '
-          'An admin will review and approve your request.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, false);
-            },
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, true);
-            },
-            child: const Text('Send Request'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
 
     try {
       await FirebaseFirestore.instance
@@ -258,104 +220,84 @@ class _UserProfilePageState extends State<UserProfilePage> {
           .doc(user.uid)
           .set(
         {
-          'name': _name,
-          'email': user.email,
+          'name': _name.isNotEmpty ? _name : 'BuyNova User',
+          'email': user.email ?? '',
           'sellerStatus': 'pending',
           'sellerRequestedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
 
-      if (!mounted) return;
+      await _loadUserData();
 
-      setState(() {
-        _sellerStatus = 'pending';
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Seller request sent! Waiting for admin approval.',
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Seller request submitted successfully.',
+            ),
+            behavior: SnackBarBehavior.floating,
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to send seller request: $e',
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not submit seller request: $e',
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
-  // =========================================================
-  // LOGOUT
-  // =========================================================
-
   Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text(
-          'Are you sure you want to logout?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, false);
-            },
-            child: const Text('Cancel'),
+    try {
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Logout failed: $e',
+            ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, true);
-            },
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await FirebaseAuth.instance.signOut();
-
-    if (!mounted) return;
-
-    Navigator.pop(context);
+        );
+      }
+    }
   }
-
-  // =========================================================
-  // PROFILE IMAGE
-  // =========================================================
 
   Widget _profileImage() {
     if (_profileImageUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: 58,
-        backgroundImage: NetworkImage(
+      return ClipOval(
+        child: Image.network(
           _profileImageUrl,
+          width: 78,
+          height: 78,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return const Icon(
+              Icons.person,
+              size: 44,
+              color: Colors.grey,
+            );
+          },
         ),
       );
     }
 
-    return const CircleAvatar(
-      radius: 58,
-      child: Icon(
-        Icons.person,
-        size: 62,
-      ),
+    return const Icon(
+      Icons.person,
+      size: 44,
+      color: Colors.grey,
     );
   }
-
-  // =========================================================
-  // SECTION HEADER
-  // =========================================================
 
   Widget _expandableSectionHeader({
     required IconData icon,
@@ -365,196 +307,128 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(
-        bottom: 8,
-      ),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 4,
-        ),
         leading: Icon(
           icon,
-          size: 25,
+          color: Colors.redAccent,
         ),
         title: Text(
           title,
           style: const TextStyle(
-            fontSize: 17,
             fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
         ),
         trailing: Icon(
           expanded
               ? Icons.keyboard_arrow_up
-              : Icons.keyboard_arrow_down,
+              : Icons.chevron_right,
         ),
         onTap: onTap,
       ),
     );
   }
 
-  // =========================================================
-  // NOTIFICATION ROW
-  // =========================================================
-
   Widget _sectionNotification({
-    required String sectionName,
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color? iconColor,
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(
-        bottom: 8,
-      ),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 2,
+        leading: Icon(
+          icon,
+          color: iconColor,
         ),
-        leading: const Icon(
-          Icons.notifications_none,
-          color: Colors.redAccent,
-        ),
-        title: const Text(
-          'Notifications',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
           ),
         ),
         trailing: const Icon(
           Icons.chevron_right,
         ),
-        onTap: () {
-          _openNotifications(sectionName);
-        },
+        onTap: onTap,
       ),
     );
   }
-
-  // =========================================================
-  // NORMAL MENU ITEM
-  // =========================================================
 
   Widget _menuItem({
     required IconData icon,
     required String title,
     required VoidCallback onTap,
-    bool isDanger = false,
+    Color? iconColor,
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(
-        bottom: 8,
-      ),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 2,
-        ),
         leading: Icon(
           icon,
-          color: isDanger ? Colors.red : null,
+          color: iconColor,
         ),
         title: Text(
           title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: isDanger ? Colors.red : null,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        trailing: Icon(
+        trailing: const Icon(
           Icons.chevron_right,
-          color: isDanger ? Colors.red : null,
         ),
         onTap: onTap,
       ),
     );
   }
-
-  // =========================================================
-  // MENU ITEM WITH PLUS BUTTON
-  // =========================================================
 
   Widget _plusMenuItem({
     required IconData icon,
     required String title,
     required VoidCallback onTap,
-    required VoidCallback onAdd,
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(
-        bottom: 8,
-      ),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 2,
+        leading: Icon(
+          icon,
+          color: Colors.redAccent,
         ),
-        leading: Icon(icon),
         title: Text(
           title,
           style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: 'Add',
-              icon: const Icon(
-                Icons.add_circle_outline,
-                color: Colors.redAccent,
-              ),
-              onPressed: onAdd,
-            ),
-            const Icon(
-              Icons.chevron_right,
-            ),
-          ],
+        trailing: const Icon(
+          Icons.add_circle_outline,
+          color: Colors.redAccent,
         ),
         onTap: onTap,
       ),
     );
   }
 
-  // =========================================================
-  // REWARDS CARD
-  // =========================================================
-
   Widget _rewardsSummaryCard() {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(
-        bottom: 8,
-      ),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 4,
-        ),
-        leading: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.orange.withValues(
-              alpha: 0.12,
-            ),
-          ),
-          child: const Icon(
-            Icons.stars_outlined,
-            color: Colors.orange,
-          ),
+        leading: const Icon(
+          Icons.stars_outlined,
+          color: Colors.orange,
         ),
         title: const Text(
-          'My Rewards',
+          'My Points',
           style: TextStyle(
-            fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -569,21 +443,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  // =========================================================
-  // SELLER SECTION ITEMS
-  // =========================================================
-
   List<Widget> _sellerSectionItems() {
     if (_isSellerApproved) {
       return [
         _menuItem(
-          icon: Icons.storefront_outlined,
+          icon: Icons.store_outlined,
           title: 'Shop Profile',
           onTap: () {
             _featureNotAvailable('Shop Profile');
           },
         ),
-
         _menuItem(
           icon: Icons.location_on_outlined,
           title: 'Shop Location',
@@ -591,29 +460,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _featureNotAvailable('Shop Location');
           },
         ),
-
         _plusMenuItem(
           icon: Icons.inventory_2_outlined,
           title: 'My Products',
           onTap: _openMyProducts,
-          onAdd: _openMyProducts,
         ),
-
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
           onTap: _openMyVideos,
-          onAdd: _openMyVideos,
         ),
-
         _menuItem(
-          icon: Icons.bar_chart_outlined,
+          icon: Icons.receipt_long_outlined,
           title: 'Sales / Orders',
           onTap: () {
             _featureNotAvailable('Sales / Orders');
           },
         ),
-
         _menuItem(
           icon: Icons.account_balance_wallet_outlined,
           title: 'Earnings',
@@ -621,12 +484,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _featureNotAvailable('Earnings');
           },
         ),
-
         _menuItem(
           icon: Icons.message_outlined,
           title: 'Messages',
           onTap: () {
-            _featureNotAvailable('Seller Messages');
+            _featureNotAvailable('Messages');
           },
         ),
       ];
@@ -636,23 +498,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
       return [
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(
-            bottom: 8,
-          ),
-          color: Colors.orange.shade50,
-          child: const ListTile(
-            leading: Icon(
-              Icons.hourglass_top,
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: const Icon(
+              Icons.pending_outlined,
               color: Colors.orange,
             ),
-            title: Text(
-              'Seller request pending',
+            title: const Text(
+              'Seller Request Pending',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            subtitle: Text(
-              'An admin is reviewing your request.',
+            subtitle: const Text(
+              'Your seller request is waiting for admin approval.',
             ),
           ),
         ),
@@ -663,42 +522,56 @@ class _UserProfilePageState extends State<UserProfilePage> {
       return [
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(
-            bottom: 8,
-          ),
-          color: Colors.red.shade50,
+          margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: const Icon(
               Icons.cancel_outlined,
               color: Colors.red,
             ),
             title: const Text(
-              'Seller request rejected',
+              'Seller Request Rejected',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
               ),
             ),
             subtitle: const Text(
-              'Tap to request again.',
+              'You can submit a new seller request.',
             ),
-            onTap: _becomeSeller,
+            trailing: TextButton(
+              onPressed: _becomeSeller,
+              child: const Text('Apply Again'),
+            ),
           ),
         ),
       ];
     }
 
     return [
-      _menuItem(
-        icon: Icons.storefront_outlined,
-        title: 'Become a Seller',
-        onTap: _becomeSeller,
+      Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          leading: const Icon(
+            Icons.storefront_outlined,
+            color: Colors.redAccent,
+          ),
+          title: const Text(
+            'Become a Seller',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: const Text(
+            'Apply to sell your products on BuyNova.',
+          ),
+          trailing: const Icon(
+            Icons.chevron_right,
+          ),
+          onTap: _becomeSeller,
+        ),
       ),
     ];
   }
-
-  // =========================================================
-  // ENTREPRENEUR / RESELLER SECTION ITEMS
-  // =========================================================
 
   List<Widget> _entrepreneurSectionItems() {
     if (_isEntrepreneurApproved) {
@@ -708,35 +581,30 @@ class _UserProfilePageState extends State<UserProfilePage> {
           title: 'My Store',
           onTap: _openEntrepreneur,
         ),
-
         _menuItem(
-          icon: Icons.shopping_bag_outlined,
+          icon: Icons.receipt_long_outlined,
           title: 'Reseller Orders',
           onTap: () {
             _featureNotAvailable('Reseller Orders');
           },
         ),
-
         _menuItem(
-          icon: Icons.account_balance_wallet_outlined,
+          icon: Icons.monetization_on_outlined,
           title: 'My Profit',
           onTap: () {
             _featureNotAvailable('My Profit');
           },
         ),
-
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
           onTap: _openMyVideos,
-          onAdd: _openMyVideos,
         ),
-
         _menuItem(
           icon: Icons.message_outlined,
           title: 'Messages',
           onTap: () {
-            _featureNotAvailable('Reseller Messages');
+            _featureNotAvailable('Messages');
           },
         ),
       ];
@@ -746,46 +614,70 @@ class _UserProfilePageState extends State<UserProfilePage> {
       return [
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(
-            bottom: 8,
-          ),
-          color: Colors.orange.shade50,
+          margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: const Icon(
-              Icons.hourglass_top,
+              Icons.pending_outlined,
               color: Colors.orange,
             ),
             title: const Text(
-              'Entrepreneur request pending',
+              'Entrepreneur Request Pending',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
               ),
             ),
             subtitle: const Text(
-              'Your request is waiting for admin approval.',
+              'Your entrepreneur request is waiting for admin approval.',
             ),
-            onTap: _openEntrepreneur,
           ),
         ),
       ];
     }
 
     return [
-      _menuItem(
-        icon: Icons.business_center_outlined,
-        title: 'Become an Entrepreneur / Reseller',
-        onTap: _openEntrepreneur,
+      Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          leading: const Icon(
+            Icons.business_center_outlined,
+            color: Colors.redAccent,
+          ),
+          title: const Text(
+            'Become an Entrepreneur / Reseller',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: const Text(
+            'Apply to become a BuyNova reseller.',
+          ),
+          trailing: const Icon(
+            Icons.chevron_right,
+          ),
+          onTap: _openEntrepreneur,
+        ),
       ),
     ];
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
-
   @override
   Widget build(BuildContext context) {
     final user = currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('My Profile'),
+          centerTitle: true,
+        ),
+        body: const Center(
+          child: Text(
+            'Please log in to view your profile.',
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -797,7 +689,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
         ),
         centerTitle: true,
       ),
-
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(),
@@ -805,205 +696,128 @@ class _UserProfilePageState extends State<UserProfilePage> {
           : RefreshIndicator(
               onRefresh: _loadUserData,
               child: SingleChildScrollView(
-                physics:
-                    const AlwaysScrollableScrollPhysics(),
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // PROFILE CARD
+                    Card(
+                      elevation: 0,
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          children: [
+                            GestureDetector(
+                              onTap: _openEditProfile,
+                              child: Container(
+                                width: 84,
+                                height: 84,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.grey.shade200,
+                                ),
+                                child: _profileImage(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _name.isNotEmpty
+                                  ? _name
+                                  : 'BuyNova User',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              user.email ?? '',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            if (_phone.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                _phone,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _openEditProfile,
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                ),
+                                label: const Text(
+                                  'Edit Profile',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
-                    // =================================================
-                    // PROFILE
-                    // =================================================
+                    const SizedBox(height: 16),
 
-                    Center(
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 8),
-
-                          _profileImage(),
-
-                          const SizedBox(height: 14),
-
-                          Text(
-                            _name.isEmpty
-                                ? 'User'
-                                : _name,
-                            style: const TextStyle(
-                              fontSize: 24,
+                    // ADMIN
+                    if (_isAdmin) ...[
+                      Card(
+                        elevation: 0,
+                        child: ListTile(
+                          leading: const Icon(
+                            Icons.admin_panel_settings_outlined,
+                            color: Colors.redAccent,
+                          ),
+                          title: const Text(
+                            'Admin Panel',
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-
-                          const SizedBox(height: 6),
-
-                          Text(
-                            user?.email ?? 'No Email',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.grey.shade600,
-                            ),
+                          subtitle: const Text(
+                            'Manage BuyNova users, products and requests.',
                           ),
-
-                          if (_phone.isNotEmpty) ...[
-                            const SizedBox(height: 5),
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.phone,
-                                  size: 16,
-                                  color:
-                                      Colors.grey.shade600,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _phone,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color:
-                                        Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-
-                          const SizedBox(height: 18),
-
-                          SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: OutlinedButton.icon(
-                              onPressed:
-                                  _openEditProfile,
-                              icon: const Icon(
-                                Icons.edit,
-                              ),
-                              label: const Text(
-                                'Edit Profile',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ),
+                          trailing: const Icon(
+                            Icons.chevron_right,
                           ),
-                        ],
+                          onTap: _openAdminPanel,
+                        ),
                       ),
-                    ),
-
-                    const SizedBox(height: 25),
-
-                    // =================================================
-                    // ADMIN
-                    // =================================================
-
-                    if (_isAdmin) ...[
-                      _menuItem(
-                        icon: Icons
-                            .admin_panel_settings_outlined,
-                        title: 'Admin Panel',
-                        onTap: _openAdminPanel,
-                      ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
                     ],
 
-                    // =================================================
+                    // =========================
                     // BUYER
-                    // =================================================
-
+                    // =========================
                     _expandableSectionHeader(
                       icon: Icons.shopping_bag_outlined,
                       title: 'BUYER',
-                      expanded: _buyerExpanded,
+                      expanded: false,
                       onTap: () {
-                        setState(() {
-                          _buyerExpanded = !_buyerExpanded;
-                        });
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const BuyerPage(),
+                          ),
+                        );
                       },
                     ),
 
-                    if (_buyerExpanded) ...[
-                      _sectionNotification(
-                        sectionName: 'Buyer',
-                      ),
-
-                      _menuItem(
-                        icon: Icons.receipt_long_outlined,
-                        title: 'My Orders',
-                        onTap: () {
-                          _featureNotAvailable(
-                            'My Orders',
-                          );
-                        },
-                      ),
-
-                      _menuItem(
-                        icon: Icons.favorite_border,
-                        title: 'Favorites',
-                        onTap: () {
-                          _featureNotAvailable(
-                            'Favorites',
-                          );
-                        },
-                      ),
-
-                      _menuItem(
-                        icon: Icons.shopping_cart_outlined,
-                        title: 'My Cart',
-                        onTap: _openCart,
-                      ),
-
-                      _menuItem(
-                        icon: Icons.history,
-                        title: 'Recently Viewed',
-                        onTap: () {
-                          _featureNotAvailable(
-                            'Recently Viewed',
-                          );
-                        },
-                      ),
-
-                      _menuItem(
-                        icon: Icons.local_offer_outlined,
-                        title: 'Coupons',
-                        onTap: () {
-                          _featureNotAvailable(
-                            'Coupons',
-                          );
-                        },
-                      ),
-
-                      _plusMenuItem(
-                        icon: Icons.video_library_outlined,
-                        title: 'My Videos',
-                        onTap: _openMyVideos,
-                        onAdd: _openMyVideos,
-                      ),
-
-                      _menuItem(
-                        icon: Icons.message_outlined,
-                        title: 'Messages',
-                        onTap: () {
-                          _featureNotAvailable(
-                            'Messages',
-                          );
-                        },
-                      ),
-                    ],
-
                     const SizedBox(height: 8),
 
-                    // =================================================
+                    // =========================
                     // EARN & REWARDS
-                    // =================================================
-
+                    // =========================
                     _expandableSectionHeader(
-                      icon: Icons.monetization_on_outlined,
+                      icon: Icons.stars_outlined,
                       title: 'EARN & REWARDS',
                       expanded: _earnExpanded,
                       onTap: () {
@@ -1014,35 +828,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     if (_earnExpanded) ...[
+                      _rewardsSummaryCard(),
                       _sectionNotification(
-                        sectionName: 'Earn & Rewards',
-                      ),
-
-                      _menuItem(
                         icon: Icons.play_circle_outline,
                         title: 'Watch & Earn',
+                        iconColor: Colors.redAccent,
                         onTap: _openWatchEarn,
                       ),
-
-                      _rewardsSummaryCard(),
-
-                      _menuItem(
-                        icon: Icons.card_giftcard_outlined,
-                        title: 'Referral & Invite',
+                      _sectionNotification(
+                        icon: Icons.video_library_outlined,
+                        title: 'Seller Video Rewards',
                         onTap: () {
                           _featureNotAvailable(
-                            'Referral & Invite',
+                            'Seller Video Rewards',
                           );
                         },
                       ),
-
-                      _menuItem(
-                        icon: Icons
-                            .account_balance_wallet_outlined,
-                        title: 'Withdraw Rewards',
+                      _sectionNotification(
+                        icon: Icons.group_add_outlined,
+                        title: 'Referral',
                         onTap: () {
                           _featureNotAvailable(
-                            'Withdraw Rewards',
+                            'Referral',
                           );
                         },
                       ),
@@ -1050,14 +857,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 8),
 
-                    // =================================================
+                    // =========================
                     // ENTREPRENEUR / RESELLER
-                    // =================================================
-
+                    // =========================
                     _expandableSectionHeader(
                       icon: Icons.business_center_outlined,
-                      title:
-                          'ENTREPRENEUR / RESELLER',
+                      title: 'ENTREPRENEUR / RESELLER',
                       expanded: _entrepreneurExpanded,
                       onTap: () {
                         setState(() {
@@ -1068,22 +873,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     if (_entrepreneurExpanded) ...[
-                      _sectionNotification(
-                        sectionName:
-                            'Entrepreneur / Reseller',
-                      ),
-
                       ..._entrepreneurSectionItems(),
                     ],
 
                     const SizedBox(height: 8),
 
-                    // =================================================
+                    // =========================
                     // SELLER
-                    // =================================================
-
+                    // =========================
                     _expandableSectionHeader(
-                      icon: Icons.store_outlined,
+                      icon: Icons.storefront_outlined,
                       title: 'SELLER',
                       expanded: _sellerExpanded,
                       onTap: () {
@@ -1095,36 +894,65 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     if (_sellerExpanded) ...[
-                      _sectionNotification(
-                        sectionName: 'Seller',
-                      ),
-
                       ..._sellerSectionItems(),
                     ],
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
-                    // =================================================
+                    // =========================
                     // SETTINGS
-                    // =================================================
-
+                    // =========================
                     _menuItem(
                       icon: Icons.settings_outlined,
                       title: 'Settings',
                       onTap: _openSettings,
                     ),
 
-                    const SizedBox(height: 8),
-
-                    // =================================================
+                    // =========================
                     // LOGOUT
-                    // =================================================
-
+                    // =========================
                     _menuItem(
                       icon: Icons.logout,
                       title: 'Logout',
-                      onTap: _logout,
-                      isDanger: true,
+                      iconColor: Colors.red,
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (dialogContext) {
+                            return AlertDialog(
+                              title: const Text(
+                                'Logout',
+                              ),
+                              content: const Text(
+                                'Are you sure you want to logout?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(
+                                      dialogContext,
+                                    );
+                                  },
+                                  child: const Text(
+                                    'Cancel',
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pop(
+                                      dialogContext,
+                                    );
+                                    _logout();
+                                  },
+                                  child: const Text(
+                                    'Logout',
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 20),
