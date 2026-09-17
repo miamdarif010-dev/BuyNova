@@ -118,39 +118,13 @@ class FavoritesPage extends StatelessWidget {
     );
 
     try {
-      final cartRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cart')
-          .doc(document.id);
-
-      final existing = await cartRef.get();
-
-      if (existing.exists) {
-        final existingData =
-            existing.data() ?? {};
-
-        final oldQuantity =
-            existingData['quantity'] is num
-                ? (existingData['quantity'] as num).toInt()
-                : 1;
-
-        await cartRef.update({
-          'quantity': oldQuantity + 1,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else {
-        await cartRef.set({
-          'productId': document.id,
-          'productName': name,
-          'productImageUrl': imageUrl,
-          'price': price,
-          'quantity': 1,
-          'userId': user.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
+      // Use the existing CartService.
+      await CartService.addItem(
+        id: document.id,
+        name: name,
+        price: price,
+        imageUrl: imageUrl.isEmpty ? null : imageUrl,
+      );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -304,7 +278,7 @@ class FavoritesPage extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
-                  // ADD TO CART
+                  // ADD TO CART BUTTON
                   SizedBox(
                     height: 36,
                     child: ElevatedButton.icon(
@@ -324,7 +298,8 @@ class FavoritesPage extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor:
                             Colors.redAccent,
-                        foregroundColor: Colors.white,
+                        foregroundColor:
+                            Colors.white,
                         padding:
                             const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -473,7 +448,8 @@ class FavoritesPage extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color:
+                            Colors.grey.shade600,
                       ),
                     ),
                   ],
