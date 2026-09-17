@@ -171,8 +171,9 @@ class _ProductDetailsPageState
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-                Text('Removed from Favorites'),
+            content: Text(
+              'Removed from Favorites',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 1),
           ),
@@ -197,8 +198,9 @@ class _ProductDetailsPageState
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-                Text('Added to Favorites ❤️'),
+            content: Text(
+              'Added to Favorites ❤️',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 1),
           ),
@@ -209,8 +211,9 @@ class _ProductDetailsPageState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Favorite update failed: $e'),
+          content: Text(
+            'Favorite update failed: $e',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -262,8 +265,9 @@ class _ProductDetailsPageState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Could not add to cart: $e'),
+          content: Text(
+            'Could not add to cart: $e',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -643,7 +647,9 @@ class _ProductDetailsPageState
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(
+                  alpha: 0.08,
+                ),
                 blurRadius: 8,
                 offset: const Offset(0, -2),
               ),
