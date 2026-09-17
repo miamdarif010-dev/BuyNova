@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -29,36 +30,128 @@ class _EditProductPageState extends State<EditProductPage> {
   final ImagePicker _imagePicker = ImagePicker();
 
   File? _pickedImage;
-  String? _currentImageUrl;
+  String _currentImageUrl = '';
+
   bool _isUploadingPhoto = false;
   bool _isSaving = false;
+  bool _isLoadingProduct = true;
 
   // =========================================================
-  // CLOUDINARY SETTINGS
+  // CLOUDINARY
   // =========================================================
+
   static const String _cloudName = 'riassg6d';
   static const String _uploadPreset = 'buynova_products';
+
+  // =========================================================
+  // INIT
+  // =========================================================
 
   @override
   void initState() {
     super.initState();
+
     final data = widget.initialData;
 
-    _titleController = TextEditingController(text: data['name']?.toString() ?? '');
-    _priceController = TextEditingController(
-      text: (data['price'] is num) ? (data['price'] as num).toString() : '',
+    _titleController = TextEditingController(
+      text: data['name']?.toString() ?? '',
     );
-    _descriptionController =
-        TextEditingController(text: data['description']?.toString() ?? '');
-    _categoryController = TextEditingController(text: data['category']?.toString() ?? '');
-    _currentImageUrl = data['imageUrl']?.toString();
+
+    _priceController = TextEditingController(
+      text: data['price'] is num
+          ? (data['price'] as num).toString()
+          : '',
+    );
+
+    _descriptionController = TextEditingController(
+      text: data['description']?.toString() ?? '',
+    );
+
+    _categoryController = TextEditingController(
+      text: data['category']?.toString() ?? '',
+    );
+
+    _currentImageUrl = data['imageUrl']?.toString() ?? '';
+
+    _loadLatestProduct();
   }
+
+  // =========================================================
+  // LOAD LATEST PRODUCT
+  // =========================================================
+
+  Future<void> _loadLatestProduct() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('products')
+          .doc(widget.productId)
+          .get();
+
+      if (!snapshot.exists) {
+        if (!mounted) return;
+
+        setState(() {
+          _isLoadingProduct = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Product no longer exists.'),
+          ),
+        );
+
+        return;
+      }
+
+      final data = snapshot.data();
+
+      if (data != null && mounted) {
+        _titleController.text =
+            data['name']?.toString() ?? '';
+
+        _priceController.text = data['price'] is num
+            ? (data['price'] as num).toString()
+            : '';
+
+        _descriptionController.text =
+            data['description']?.toString() ?? '';
+
+        _categoryController.text =
+            data['category']?.toString() ?? '';
+
+        setState(() {
+          _currentImageUrl =
+              data['imageUrl']?.toString() ?? '';
+          _isLoadingProduct = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingProduct = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not load product: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  // =========================================================
+  // PICK IMAGE
+  // =========================================================
 
   Future<void> _pickImage() async {
     if (_isUploadingPhoto || _isSaving) return;
 
     try {
-      final XFile? picked = await _imagePicker.pickImage(
+      final XFile? picked =
+          await _imagePicker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 85,
         maxWidth: 1200,
@@ -67,16 +160,31 @@ class _EditProductPageState extends State<EditProductPage> {
 
       if (picked == null) return;
 
-      await _uploadToCloudinary(File(picked.path));
+      await _uploadToCloudinary(
+        File(picked.path),
+      );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not select photo: $e')),
+        SnackBar(
+          content: Text(
+            'Could not select photo: $e',
+          ),
+        ),
       );
     }
   }
 
-  Future<void> _uploadToCloudinary(File imageFile) async {
+  // =========================================================
+  // CLOUDINARY UPLOAD
+  // =========================================================
+
+  Future<void> _uploadToCloudinary(
+    File imageFile,
+  ) async {
+    if (!mounted) return;
+
     setState(() {
       _pickedImage = imageFile;
       _isUploadingPhoto = true;
@@ -84,25 +192,53 @@ class _EditProductPageState extends State<EditProductPage> {
 
     try {
       final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
+        'https://api.cloudinary.com/v1_1/'
+        '$_cloudName/image/upload',
       );
 
-      final request = http.MultipartRequest('POST', uri);
-      request.fields['upload_preset'] = _uploadPreset;
-      request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+      final request = http.MultipartRequest(
+        'POST',
+        uri,
+      );
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      request.fields['upload_preset'] =
+          _uploadPreset;
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Cloudinary upload failed: ${response.statusCode}');
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          imageFile.path,
+        ),
+      );
+
+      final streamedResponse =
+          await request.send();
+
+      final response =
+          await http.Response.fromStream(
+        streamedResponse,
+      );
+
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300) {
+        throw Exception(
+          'Cloudinary upload failed: '
+          '${response.statusCode}\n'
+          '${response.body}',
+        );
       }
 
-      final Map<String, dynamic> result = jsonDecode(response.body);
-      final String? secureUrl = result['secure_url']?.toString();
+      final Map<String, dynamic> result =
+          jsonDecode(response.body);
 
-      if (secureUrl == null || secureUrl.isEmpty) {
-        throw Exception('Cloudinary did not return an image URL.');
+      final secureUrl =
+          result['secure_url']?.toString();
+
+      if (secureUrl == null ||
+          secureUrl.isEmpty) {
+        throw Exception(
+          'Cloudinary did not return an image URL.',
+        );
       }
 
       if (!mounted) return;
@@ -110,198 +246,583 @@ class _EditProductPageState extends State<EditProductPage> {
       setState(() {
         _currentImageUrl = secureUrl;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'New product image uploaded.',
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Photo upload failed: $e')),
-      );
+
       setState(() {
         _pickedImage = null;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Photo upload failed: $e',
+          ),
+        ),
+      );
     } finally {
-      if (mounted) setState(() => _isUploadingPhoto = false);
+      if (mounted) {
+        setState(() {
+          _isUploadingPhoto = false;
+        });
+      }
     }
   }
 
+  // =========================================================
+  // SAVE CHANGES
+  // =========================================================
+
   Future<void> _saveChanges() async {
-    final title = _titleController.text.trim();
-    final price = double.tryParse(_priceController.text.trim());
-    final description = _descriptionController.text.trim();
-    final category = _categoryController.text.trim();
+    if (_isSaving || _isUploadingPhoto) {
+      return;
+    }
 
-    if (title.isEmpty || price == null || description.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields')),
+    final title =
+        _titleController.text.trim();
+
+    final price =
+        double.tryParse(
+      _priceController.text.trim(),
+    );
+
+    final description =
+        _descriptionController.text.trim();
+
+    final category =
+        _categoryController.text.trim();
+
+    // ---------------------------------------------------------
+    // VALIDATION
+    // ---------------------------------------------------------
+
+    if (title.isEmpty) {
+      _showMessage(
+        'Please enter product name.',
       );
       return;
     }
 
-    if (_isUploadingPhoto) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please wait until the photo upload finishes')),
+    if (price == null || price <= 0) {
+      _showMessage(
+        'Please enter a valid price.',
       );
       return;
     }
 
-    setState(() => _isSaving = true);
+    if (description.isEmpty) {
+      _showMessage(
+        'Please enter product description.',
+      );
+      return;
+    }
+
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      _showMessage(
+        'Please login first.',
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
 
     try {
-      await FirebaseFirestore.instance.collection('products').doc(widget.productId).update({
+      // -------------------------------------------------------
+      // GET CURRENT PRODUCT
+      // -------------------------------------------------------
+
+      final productRef = FirebaseFirestore
+          .instance
+          .collection('products')
+          .doc(widget.productId);
+
+      final productSnapshot =
+          await productRef.get();
+
+      if (!productSnapshot.exists) {
+        throw Exception(
+          'Product does not exist anymore.',
+        );
+      }
+
+      final productData =
+          productSnapshot.data();
+
+      if (productData == null) {
+        throw Exception(
+          'Product data could not be loaded.',
+        );
+      }
+
+      // -------------------------------------------------------
+      // SELLER OWNERSHIP CHECK
+      // -------------------------------------------------------
+
+      final sellerId =
+          productData['sellerId']?.toString();
+
+      if (sellerId != user.uid) {
+        throw Exception(
+          'You can only edit your own products.',
+        );
+      }
+
+      // -------------------------------------------------------
+      // PRESERVE IMPORTANT SELLER DATA
+      // -------------------------------------------------------
+
+      final sellerCode =
+          productData['sellerCode'];
+
+      final sellerEmail =
+          productData['sellerEmail'];
+
+      // -------------------------------------------------------
+      // UPDATE PRODUCT
+      // -------------------------------------------------------
+
+      await productRef.update({
         'name': title,
         'price': price,
         'description': description,
-        'category': category.isNotEmpty ? category : 'General',
-        'imageUrl': _currentImageUrl ?? '',
-        'updatedAt': FieldValue.serverTimestamp(),
+        'category': category.isNotEmpty
+            ? category
+            : 'General',
+        'imageUrl': _currentImageUrl,
+        'sellerId': sellerId,
+        'sellerCode': sellerCode,
+        'sellerEmail': sellerEmail,
+        'updatedAt':
+            FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
-      Navigator.pop(context);
+
+      // -------------------------------------------------------
+      // SUCCESS
+      // -------------------------------------------------------
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product updated successfully!')),
+        const SnackBar(
+          content: Text(
+            'Product updated successfully!',
+          ),
+        ),
       );
+
+      Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Update failed: $e')),
-        );
-      }
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Update failed: $e',
+          ),
+        ),
+      );
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
+
+  // =========================================================
+  // MESSAGE
+  // =========================================================
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
+  // =========================================================
+  // IMAGE PREVIEW
+  // =========================================================
+
+  Widget _imagePreview() {
+    if (_pickedImage != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.file(
+          _pickedImage!,
+          width: double.infinity,
+          height: 210,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+
+    if (_currentImageUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.network(
+          _currentImageUrl,
+          width: double.infinity,
+          height: 210,
+          fit: BoxFit.cover,
+          errorBuilder:
+              (context, error, stackTrace) {
+            return _emptyImage();
+          },
+        ),
+      );
+    }
+
+    return _emptyImage();
+  }
+
+  // =========================================================
+  // EMPTY IMAGE
+  // =========================================================
+
+  Widget _emptyImage() {
+    return Container(
+      width: double.infinity,
+      height: 210,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        mainAxisAlignment:
+            MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.add_a_photo_outlined,
+            size: 46,
+            color: Colors.grey.shade600,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Tap to choose product image',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // DISPOSE
+  // =========================================================
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _priceController.dispose();
+    _descriptionController.dispose();
+    _categoryController.dispose();
+
+    super.dispose();
+  }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Product')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  height: 180,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade400),
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (_pickedImage != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(
-                            _pickedImage!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: 180,
-                          ),
-                        )
-                      else if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            _currentImageUrl!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: 180,
-                            errorBuilder: (context, error, stackTrace) => Icon(
-                              Icons.image,
-                              size: 40,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        )
-                      else
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_a_photo_outlined,
-                                size: 40, color: Colors.grey.shade600),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Tap to change product image',
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
-                      if (_isUploadingPhoto)
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black45,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Center(
-                            child: CircularProgressIndicator(color: Colors.white),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Product Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Price (\$)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _categoryController,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: (_isSaving || _isUploadingPhoto) ? null : _saveChanges,
-                  child: _isSaving
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text('Save Changes'),
-                ),
-              ),
-            ],
-          ),
+      appBar: AppBar(
+        title: const Text(
+          'Edit Product',
         ),
+        backgroundColor: Colors.redAccent,
+        foregroundColor: Colors.white,
       ),
+      body: _isLoadingProduct
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    // -------------------------------------------------
+                    // IMAGE
+                    // -------------------------------------------------
+
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: Stack(
+                        alignment:
+                            Alignment.center,
+                        children: [
+                          _imagePreview(),
+
+                          if (_isUploadingPhoto)
+                            Container(
+                              width: double.infinity,
+                              height: 210,
+                              decoration:
+                                  BoxDecoration(
+                                color:
+                                    Colors.black45,
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  14,
+                                ),
+                              ),
+                              child:
+                                  const Center(
+                                child:
+                                    CircularProgressIndicator(
+                                  color:
+                                      Colors.white,
+                                ),
+                              ),
+                            ),
+
+                          if (!_isUploadingPhoto)
+                            Positioned(
+                              bottom: 10,
+                              right: 10,
+                              child: Container(
+                                padding:
+                                    const EdgeInsets
+                                        .symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration:
+                                    BoxDecoration(
+                                  color:
+                                      Colors.black54,
+                                  borderRadius:
+                                      BorderRadius
+                                          .circular(
+                                    20,
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisSize:
+                                      MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons
+                                          .camera_alt_outlined,
+                                      color:
+                                          Colors.white,
+                                      size: 18,
+                                    ),
+                                    SizedBox(
+                                      width: 6,
+                                    ),
+                                    Text(
+                                      'Change',
+                                      style:
+                                          TextStyle(
+                                        color:
+                                            Colors.white,
+                                        fontWeight:
+                                            FontWeight
+                                                .w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // -------------------------------------------------
+                    // PRODUCT NAME
+                    // -------------------------------------------------
+
+                    TextField(
+                      controller:
+                          _titleController,
+                      textInputAction:
+                          TextInputAction.next,
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Product Name',
+                        border:
+                            OutlineInputBorder(),
+                        prefixIcon: Icon(
+                          Icons.inventory_2_outlined,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // -------------------------------------------------
+                    // PRICE
+                    // -------------------------------------------------
+
+                    TextField(
+                      controller:
+                          _priceController,
+                      keyboardType:
+                          const TextInputType
+                              .numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Price (₩)',
+                        border:
+                            OutlineInputBorder(),
+                        prefixIcon: Icon(
+                          Icons
+                              .payments_outlined,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // -------------------------------------------------
+                    // CATEGORY
+                    // -------------------------------------------------
+
+                    TextField(
+                      controller:
+                          _categoryController,
+                      textInputAction:
+                          TextInputAction.next,
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Category',
+                        hintText:
+                            'Example: Men, Women, Electronics',
+                        border:
+                            OutlineInputBorder(),
+                        prefixIcon: Icon(
+                          Icons
+                              .category_outlined,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // -------------------------------------------------
+                    // DESCRIPTION
+                    // -------------------------------------------------
+
+                    TextField(
+                      controller:
+                          _descriptionController,
+                      maxLines: 5,
+                      maxLength: 1000,
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Description',
+                        border:
+                            OutlineInputBorder(),
+                        prefixIcon: Icon(
+                          Icons
+                              .description_outlined,
+                        ),
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // -------------------------------------------------
+                    // SAVE BUTTON
+                    // -------------------------------------------------
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed:
+                            (_isSaving ||
+                                    _isUploadingPhoto)
+                                ? null
+                                : _saveChanges,
+                        style:
+                            ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Colors.redAccent,
+                          foregroundColor:
+                              Colors.white,
+                          shape:
+                              RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(
+                              12,
+                            ),
+                          ),
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 23,
+                                width: 23,
+                                child:
+                                    CircularProgressIndicator(
+                                  color:
+                                      Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment
+                                        .center,
+                                children: [
+                                  Icon(
+                                    Icons
+                                        .save_outlined,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Save Changes',
+                                    style:
+                                        TextStyle(
+                                      fontSize: 16,
+                                      fontWeight:
+                                          FontWeight
+                                              .bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }
