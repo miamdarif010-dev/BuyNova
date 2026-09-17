@@ -36,7 +36,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   // ===========================================================
 
   String _generateSellerCode(String uid) {
-    final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
+    final shortId =
+        uid.length >= 6 ? uid.substring(0, 6) : uid;
+
     return 'SELL-${shortId.toUpperCase()}';
   }
 
@@ -45,7 +47,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   // ===========================================================
 
   String _generateEntrepreneurCode(String uid) {
-    final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
+    final shortId =
+        uid.length >= 6 ? uid.substring(0, 6) : uid;
+
     return 'ENT-${shortId.toUpperCase()}';
   }
 
@@ -66,14 +70,18 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () =>
+                Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () =>
+                Navigator.pop(context, true),
             child: const Text(
               'Delete',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(
+                color: Colors.red,
+              ),
             ),
           ),
         ],
@@ -92,7 +100,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Product deleted successfully'),
+          content: Text(
+            'Product deleted successfully',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -101,7 +111,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to delete product: $e'),
+          content: Text(
+            'Failed to delete product: $e',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -122,18 +134,24 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           .doc(uid);
 
       final userDoc = await userRef.get();
-      final existingData = userDoc.data() ?? {};
+      final existingData =
+          userDoc.data() ?? {};
 
-      final updateData = <String, dynamic>{
+      final updateData =
+          <String, dynamic>{
         'sellerStatus': status,
       };
 
       if (status == 'approved') {
         final existingSellerCode =
-            existingData['sellerCode']?.toString() ?? '';
+            existingData['sellerCode']
+                    ?.toString() ??
+                '';
 
         if (existingSellerCode.isEmpty) {
-          updateData['sellerCode'] = _generateSellerCode(uid);
+          updateData['sellerCode'] =
+              _generateSellerCode(uid);
+
           updateData['sellerApprovedAt'] =
               FieldValue.serverTimestamp();
         }
@@ -161,7 +179,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update seller status: $e'),
+          content: Text(
+            'Failed to update seller status: $e',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -169,7 +189,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
-  // UPDATE ENTREPRENEUR STATUS + ENTREPRENEUR ID
+  // UPDATE ENTREPRENEUR STATUS + ID
   // ===========================================================
 
   Future<void> _updateEntrepreneurStatus(
@@ -182,17 +202,21 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           .doc(uid);
 
       final userDoc = await userRef.get();
-      final existingData = userDoc.data() ?? {};
+      final existingData =
+          userDoc.data() ?? {};
 
-      final updateData = <String, dynamic>{
+      final updateData =
+          <String, dynamic>{
         'entrepreneurStatus': status,
       };
 
       if (status == 'approved') {
-        final existingEntrepreneurCode =
-            existingData['entrepreneurCode']?.toString() ?? '';
+        final existingCode =
+            existingData['entrepreneurCode']
+                    ?.toString() ??
+                '';
 
-        if (existingEntrepreneurCode.isEmpty) {
+        if (existingCode.isEmpty) {
           updateData['entrepreneurCode'] =
               _generateEntrepreneurCode(uid);
 
@@ -254,27 +278,39 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           isScrollable: true,
           tabs: const [
             Tab(
-              icon: Icon(Icons.inventory_2_outlined),
+              icon: Icon(
+                Icons.inventory_2_outlined,
+              ),
               text: 'Products',
             ),
             Tab(
-              icon: Icon(Icons.people_outline),
+              icon: Icon(
+                Icons.people_outline,
+              ),
               text: 'Users',
             ),
             Tab(
-              icon: Icon(Icons.storefront_outlined),
+              icon: Icon(
+                Icons.storefront_outlined,
+              ),
               text: 'Seller Requests',
             ),
             Tab(
-              icon: Icon(Icons.business_center_outlined),
+              icon: Icon(
+                Icons.business_center_outlined,
+              ),
               text: 'Entrepreneur Requests',
             ),
             Tab(
-              icon: Icon(Icons.link_outlined),
+              icon: Icon(
+                Icons.link_outlined,
+              ),
               text: 'Relationships',
             ),
             Tab(
-              icon: Icon(Icons.shopping_bag_outlined),
+              icon: Icon(
+                Icons.shopping_bag_outlined,
+              ),
               text: 'Orders',
             ),
           ],
@@ -302,10 +338,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('products')
-          .orderBy('createdAt', descending: true)
+          .orderBy(
+            'createdAt',
+            descending: true,
+          )
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
           );
@@ -316,14 +356,16 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Error loading products:\n${snapshot.error}',
+                'Error loading products:\n'
+                '${snapshot.error}',
                 textAlign: TextAlign.center,
               ),
             ),
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -337,58 +379,77 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           itemBuilder: (context, index) {
             final doc = docs[index];
 
-            final data = doc.data() as Map<String, dynamic>;
+            final data =
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
-                data['name']?.toString() ?? 'Unnamed';
+                data['name']?.toString() ??
+                    'Unnamed';
 
-            final price = data['price'] is num
-                ? (data['price'] as num).toDouble()
-                : 0.0;
+            final price =
+                data['price'] is num
+                    ? (data['price'] as num)
+                        .toDouble()
+                    : 0.0;
 
             final imageUrl =
                 data['imageUrl']?.toString();
 
             final sellerEmail =
-                data['sellerEmail']?.toString() ??
+                data['sellerEmail']
+                        ?.toString() ??
                     'Unknown seller';
 
             final sellerCode =
-                data['sellerCode']?.toString() ?? '';
+                data['sellerCode']
+                        ?.toString() ??
+                    '';
 
             final category =
-                data['category']?.toString() ?? 'General';
+                data['category']
+                        ?.toString() ??
+                    'General';
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 4,
               ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor:
+                      Colors.grey.shade200,
                   backgroundImage:
-                      imageUrl != null && imageUrl.isNotEmpty
-                          ? NetworkImage(imageUrl)
+                      imageUrl != null &&
+                              imageUrl.isNotEmpty
+                          ? NetworkImage(
+                              imageUrl,
+                            )
                           : null,
                   child:
-                      imageUrl == null || imageUrl.isEmpty
+                      imageUrl == null ||
+                              imageUrl.isEmpty
                           ? const Icon(
                               Icons.image,
-                              color: Colors.grey,
+                              color:
+                                  Colors.grey,
                             )
                           : null,
                 ),
                 title: Text(
                   name,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  overflow:
+                      TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
                   '₩${price.toStringAsFixed(0)} • $category\n'
                   '${sellerCode.isNotEmpty ? '$sellerCode • ' : ''}'
                   '$sellerEmail',
                   maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+                  overflow:
+                      TextOverflow.ellipsis,
                 ),
                 isThreeLine: true,
                 trailing: IconButton(
@@ -397,7 +458,10 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     color: Colors.red,
                   ),
                   onPressed: () =>
-                      _deleteProduct(doc.id, name),
+                      _deleteProduct(
+                    doc.id,
+                    name,
+                  ),
                 ),
               ),
             );
@@ -417,7 +481,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           .collection('users')
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
           );
@@ -428,14 +493,16 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'Error loading users:\n${snapshot.error}',
+                'Error loading users:\n'
+                '${snapshot.error}',
                 textAlign: TextAlign.center,
               ),
             ),
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -449,33 +516,46 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           itemBuilder: (context, index) {
             final doc = docs[index];
 
-            final data = doc.data() as Map<String, dynamic>;
+            final data =
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
-                data['name']?.toString() ?? 'Unnamed User';
+                data['name']?.toString() ??
+                    'Unnamed User';
 
             final email =
-                data['email']?.toString() ?? '';
+                data['email']?.toString() ??
+                    '';
 
             final sellerStatus =
-                data['sellerStatus']?.toString() ?? 'none';
+                data['sellerStatus']
+                        ?.toString() ??
+                    'none';
 
             final entrepreneurStatus =
-                data['entrepreneurStatus']?.toString() ??
+                data['entrepreneurStatus']
+                        ?.toString() ??
                     'none';
 
             final sellerCode =
-                data['sellerCode']?.toString() ?? '';
+                data['sellerCode']
+                        ?.toString() ??
+                    '';
 
             final entrepreneurCode =
-                data['entrepreneurCode']?.toString() ?? '';
+                data['entrepreneurCode']
+                        ?.toString() ??
+                    '';
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 5,
               ),
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding:
+                    const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
@@ -485,27 +565,40 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                           CrossAxisAlignment.start,
                       children: [
                         const CircleAvatar(
-                          child: Icon(Icons.person),
+                          child: Icon(
+                            Icons.person,
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(
+                          width: 12,
+                        ),
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                CrossAxisAlignment
+                                    .start,
                             children: [
                               Text(
                                 name,
-                                style: const TextStyle(
+                                style:
+                                    const TextStyle(
                                   fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
-                              const SizedBox(height: 3),
+                              const SizedBox(
+                                height: 3,
+                              ),
                               Text(
                                 email,
-                                style: TextStyle(
+                                style:
+                                    TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey.shade600,
+                                  color: Colors
+                                      .grey
+                                      .shade600,
                                 ),
                               ),
                             ],
@@ -513,32 +606,46 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(
+                      height: 10,
+                    ),
                     if (sellerCode.isNotEmpty)
                       _idBox(
-                        icon: Icons.storefront,
-                        title: 'Seller ID',
-                        value: sellerCode,
+                        icon:
+                            Icons.storefront,
+                        title:
+                            'Seller ID',
+                        value:
+                            sellerCode,
                       ),
-                    if (entrepreneurCode.isNotEmpty)
+                    if (entrepreneurCode
+                        .isNotEmpty)
                       _idBox(
-                        icon: Icons.business_center,
-                        title: 'Entrepreneur ID',
-                        value: entrepreneurCode,
+                        icon: Icons
+                            .business_center,
+                        title:
+                            'Entrepreneur ID',
+                        value:
+                            entrepreneurCode,
                       ),
-                    const SizedBox(height: 8),
+                    const SizedBox(
+                      height: 8,
+                    ),
                     Wrap(
                       spacing: 6,
                       runSpacing: 5,
                       children: [
                         _statusChip(
-                          label: 'Seller: $sellerStatus',
-                          status: sellerStatus,
+                          label:
+                              'Seller: $sellerStatus',
+                          status:
+                              sellerStatus,
                         ),
                         _statusChip(
                           label:
                               'Entrepreneur: $entrepreneurStatus',
-                          status: entrepreneurStatus,
+                          status:
+                              entrepreneurStatus,
                         ),
                       ],
                     ),
@@ -563,18 +670,24 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(
+      margin:
+          const EdgeInsets.only(bottom: 6),
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 8,
       ),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius:
+            BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 19),
+          Icon(
+            icon,
+            size: 19,
+          ),
           const SizedBox(width: 8),
           Text(
             '$title: ',
@@ -630,12 +743,13 @@ class _AdminPanelPageState extends State<AdminPanelPage>
       ),
       backgroundColor: color,
       padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
+      visualDensity:
+          VisualDensity.compact,
     );
   }
 
   // ===========================================================
-  // SELLER REQUESTS TAB
+  // SELLER REQUESTS
   // ===========================================================
 
   Widget _sellerRequestsTab() {
@@ -668,7 +782,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -684,32 +799,41 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           itemBuilder: (context, index) {
             final doc = docs[index];
 
-            final data = doc.data() as Map<String, dynamic>;
+            final data =
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
-                data['name']?.toString() ?? 'Unnamed User';
+                data['name']?.toString() ??
+                    'Unnamed User';
 
             final email =
-                data['email']?.toString() ?? '';
+                data['email']?.toString() ??
+                    '';
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 4,
               ),
               child: ListTile(
-                leading: const CircleAvatar(
+                leading:
+                    const CircleAvatar(
                   child: Icon(
-                    Icons.storefront_outlined,
+                    Icons
+                        .storefront_outlined,
                   ),
                 ),
                 title: Text(name),
                 subtitle: Text(
                   email,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  overflow:
+                      TextOverflow.ellipsis,
                 ),
                 trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize:
+                      MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: const Icon(
@@ -746,7 +870,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
-  // ENTREPRENEUR REQUESTS TAB
+  // ENTREPRENEUR REQUESTS
   // ===========================================================
 
   Widget _entrepreneurRequestsTab() {
@@ -779,22 +903,26 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.business_center_outlined,
+                  Icons
+                      .business_center_outlined,
                   size: 55,
                   color: Colors.grey,
                 ),
                 SizedBox(height: 12),
                 Text(
                   'No pending entrepreneur requests',
-                  style: TextStyle(fontSize: 16),
+                  style:
+                      TextStyle(fontSize: 16),
                 ),
               ],
             ),
@@ -807,80 +935,109 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           itemBuilder: (context, index) {
             final doc = docs[index];
 
-            final data = doc.data() as Map<String, dynamic>;
+            final data =
+                doc.data()
+                    as Map<String, dynamic>;
 
             final name =
-                data['name']?.toString() ?? 'Unnamed User';
+                data['name']?.toString() ??
+                    'Unnamed User';
 
             final email =
-                data['email']?.toString() ?? '';
+                data['email']?.toString() ??
+                    '';
 
             final phone =
-                data['phone']?.toString() ?? '';
+                data['phone']?.toString() ??
+                    '';
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 5,
               ),
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding:
+                    const EdgeInsets.all(8),
                 child: ListTile(
                   contentPadding:
-                      const EdgeInsets.symmetric(
+                      const EdgeInsets
+                          .symmetric(
                     horizontal: 8,
                     vertical: 4,
                   ),
-                  leading: const CircleAvatar(
+                  leading:
+                      const CircleAvatar(
                     radius: 27,
                     child: Icon(
-                      Icons.business_center_outlined,
+                      Icons
+                          .business_center_outlined,
                     ),
                   ),
                   title: Text(
                     name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                   subtitle: Padding(
-                    padding: const EdgeInsets.only(
+                    padding:
+                        const EdgeInsets.only(
                       top: 5,
                     ),
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         Text(
                           email,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          overflow:
+                              TextOverflow
+                                  .ellipsis,
                         ),
                         if (phone.isNotEmpty)
                           Padding(
                             padding:
-                                const EdgeInsets.only(top: 3),
-                            child: Text(phone),
+                                const EdgeInsets
+                                    .only(
+                              top: 3,
+                            ),
+                            child:
+                                Text(phone),
                           ),
-                        const SizedBox(height: 5),
+                        const SizedBox(
+                          height: 5,
+                        ),
                         const Text(
                           'Status: Pending',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.w600,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.orange,
+                            fontWeight:
+                                FontWeight
+                                    .w600,
                           ),
                         ),
                       ],
                     ),
                   ),
                   trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize:
+                        MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(
                           Icons.check_circle,
-                          color: Colors.green,
+                          color:
+                              Colors.green,
                         ),
-                        tooltip: 'Approve Entrepreneur',
+                        tooltip:
+                            'Approve Entrepreneur',
                         onPressed: () =>
                             _confirmEntrepreneurAction(
                           doc.id,
@@ -891,9 +1048,11 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       IconButton(
                         icon: const Icon(
                           Icons.cancel,
-                          color: Colors.red,
+                          color:
+                              Colors.red,
                         ),
-                        tooltip: 'Reject Entrepreneur',
+                        tooltip:
+                            'Reject Entrepreneur',
                         onPressed: () =>
                             _confirmEntrepreneurAction(
                           doc.id,
@@ -913,7 +1072,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
-  // SELLER ↔ ENTREPRENEUR RELATIONSHIPS
+  // RELATIONSHIPS
   // ===========================================================
 
   Widget _relationshipsTab() {
@@ -942,12 +1101,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
               children: [
                 Icon(
                   Icons.link_off,
@@ -970,63 +1131,87 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           itemBuilder: (context, index) {
             final doc = docs[index];
 
-            final data = doc.data() as Map<String, dynamic>;
+            final data =
+                doc.data()
+                    as Map<String, dynamic>;
 
             final sellerCode =
-                data['sellerCode']?.toString() ?? 'Unknown';
+                data['sellerCode']
+                        ?.toString() ??
+                    'Unknown';
 
             final sellerEmail =
-                data['sellerEmail']?.toString() ?? 'Unknown';
+                data['sellerEmail']
+                        ?.toString() ??
+                    'Unknown';
 
             final entrepreneurCode =
-                data['entrepreneurCode']?.toString() ??
+                data['entrepreneurCode']
+                        ?.toString() ??
                     'Unknown';
 
             final entrepreneurEmail =
-                data['entrepreneurEmail']?.toString() ??
+                data['entrepreneurEmail']
+                        ?.toString() ??
                     'Unknown';
 
             final productName =
-                data['name']?.toString() ?? 'Unknown Product';
+                data['name']?.toString() ??
+                    'Unknown Product';
 
             final supplierPrice =
                 data['supplierPrice'] is num
-                    ? (data['supplierPrice'] as num).toDouble()
+                    ? (data['supplierPrice']
+                            as num)
+                        .toDouble()
                     : 0.0;
 
             final sellingPrice =
                 data['sellingPrice'] is num
-                    ? (data['sellingPrice'] as num).toDouble()
+                    ? (data['sellingPrice']
+                            as num)
+                        .toDouble()
                     : 0.0;
 
             final profit =
                 data['profit'] is num
-                    ? (data['profit'] as num).toDouble()
-                    : sellingPrice - supplierPrice;
+                    ? (data['profit'] as num)
+                        .toDouble()
+                    : sellingPrice -
+                        supplierPrice;
 
             return Card(
-              margin: const EdgeInsets.symmetric(
+              margin:
+                  const EdgeInsets.symmetric(
                 vertical: 5,
               ),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding:
+                    const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     Row(
                       children: [
                         const Icon(
                           Icons.link,
-                          color: Colors.blue,
+                          color:
+                              Colors.blue,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(
+                          width: 8,
+                        ),
                         Expanded(
                           child: Text(
                             productName,
-                            style: const TextStyle(
+                            style:
+                                const TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
                             ),
                           ),
                         ),
@@ -1035,82 +1220,112 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     const Divider(),
                     Row(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         const Icon(
                           Icons.storefront,
                           size: 20,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(
+                          width: 8,
+                        ),
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                CrossAxisAlignment
+                                    .start,
                             children: [
                               const Text(
                                 'SELLER',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                                style:
+                                    TextStyle(
+                                  fontSize:
+                                      11,
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
                               Text(
                                 sellerCode,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
                               Text(
                                 sellerEmail,
                                 maxLines: 1,
                                 overflow:
-                                    TextOverflow.ellipsis,
+                                    TextOverflow
+                                        .ellipsis,
                               ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(
+                      height: 12,
+                    ),
                     const Center(
                       child: Icon(
-                        Icons.arrow_downward,
+                        Icons
+                            .arrow_downward,
                         size: 25,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(
+                      height: 12,
+                    ),
                     Row(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         const Icon(
-                          Icons.business_center,
+                          Icons
+                              .business_center,
                           size: 20,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(
+                          width: 8,
+                        ),
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                CrossAxisAlignment
+                                    .start,
                             children: [
                               const Text(
                                 'ENTREPRENEUR / RESELLER',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                                style:
+                                    TextStyle(
+                                  fontSize:
+                                      11,
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
                               Text(
                                 entrepreneurCode,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
                               Text(
                                 entrepreneurEmail,
                                 maxLines: 1,
                                 overflow:
-                                    TextOverflow.ellipsis,
+                                    TextOverflow
+                                        .ellipsis,
                               ),
                             ],
                           ),
@@ -1120,7 +1335,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     const Divider(),
                     Row(
                       mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                          MainAxisAlignment
+                              .spaceBetween,
                       children: [
                         _priceInfo(
                           'Supplier',
@@ -1176,7 +1392,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
-  // CONFIRM ENTREPRENEUR ACTION
+  // ENTREPRENEUR CONFIRMATION
   // ===========================================================
 
   Future<void> _confirmEntrepreneurAction(
@@ -1184,11 +1400,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String name,
     String status,
   ) async {
-    final isApprove = status == 'approved';
+    final isApprove =
+        status == 'approved';
 
-    final result = await showDialog<bool>(
+    final result =
+        await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) =>
+          AlertDialog(
         title: Text(
           isApprove
               ? 'Approve Entrepreneur'
@@ -1201,18 +1420,33 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            onPressed: () =>
+                Navigator.pop(
+              context,
+              false,
+            ),
+            child:
+                const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
+            style:
+                ElevatedButton.styleFrom(
               backgroundColor:
-                  isApprove ? Colors.green : Colors.red,
-              foregroundColor: Colors.white,
+                  isApprove
+                      ? Colors.green
+                      : Colors.red,
+              foregroundColor:
+                  Colors.white,
             ),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () =>
+                Navigator.pop(
+              context,
+              true,
+            ),
             child: Text(
-              isApprove ? 'Approve' : 'Reject',
+              isApprove
+                  ? 'Approve'
+                  : 'Reject',
             ),
           ),
         ],
@@ -1247,16 +1481,20 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         if (snapshot.hasError) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding:
+                  const EdgeInsets.all(20),
               child: Text(
-                'Error loading orders:\n${snapshot.error}',
-                textAlign: TextAlign.center,
+                'Error loading orders:\n'
+                '${snapshot.error}',
+                textAlign:
+                    TextAlign.center,
               ),
             ),
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -1265,7 +1503,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.shopping_bag_outlined,
+                  Icons
+                      .shopping_bag_outlined,
                   size: 60,
                   color: Colors.grey,
                 ),
@@ -1274,7 +1513,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   'No orders yet',
                   style: TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.w600,
+                    fontWeight:
+                        FontWeight.w600,
                   ),
                 ),
               ],
@@ -1286,18 +1526,25 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
         sortedDocs.sort((a, b) {
           final aData =
-              a.data() as Map<String, dynamic>;
+              a.data()
+                  as Map<String, dynamic>;
+
           final bData =
-              b.data() as Map<String, dynamic>;
+              b.data()
+                  as Map<String, dynamic>;
 
           final aTime =
-              aData['createdAt'] is Timestamp
-                  ? aData['createdAt'] as Timestamp
+              aData['createdAt']
+                      is Timestamp
+                  ? aData['createdAt']
+                      as Timestamp
                   : Timestamp(0, 0);
 
           final bTime =
-              bData['createdAt'] is Timestamp
-                  ? bData['createdAt'] as Timestamp
+              bData['createdAt']
+                      is Timestamp
+                  ? bData['createdAt']
+                      as Timestamp
                   : Timestamp(0, 0);
 
           return bTime.compareTo(aTime);
@@ -1305,12 +1552,16 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
         return ListView.builder(
           padding: const EdgeInsets.all(8),
-          itemCount: sortedDocs.length,
-          itemBuilder: (context, index) {
-            final doc = sortedDocs[index];
+          itemCount:
+              sortedDocs.length,
+          itemBuilder:
+              (context, index) {
+            final doc =
+                sortedDocs[index];
 
             final data =
-                doc.data() as Map<String, dynamic>;
+                doc.data()
+                    as Map<String, dynamic>;
 
             return _orderCard(
               doc.id,
@@ -1323,7 +1574,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
-  // ORDER CARD
+  // MULTI-PRODUCT ORDER CARD
   // ===========================================================
 
   Widget _orderCard(
@@ -1340,58 +1591,137 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     final address =
         data['address']?.toString() ?? '';
 
-    final productName =
-        data['productName']?.toString() ??
-            'Unknown Product';
-
-    final quantity =
-        data['quantity'] is num
-            ? (data['quantity'] as num).toInt()
-            : 1;
-
     final total =
         data['total'] is num
-            ? (data['total'] as num).toDouble()
+            ? (data['total'] as num)
+                .toDouble()
+            : 0.0;
+
+    final subtotal =
+        data['subtotal'] is num
+            ? (data['subtotal'] as num)
+                .toDouble()
+            : 0.0;
+
+    final deliveryFee =
+        data['deliveryFee'] is num
+            ? (data['deliveryFee'] as num)
+                .toDouble()
             : 0.0;
 
     final paymentMethod =
-        data['paymentMethod']?.toString() ??
+        data['paymentMethod']
+                ?.toString() ??
             'Unknown';
 
     final paymentStatus =
-        data['paymentStatus']?.toString() ??
+        data['paymentStatus']
+                ?.toString() ??
             'pending';
 
     final orderStatus =
-        data['orderStatus']?.toString() ??
+        data['orderStatus']
+                ?.toString() ??
             'placed';
-
-    final imageUrl =
-        data['imageUrl']?.toString() ?? '';
 
     final createdAt =
         data['createdAt'] is Timestamp
-            ? data['createdAt'] as Timestamp
+            ? data['createdAt']
+                as Timestamp
             : null;
 
-    final dateText = createdAt != null
-        ? _formatDate(createdAt.toDate())
-        : 'Waiting...';
+    final dateText =
+        createdAt != null
+            ? _formatDate(
+                createdAt.toDate(),
+              )
+            : 'Waiting...';
+
+    // ---------------------------------------------------------
+    // NEW MULTI-PRODUCT ORDER
+    // ---------------------------------------------------------
+
+    final List<Map<String, dynamic>>
+        orderItems = [];
+
+    final rawItems = data['items'];
+
+    if (rawItems is List) {
+      for (final item in rawItems) {
+        if (item is Map) {
+          orderItems.add(
+            Map<String, dynamic>.from(
+              item,
+            ),
+          );
+        }
+      }
+    }
+
+    // ---------------------------------------------------------
+    // OLD SINGLE-PRODUCT ORDER SUPPORT
+    // ---------------------------------------------------------
+
+    if (orderItems.isEmpty &&
+        data['productName'] != null) {
+      orderItems.add({
+        'productId':
+            data['productId'] ?? '',
+        'productName':
+            data['productName'] ??
+                'Product',
+        'imageUrl':
+            data['imageUrl'] ?? '',
+        'price':
+            data['productPrice'] ?? 0,
+        'quantity':
+            data['quantity'] ?? 1,
+        'total':
+            data['subtotal'] ??
+                data['total'] ??
+                0,
+      });
+    }
+
+    final itemCount =
+        data['itemCount'] is num
+            ? (data['itemCount'] as num)
+                .toInt()
+            : orderItems.length;
+
+    final totalQuantity =
+        data['totalQuantity'] is num
+            ? (data['totalQuantity'] as num)
+                .toInt()
+            : orderItems.fold<int>(
+                0,
+                (sum, item) =>
+                    sum +
+                    _toInt(
+                      item['quantity'],
+                    ),
+              );
 
     return Card(
-      margin: const EdgeInsets.symmetric(
+      margin:
+          const EdgeInsets.symmetric(
         vertical: 6,
       ),
       elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.circular(16),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding:
+            const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            // ---------------------------------------------------
+            // =================================================
             // ORDER HEADER
-            // ---------------------------------------------------
+            // =================================================
 
             Row(
               crossAxisAlignment:
@@ -1405,32 +1735,43 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       const Text(
                         'ORDER',
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
                           color: Colors.grey,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(
+                        height: 3,
                       ),
                       Text(
                         orderId.length > 10
-                            ? orderId.substring(0, 10)
+                            ? orderId.substring(
+                                0,
+                                10,
+                              )
                             : orderId,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
                           fontSize: 14,
                         ),
                       ),
                     ],
                   ),
                 ),
-                _orderStatusChip(orderStatus),
+                _orderStatusChip(
+                  orderStatus,
+                ),
               ],
             ),
 
-            const Divider(),
+            const Divider(height: 22),
 
-            // ---------------------------------------------------
+            // =================================================
             // CUSTOMER
-            // ---------------------------------------------------
+            // =================================================
 
             Row(
               crossAxisAlignment:
@@ -1438,25 +1779,35 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               children: [
                 const Icon(
                   Icons.person_outline,
-                  size: 22,
+                  size: 21,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 8,
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        CrossAxisAlignment
+                            .start,
                     children: [
                       const Text(
-                        'Customer',
+                        'CUSTOMER',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: Colors.grey,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(
+                        height: 3,
                       ),
                       Text(
                         customerName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
                       if (phone.isNotEmpty)
@@ -1467,32 +1818,43 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ],
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(
+              height: 10,
+            ),
 
-            // ---------------------------------------------------
+            // =================================================
             // ADDRESS
-            // ---------------------------------------------------
+            // =================================================
 
             Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
                 const Icon(
-                  Icons.location_on_outlined,
-                  size: 22,
+                  Icons
+                      .location_on_outlined,
+                  size: 21,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 8,
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        CrossAxisAlignment
+                            .start,
                     children: [
                       const Text(
-                        'Delivery Address',
+                        'DELIVERY ADDRESS',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: Colors.grey,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(
+                        height: 3,
                       ),
                       Text(
                         address.isNotEmpty
@@ -1505,136 +1867,119 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ],
             ),
 
-            const SizedBox(height: 10),
-
-            // ---------------------------------------------------
-            // PRODUCT
-            // ---------------------------------------------------
-
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius:
-                        BorderRadius.circular(8),
-                  ),
-                  child:
-                      imageUrl.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(8),
-                              child: Image.network(
-                                imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder:
-                                    (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) {
-                                  return const Icon(
-                                    Icons.image,
-                                    color: Colors.grey,
-                                  );
-                                },
-                              ),
-                            )
-                          : const Icon(
-                              Icons.image,
-                              color: Colors.grey,
-                            ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Product',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      Text(
-                        productName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Quantity: $quantity',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            const SizedBox(
+              height: 14,
             ),
 
-            const SizedBox(height: 10),
-
-            // ---------------------------------------------------
-            // PAYMENT + TOTAL
-            // ---------------------------------------------------
+            // =================================================
+            // ITEM COUNT
+            // =================================================
 
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(10),
+              padding:
+                  const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color:
+                    Colors.blue.shade50,
                 borderRadius:
-                    BorderRadius.circular(8),
+                    BorderRadius.circular(
+                  10,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 20,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Text(
+                    '$itemCount product(s) • '
+                    '$totalQuantity item(s)',
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // =================================================
+            // ALL ORDER ITEMS
+            // =================================================
+
+            const SizedBox(
+              height: 4,
+            ),
+
+            ...orderItems.map(
+              _buildOrderItem,
+            ),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            // =================================================
+            // PRICE SUMMARY
+            // =================================================
+
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:
+                    Colors.grey.shade100,
+                borderRadius:
+                    BorderRadius.circular(
+                  10,
+                ),
               ),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Payment Method'),
-                      Text(
-                        paymentMethod,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  _summaryRow(
+                    'Subtotal',
+                    subtotal,
                   ),
-                  const SizedBox(height: 5),
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Payment Status'),
-                      _paymentStatusChip(
-                        paymentStatus,
-                      ),
-                    ],
+                  const SizedBox(
+                    height: 5,
                   ),
-                  const Divider(),
+                  _summaryRow(
+                    'Delivery',
+                    deliveryFee,
+                  ),
+                  const Divider(
+                    height: 18,
+                  ),
                   Row(
                     mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                        MainAxisAlignment
+                            .spaceBetween,
                     children: [
                       const Text(
-                        'Total',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
+                        'TOTAL',
+                        style:
+                            TextStyle(
+                          fontWeight:
+                              FontWeight
+                                  .bold,
+                          fontSize: 16,
                         ),
                       ),
                       Text(
                         '₩${total.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight
+                                  .bold,
+                          fontSize: 18,
                         ),
                       ),
                     ],
@@ -1643,11 +1988,44 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(
+              height: 10,
+            ),
 
-            // ---------------------------------------------------
-            // DATE
-            // ---------------------------------------------------
+            // =================================================
+            // PAYMENT
+            // =================================================
+
+            Row(
+              children: [
+                const Icon(
+                  Icons
+                      .payments_outlined,
+                  size: 20,
+                  color: Colors.grey,
+                ),
+                const SizedBox(
+                  width: 7,
+                ),
+                Expanded(
+                  child: Text(
+                    paymentMethod,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+                ),
+                _paymentStatusChip(
+                  paymentStatus,
+                ),
+              ],
+            ),
+
+            const SizedBox(
+              height: 7,
+            ),
 
             Row(
               children: [
@@ -1656,28 +2034,35 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   size: 16,
                   color: Colors.grey,
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(
+                  width: 5,
+                ),
                 Text(
                   dateText,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade600,
+                    color: Colors
+                        .grey.shade600,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(
+              height: 12,
+            ),
 
-            // ---------------------------------------------------
-            // ORDER STATUS BUTTON
-            // ---------------------------------------------------
+            // =================================================
+            // CHANGE ORDER STATUS
+            // =================================================
 
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child:
+                  OutlinedButton.icon(
                 icon: const Icon(
-                  Icons.local_shipping_outlined,
+                  Icons
+                      .local_shipping_outlined,
                 ),
                 label: const Text(
                   'Change Order Status',
@@ -1690,15 +2075,18 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ),
             ),
 
-            const SizedBox(height: 5),
+            const SizedBox(
+              height: 5,
+            ),
 
-            // ---------------------------------------------------
-            // PAYMENT STATUS BUTTON
-            // ---------------------------------------------------
+            // =================================================
+            // CHANGE PAYMENT STATUS
+            // =================================================
 
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child:
+                  OutlinedButton.icon(
                 icon: const Icon(
                   Icons.payment_outlined,
                 ),
@@ -1719,12 +2107,186 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }
 
   // ===========================================================
+  // ORDER ITEM
+  // ===========================================================
+
+  Widget _buildOrderItem(
+    Map<String, dynamic> item,
+  ) {
+    final name =
+        item['productName']
+                ?.toString() ??
+            'Product';
+
+    final imageUrl =
+        item['imageUrl']
+                ?.toString() ??
+            '';
+
+    final price =
+        _toDouble(item['price']);
+
+    final quantity =
+        _toInt(item['quantity']);
+
+    final itemTotal =
+        _toDouble(item['total']);
+
+    return Container(
+      margin:
+          const EdgeInsets.only(top: 8),
+      padding:
+          const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
+        borderRadius:
+            BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            decoration: BoxDecoration(
+              color:
+                  Colors.grey.shade100,
+              borderRadius:
+                  BorderRadius.circular(
+                10,
+              ),
+            ),
+            child: imageUrl
+                    .trim()
+                    .isNotEmpty
+                ? ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (
+                        context,
+                        error,
+                        stackTrace,
+                      ) {
+                        return const Icon(
+                          Icons
+                              .image_not_supported_outlined,
+                          color:
+                              Colors.grey,
+                        );
+                      },
+                    ),
+                  )
+                : const Icon(
+                    Icons
+                        .shopping_bag_outlined,
+                    color:
+                        Colors.grey,
+                  ),
+          ),
+
+          const SizedBox(
+            width: 10,
+          ),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 4,
+                ),
+
+                Text(
+                  '₩${price.toStringAsFixed(0)} × $quantity',
+                  style: TextStyle(
+                    color: Colors
+                        .grey.shade700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(
+            width: 8,
+          ),
+
+          Text(
+            '₩${itemTotal.toStringAsFixed(0)}',
+            style:
+                const TextStyle(
+              fontWeight:
+                  FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================
+  // SUMMARY ROW
+  // ===========================================================
+
+  Widget _summaryRow(
+    String title,
+    double value,
+  ) {
+    return Row(
+      mainAxisAlignment:
+          MainAxisAlignment
+              .spaceBetween,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.grey,
+          ),
+        ),
+        Text(
+          '₩${value.toStringAsFixed(0)}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================
   // ORDER STATUS CHIP
   // ===========================================================
 
-  Widget _orderStatusChip(String status) {
+  Widget _orderStatusChip(
+    String status,
+  ) {
     Color color;
-
     String label;
 
     switch (status) {
@@ -1759,20 +2321,23 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 9,
         vertical: 5,
       ),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius:
+            BorderRadius.circular(20),
       ),
       child: Text(
         label,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
+          fontSize: 10,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
@@ -1782,9 +2347,10 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   // PAYMENT STATUS CHIP
   // ===========================================================
 
-  Widget _paymentStatusChip(String status) {
+  Widget _paymentStatusChip(
+    String status,
+  ) {
     Color color;
-
     String label;
 
     switch (status) {
@@ -1809,20 +2375,23 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 8,
         vertical: 4,
       ),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius:
+            BorderRadius.circular(15),
       ),
       child: Text(
         label,
         style: const TextStyle(
           color: Colors.white,
           fontSize: 10,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
@@ -1836,62 +2405,92 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String orderId,
     String currentStatus,
   ) async {
-    String selectedStatus = currentStatus;
+    String selectedStatus =
+        currentStatus;
 
-    final result = await showDialog<String>(
+    final result =
+        await showDialog<String>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setDialogState) {
+          builder:
+              (
+            context,
+            setDialogState,
+          ) {
             return AlertDialog(
               title: const Text(
                 'Change Order Status',
               ),
-              content: DropdownButtonFormField<String>(
-                value: selectedStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Order Status',
-                  border: OutlineInputBorder(),
+              content:
+                  DropdownButtonFormField<
+                      String>(
+                initialValue:
+                    selectedStatus,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Order Status',
+                  border:
+                      OutlineInputBorder(),
                 ),
                 items: const [
                   DropdownMenuItem(
                     value: 'placed',
-                    child: Text('Order Placed'),
+                    child: Text(
+                      'Order Placed',
+                    ),
                   ),
                   DropdownMenuItem(
                     value: 'confirmed',
-                    child: Text('Confirmed'),
+                    child: Text(
+                      'Confirmed',
+                    ),
                   ),
                   DropdownMenuItem(
                     value: 'processing',
-                    child: Text('Processing'),
+                    child: Text(
+                      'Processing',
+                    ),
                   ),
                   DropdownMenuItem(
                     value: 'shipped',
-                    child: Text('Shipped'),
+                    child: Text(
+                      'Shipped',
+                    ),
                   ),
                   DropdownMenuItem(
                     value: 'delivered',
-                    child: Text('Delivered'),
+                    child: Text(
+                      'Delivered',
+                    ),
                   ),
                   DropdownMenuItem(
                     value: 'cancelled',
-                    child: Text('Cancelled'),
+                    child: Text(
+                      'Cancelled',
+                    ),
                   ),
                 ],
                 onChanged: (value) {
-                  if (value == null) return;
+                  if (value == null) {
+                    return;
+                  }
 
                   setDialogState(() {
-                    selectedStatus = value;
+                    selectedStatus =
+                        value;
                   });
                 },
               ),
               actions: [
                 TextButton(
                   onPressed: () =>
-                      Navigator.pop(context),
-                  child: const Text('Cancel'),
+                      Navigator.pop(
+                    context,
+                  ),
+                  child:
+                      const Text('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: () =>
@@ -1899,7 +2498,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     context,
                     selectedStatus,
                   ),
-                  child: const Text('Update'),
+                  child:
+                      const Text('Update'),
                 ),
               ],
             );
@@ -1922,23 +2522,27 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
             'Order status updated successfully',
           ),
-          behavior: SnackBarBehavior.floating,
+          behavior:
+              SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
             'Failed to update order status: $e',
           ),
-          behavior: SnackBarBehavior.floating,
+          behavior:
+              SnackBarBehavior.floating,
         ),
       );
     }
@@ -1952,54 +2556,76 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String orderId,
     String currentStatus,
   ) async {
-    String selectedStatus = currentStatus;
+    String selectedStatus =
+        currentStatus;
 
-    final result = await showDialog<String>(
+    final result =
+        await showDialog<String>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setDialogState) {
+          builder:
+              (
+            context,
+            setDialogState,
+          ) {
             return AlertDialog(
               title: const Text(
                 'Change Payment Status',
               ),
-              content: DropdownButtonFormField<String>(
-                value: selectedStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Payment Status',
-                  border: OutlineInputBorder(),
+              content:
+                  DropdownButtonFormField<
+                      String>(
+                initialValue:
+                    selectedStatus,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Payment Status',
+                  border:
+                      OutlineInputBorder(),
                 ),
                 items: const [
                   DropdownMenuItem(
                     value: 'pending',
-                    child: Text('Pending'),
+                    child:
+                        Text('Pending'),
                   ),
                   DropdownMenuItem(
                     value: 'paid',
-                    child: Text('Paid'),
+                    child:
+                        Text('Paid'),
                   ),
                   DropdownMenuItem(
                     value: 'failed',
-                    child: Text('Failed'),
+                    child:
+                        Text('Failed'),
                   ),
                   DropdownMenuItem(
                     value: 'refunded',
-                    child: Text('Refunded'),
+                    child:
+                        Text('Refunded'),
                   ),
                 ],
                 onChanged: (value) {
-                  if (value == null) return;
+                  if (value == null) {
+                    return;
+                  }
 
                   setDialogState(() {
-                    selectedStatus = value;
+                    selectedStatus =
+                        value;
                   });
                 },
               ),
               actions: [
                 TextButton(
                   onPressed: () =>
-                      Navigator.pop(context),
-                  child: const Text('Cancel'),
+                      Navigator.pop(
+                    context,
+                  ),
+                  child:
+                      const Text('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: () =>
@@ -2007,7 +2633,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     context,
                     selectedStatus,
                   ),
-                  child: const Text('Update'),
+                  child:
+                      const Text('Update'),
                 ),
               ],
             );
@@ -2030,47 +2657,91 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
             'Payment status updated successfully',
           ),
-          behavior: SnackBarBehavior.floating,
+          behavior:
+              SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
             'Failed to update payment status: $e',
           ),
-          behavior: SnackBarBehavior.floating,
+          behavior:
+              SnackBarBehavior.floating,
         ),
       );
     }
   }
 
   // ===========================================================
+  // NUMBER HELPERS
+  // ===========================================================
+
+  double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0.0;
+  }
+
+  int _toInt(dynamic value) {
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
+  }
+
+  // ===========================================================
   // FORMAT DATE
   // ===========================================================
 
-  String _formatDate(DateTime date) {
+  String _formatDate(
+    DateTime date,
+  ) {
     final day =
-        date.day.toString().padLeft(2, '0');
+        date.day.toString().padLeft(
+              2,
+              '0',
+            );
 
     final month =
-        date.month.toString().padLeft(2, '0');
+        date.month.toString().padLeft(
+              2,
+              '0',
+            );
 
     final year =
         date.year.toString();
 
     final hour =
-        date.hour.toString().padLeft(2, '0');
+        date.hour.toString().padLeft(
+              2,
+              '0',
+            );
 
     final minute =
-        date.minute.toString().padLeft(2, '0');
+        date.minute.toString().padLeft(
+              2,
+              '0',
+            );
 
     return '$day/$month/$year $hour:$minute';
   }
