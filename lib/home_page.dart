@@ -11,6 +11,7 @@ import 'categories_page.dart';
 import 'news_feed_page.dart';
 import 'watch_earn_page.dart';
 import 'app_settings.dart';
+import 'product_details_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -141,10 +142,6 @@ class _HomePageState extends State<HomePage> {
       final favoriteSnapshot = await favoriteRef.get();
 
       if (favoriteSnapshot.exists) {
-        // =====================================================
-        // REMOVE FAVORITE
-        // =====================================================
-
         await favoriteRef.delete();
 
         if (!mounted) return;
@@ -157,10 +154,6 @@ class _HomePageState extends State<HomePage> {
           ),
         );
       } else {
-        // =====================================================
-        // ADD FAVORITE
-        // =====================================================
-
         final name =
             productData['name']?.toString() ??
                 'Unnamed Product';
@@ -211,6 +204,25 @@ class _HomePageState extends State<HomePage> {
   }
 
   // =========================================================
+  // OPEN PRODUCT DETAILS
+  // =========================================================
+
+  void _openProductDetails({
+    required String productId,
+    required Map<String, dynamic> product,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProductDetailsPage(
+          productId: productId,
+          product: product,
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
   // BOTTOM NAVIGATION
   // =========================================================
 
@@ -222,10 +234,6 @@ class _HomePageState extends State<HomePage> {
     if (index == 0) {
       return;
     }
-
-    // =======================================================
-    // CATEGORIES
-    // =======================================================
 
     if (index == 1) {
       final result = await Navigator.push<String>(
@@ -254,10 +262,6 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // =======================================================
-    // VIDEOS
-    // =======================================================
-
     if (index == 2) {
       await Navigator.push(
         context,
@@ -274,10 +278,6 @@ class _HomePageState extends State<HomePage> {
 
       return;
     }
-
-    // =======================================================
-    // CART
-    // =======================================================
 
     if (index == 3) {
       await Navigator.push(
@@ -296,14 +296,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // =======================================================
-    // PROFILE
-    // =======================================================
-
     if (index == 4) {
-      final user = FirebaseAuth.instance.currentUser;
+      final currentUser =
+          FirebaseAuth.instance.currentUser;
 
-      if (user == null) {
+      if (currentUser == null) {
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -363,7 +360,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // =========================================================
-  // OPEN WATCH & EARN
+  // WATCH & EARN
   // =========================================================
 
   void _openWatchEarn() {
@@ -395,19 +392,15 @@ class _HomePageState extends State<HomePage> {
             child,
           ) {
             return Scaffold(
-              // ===================================================
+              // =================================================
               // DRAWER
-              // ===================================================
+              // =================================================
 
               drawer: Drawer(
                 child: SafeArea(
                   child: ListView(
                     padding: EdgeInsets.zero,
                     children: [
-                      // =================================================
-                      // HEADER
-                      // =================================================
-
                       DrawerHeader(
                         decoration: const BoxDecoration(
                           color: Colors.redAccent,
@@ -432,10 +425,6 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
 
-                      // =================================================
-                      // 1. ACCOUNT
-                      // =================================================
-
                       ListTile(
                         leading: const Icon(
                           Icons.person_outline,
@@ -446,10 +435,6 @@ class _HomePageState extends State<HomePage> {
                           _openAccount(isLoggedIn);
                         },
                       ),
-
-                      // =================================================
-                      // 2. HOME
-                      // =================================================
 
                       ListTile(
                         leading: const Icon(
@@ -464,10 +449,6 @@ class _HomePageState extends State<HomePage> {
                           });
                         },
                       ),
-
-                      // =================================================
-                      // 3. CATEGORIES
-                      // =================================================
 
                       ListTile(
                         leading: const Icon(
@@ -500,10 +481,6 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
 
-                      // =================================================
-                      // 4. ADD PRODUCT
-                      // =================================================
-
                       if (isLoggedIn)
                         ListTile(
                           leading: const Icon(
@@ -525,10 +502,6 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
 
-                      // =================================================
-                      // 5. VIDEOS
-                      // =================================================
-
                       ListTile(
                         leading: const Icon(
                           Icons.video_library_outlined,
@@ -542,10 +515,6 @@ class _HomePageState extends State<HomePage> {
                           _openVideos();
                         },
                       ),
-
-                      // =================================================
-                      // 6. CART
-                      // =================================================
 
                       ListTile(
                         leading: const Icon(
@@ -565,10 +534,6 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
 
-                      // =================================================
-                      // 7. WATCH & EARN
-                      // =================================================
-
                       ListTile(
                         leading: const Icon(
                           Icons.ondemand_video_outlined,
@@ -584,10 +549,6 @@ class _HomePageState extends State<HomePage> {
                           _openWatchEarn();
                         },
                       ),
-
-                      // =================================================
-                      // 8. SETTINGS
-                      // =================================================
 
                       ListTile(
                         leading: const Icon(
@@ -606,10 +567,6 @@ class _HomePageState extends State<HomePage> {
                           );
                         },
                       ),
-
-                      // =================================================
-                      // 9. LOGOUT
-                      // =================================================
 
                       if (isLoggedIn)
                         ListTile(
@@ -630,13 +587,14 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // ===================================================
+              // =================================================
               // APP BAR
-              // ===================================================
+              // =================================================
 
               appBar: AppBar(
                 backgroundColor: Colors.redAccent,
                 elevation: 0,
+
                 leading: Builder(
                   builder: (context) {
                     return IconButton(
@@ -650,6 +608,7 @@ class _HomePageState extends State<HomePage> {
                     );
                   },
                 ),
+
                 title: const Text(
                   'BuyNova',
                   style: TextStyle(
@@ -658,11 +617,8 @@ class _HomePageState extends State<HomePage> {
                     fontSize: 20,
                   ),
                 ),
-                actions: [
-                  // =================================================
-                  // CURRENT CURRENCY
-                  // =================================================
 
+                actions: [
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.only(
@@ -679,10 +635,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  // =================================================
-                  // NOTIFICATIONS
-                  // =================================================
-
                   IconButton(
                     icon: const Icon(
                       Icons.notifications_outlined,
@@ -691,14 +643,15 @@ class _HomePageState extends State<HomePage> {
                     onPressed: () {},
                   ),
 
-                  // =================================================
-                  // CART
-                  // =================================================
-
                   StreamBuilder<QuerySnapshot>(
-                    stream: isLoggedIn
-                        ? CartService.stream
-                        : null,
+                    stream: user == null
+                        ? null
+                        : FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(user.uid)
+                            .collection('cart')
+                            .snapshots(),
+
                     builder: (
                       context,
                       cartSnapshot,
@@ -738,6 +691,7 @@ class _HomePageState extends State<HomePage> {
                               );
                             },
                           ),
+
                           if (cartCount > 0)
                             Positioned(
                               right: 6,
@@ -759,7 +713,8 @@ class _HomePageState extends State<HomePage> {
                                   '$cartCount',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
-                                    color: Colors.redAccent,
+                                    color:
+                                        Colors.redAccent,
                                     fontSize: 10,
                                     fontWeight:
                                         FontWeight.bold,
@@ -774,14 +729,14 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
 
-              // ===================================================
+              // =================================================
               // BODY
-              // ===================================================
+              // =================================================
 
               body: Column(
                 children: [
                   // =================================================
-                  // SEARCH BAR
+                  // SEARCH
                   // =================================================
 
                   Container(
@@ -888,7 +843,7 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                   // =================================================
-                  // PRODUCT GRID
+                  // PRODUCTS
                   // =================================================
 
                   Expanded(
@@ -896,6 +851,7 @@ class _HomePageState extends State<HomePage> {
                       stream: FirebaseFirestore.instance
                           .collection('products')
                           .snapshots(),
+
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
                           return const Center(
@@ -933,17 +889,18 @@ class _HomePageState extends State<HomePage> {
                         }
 
                         // =================================================
-                        // USER FAVORITES STREAM
+                        // FAVORITES
                         // =================================================
 
                         return StreamBuilder<QuerySnapshot>(
-                          stream: isLoggedIn
-                              ? FirebaseFirestore.instance
+                          stream: user == null
+                              ? null
+                              : FirebaseFirestore.instance
                                   .collection('users')
-                                  .doc(user!.uid)
+                                  .doc(user.uid)
                                   .collection('favorites')
-                                  .snapshots()
-                              : null,
+                                  .snapshots(),
+
                           builder: (
                             context,
                             favoriteSnapshot,
@@ -963,6 +920,7 @@ class _HomePageState extends State<HomePage> {
                             return GridView.builder(
                               padding:
                                   const EdgeInsets.all(8),
+
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
@@ -970,7 +928,9 @@ class _HomePageState extends State<HomePage> {
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 8,
                               ),
+
                               itemCount: docs.length,
+
                               itemBuilder:
                                   (context, index) {
                                 final productDoc =
@@ -1007,13 +967,18 @@ class _HomePageState extends State<HomePage> {
                                         ?.toString();
 
                                 final isFavorite =
-                                    favoriteIds
-                                        .contains(
+                                    favoriteIds.contains(
                                   productId,
                                 );
 
+                                // =================================================
+                                // PRODUCT CARD
+                                // =================================================
+
                                 return Card(
                                   elevation: 2,
+                                  clipBehavior:
+                                      Clip.antiAlias,
                                   shape:
                                       RoundedRectangleBorder(
                                     borderRadius:
@@ -1021,54 +986,49 @@ class _HomePageState extends State<HomePage> {
                                       10,
                                     ),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment
-                                            .start,
-                                    children: [
-                                      // =============================================
-                                      // IMAGE + FAVORITE
-                                      // =============================================
 
-                                      Expanded(
-                                        child: Stack(
-                                          children: [
-                                            Container(
-                                              width:
-                                                  double.infinity,
-                                              decoration:
-                                                  BoxDecoration(
-                                                color: Colors
-                                                    .grey[300],
-                                                borderRadius:
-                                                    const BorderRadius
-                                                        .vertical(
-                                                  top:
-                                                      Radius.circular(
-                                                    10,
-                                                  ),
+                                  child: InkWell(
+                                    onTap: () {
+                                      _openProductDetails(
+                                        productId:
+                                            productId,
+                                        product: data,
+                                      );
+                                    },
+
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment
+                                              .start,
+                                      children: [
+                                        // =================================================
+                                        // IMAGE
+                                        // =================================================
+
+                                        Expanded(
+                                          child: Stack(
+                                            children: [
+                                              Container(
+                                                width:
+                                                    double.infinity,
+                                                decoration:
+                                                    BoxDecoration(
+                                                  color: Colors
+                                                      .grey[300],
                                                 ),
-                                              ),
-                                              child:
-                                                  imageUrl !=
-                                                              null &&
-                                                          imageUrl
-                                                              .isNotEmpty
-                                                      ? ClipRRect(
-                                                          borderRadius:
-                                                              const BorderRadius
-                                                                  .vertical(
-                                                            top:
-                                                                Radius.circular(
-                                                              10,
-                                                            ),
-                                                          ),
-                                                          child:
-                                                              Image.network(
+                                                child:
+                                                    imageUrl !=
+                                                                null &&
+                                                            imageUrl
+                                                                .isNotEmpty
+                                                        ? Image
+                                                            .network(
                                                             imageUrl,
                                                             fit: BoxFit
                                                                 .cover,
                                                             width:
+                                                                double.infinity,
+                                                            height:
                                                                 double.infinity,
                                                             errorBuilder:
                                                                 (
@@ -1088,256 +1048,265 @@ class _HomePageState extends State<HomePage> {
                                                                 ),
                                                               );
                                                             },
+                                                          )
+                                                        : const Center(
+                                                            child:
+                                                                Icon(
+                                                              Icons
+                                                                  .image,
+                                                              size:
+                                                                  50,
+                                                              color:
+                                                                  Colors.grey,
+                                                            ),
                                                           ),
-                                                        )
-                                                      : const Center(
-                                                          child:
-                                                              Icon(
-                                                            Icons
-                                                                .image,
-                                                            size:
-                                                                50,
-                                                            color:
-                                                                Colors.grey,
-                                                          ),
-                                                        ),
-                                            ),
+                                              ),
 
-                                            // =========================================
-                                            // FAVORITE BUTTON
-                                            // =========================================
+                                              // =================================================
+                                              // FAVORITE BUTTON
+                                              // =================================================
 
-                                            Positioned(
-                                              top: 8,
-                                              right: 8,
-                                              child:
-                                                  Material(
-                                                color: Colors
-                                                    .white,
-                                                shape:
-                                                    const CircleBorder(),
-                                                elevation: 2,
+                                              Positioned(
+                                                top: 8,
+                                                right: 8,
                                                 child:
-                                                    InkWell(
-                                                  customBorder:
+                                                    Material(
+                                                  color: Colors
+                                                      .white,
+                                                  shape:
                                                       const CircleBorder(),
-                                                  onTap:
-                                                      () async {
-                                                    if (!isLoggedIn ||
-                                                        user ==
-                                                            null) {
-                                                      await Navigator
-                                                          .push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder:
-                                                              (context) =>
-                                                                  const LoginPage(),
-                                                        ),
-                                                      );
-                                                      return;
-                                                    }
-
-                                                    await _toggleFavorite(
-                                                      user:
-                                                          user,
-                                                      productId:
-                                                          productId,
-                                                      productData:
-                                                          data,
-                                                    );
-                                                  },
+                                                  elevation:
+                                                      2,
                                                   child:
-                                                      Padding(
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                      7,
-                                                    ),
+                                                      InkWell(
+                                                    customBorder:
+                                                        const CircleBorder(),
+
+                                                    onTap:
+                                                        () async {
+                                                      final currentUser =
+                                                          user;
+
+                                                      if (currentUser ==
+                                                          null) {
+                                                        await Navigator
+                                                            .push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder:
+                                                                (context) =>
+                                                                    const LoginPage(),
+                                                          ),
+                                                        );
+                                                        return;
+                                                      }
+
+                                                      await _toggleFavorite(
+                                                        user:
+                                                            currentUser,
+                                                        productId:
+                                                            productId,
+                                                        productData:
+                                                            data,
+                                                      );
+                                                    },
+
                                                     child:
-                                                        Icon(
-                                                      isFavorite
-                                                          ? Icons
-                                                              .favorite
-                                                          : Icons
-                                                              .favorite_border,
-                                                      color: isFavorite
-                                                          ? Colors
-                                                              .redAccent
-                                                          : Colors
-                                                              .grey,
-                                                      size:
-                                                          21,
+                                                        Padding(
+                                                      padding:
+                                                          const EdgeInsets
+                                                              .all(
+                                                        7,
+                                                      ),
+                                                      child:
+                                                          Icon(
+                                                        isFavorite
+                                                            ? Icons
+                                                                .favorite
+                                                            : Icons
+                                                                .favorite_border,
+                                                        color: isFavorite
+                                                            ? Colors
+                                                                .redAccent
+                                                            : Colors
+                                                                .grey,
+                                                        size:
+                                                            21,
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
 
-                                      // =============================================
-                                      // PRODUCT INFO
-                                      // =============================================
+                                        // =================================================
+                                        // PRODUCT INFO
+                                        // =================================================
 
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets
-                                                .all(
-                                          8,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment
-                                                  .start,
-                                          children: [
-                                            Text(
-                                              name,
-                                              style:
-                                                  const TextStyle(
-                                                fontWeight:
-                                                    FontWeight
-                                                        .bold,
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets
+                                                  .all(
+                                            8,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment
+                                                    .start,
+                                            children: [
+                                              Text(
+                                                name,
+                                                style:
+                                                    const TextStyle(
+                                                  fontWeight:
+                                                      FontWeight
+                                                          .bold,
+                                                ),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow
+                                                        .ellipsis,
                                               ),
-                                              maxLines: 1,
-                                              overflow:
-                                                  TextOverflow
-                                                      .ellipsis,
-                                            ),
 
-                                            const SizedBox(
-                                              height: 4,
-                                            ),
+                                              const SizedBox(
+                                                height: 4,
+                                              ),
 
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                // =====================================
-                                                // PRICE
-                                                // =====================================
-
-                                                Flexible(
-                                                  child:
-                                                      Text(
-                                                    displayPrice,
-                                                    style:
-                                                        const TextStyle(
-                                                      color:
-                                                          Colors.redAccent,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize:
-                                                          16,
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Flexible(
+                                                    child:
+                                                        Text(
+                                                      displayPrice,
+                                                      style:
+                                                          const TextStyle(
+                                                        color:
+                                                            Colors.redAccent,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize:
+                                                            16,
+                                                      ),
+                                                      maxLines:
+                                                          1,
+                                                      overflow:
+                                                          TextOverflow
+                                                              .ellipsis,
                                                     ),
-                                                    maxLines:
-                                                        1,
-                                                    overflow:
-                                                        TextOverflow
-                                                            .ellipsis,
                                                   ),
-                                                ),
 
-                                                const SizedBox(
-                                                  width: 5,
-                                                ),
-
-                                                // =====================================
-                                                // ADD TO CART
-                                                // =====================================
-
-                                                InkWell(
-                                                  borderRadius:
-                                                      BorderRadius
-                                                          .circular(
-                                                    20,
+                                                  const SizedBox(
+                                                    width: 5,
                                                   ),
-                                                  onTap:
-                                                      () async {
-                                                    if (!isLoggedIn) {
-                                                      await Navigator
-                                                          .push(
+
+                                                  // =================================================
+                                                  // ADD TO CART
+                                                  // =================================================
+
+                                                  InkWell(
+                                                    borderRadius:
+                                                        BorderRadius
+                                                            .circular(
+                                                      20,
+                                                    ),
+
+                                                    onTap:
+                                                        () async {
+                                                      final currentUser =
+                                                          user;
+
+                                                      if (currentUser ==
+                                                          null) {
+                                                        await Navigator
+                                                            .push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder:
+                                                                (context) =>
+                                                                    const LoginPage(),
+                                                          ),
+                                                        );
+                                                        return;
+                                                      }
+
+                                                      await CartService
+                                                          .addItem(
+                                                        id:
+                                                            productId,
+                                                        name:
+                                                            name,
+                                                        price:
+                                                            rawPrice,
+                                                        imageUrl:
+                                                            imageUrl,
+                                                      );
+
+                                                      if (!context
+                                                          .mounted) {
+                                                        return;
+                                                      }
+
+                                                      ScaffoldMessenger
+                                                          .of(
                                                         context,
-                                                        MaterialPageRoute(
-                                                          builder:
-                                                              (context) =>
-                                                                  const LoginPage(),
+                                                      ).showSnackBar(
+                                                        SnackBar(
+                                                          content:
+                                                              Text(
+                                                            '$name added to cart',
+                                                          ),
+                                                          behavior:
+                                                              SnackBarBehavior
+                                                                  .floating,
+                                                          duration:
+                                                              const Duration(
+                                                            seconds:
+                                                                1,
+                                                          ),
                                                         ),
                                                       );
-                                                      return;
-                                                    }
+                                                    },
 
-                                                    await CartService
-                                                        .addItem(
-                                                      id: productId,
-                                                      name:
-                                                          name,
-                                                      price:
-                                                          rawPrice,
-                                                      imageUrl:
-                                                          imageUrl,
-                                                    );
-
-                                                    if (!context
-                                                        .mounted) {
-                                                      return;
-                                                    }
-
-                                                    ScaffoldMessenger
-                                                        .of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      SnackBar(
-                                                        content:
-                                                            Text(
-                                                          '$name added to cart',
-                                                        ),
-                                                        behavior:
-                                                            SnackBarBehavior
-                                                                .floating,
-                                                        duration:
-                                                            const Duration(
-                                                          seconds:
-                                                              1,
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
-                                                  child:
-                                                      Container(
-                                                    padding:
-                                                        const EdgeInsets
-                                                            .all(
-                                                      6,
-                                                    ),
-                                                    decoration:
-                                                        BoxDecoration(
-                                                      color: Colors
-                                                          .redAccent,
-                                                      borderRadius:
-                                                          BorderRadius
-                                                              .circular(
-                                                        20,
-                                                      ),
-                                                    ),
                                                     child:
-                                                        const Icon(
-                                                      Icons
-                                                          .add_shopping_cart,
-                                                      size:
-                                                          16,
-                                                      color: Colors
-                                                          .white,
+                                                        Container(
+                                                      padding:
+                                                          const EdgeInsets
+                                                              .all(
+                                                        6,
+                                                      ),
+                                                      decoration:
+                                                          BoxDecoration(
+                                                        color: Colors
+                                                            .redAccent,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                          20,
+                                                        ),
+                                                      ),
+                                                      child:
+                                                          const Icon(
+                                                        Icons
+                                                            .add_shopping_cart,
+                                                        size:
+                                                            16,
+                                                        color: Colors
+                                                            .white,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
+                                                ],
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 );
                               },
@@ -1350,9 +1319,9 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
 
-              // ===================================================
+              // =================================================
               // SIGN IN BANNER
-              // ===================================================
+              // =================================================
 
               bottomSheet: isLoggedIn
                   ? null
@@ -1377,6 +1346,7 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                           ),
+
                           ElevatedButton(
                             style:
                                 ElevatedButton.styleFrom(
@@ -1401,9 +1371,9 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
 
-              // ===================================================
+              // =================================================
               // BOTTOM NAVIGATION
-              // ===================================================
+              // =================================================
 
               bottomNavigationBar:
                   BottomNavigationBar(
@@ -1415,25 +1385,30 @@ class _HomePageState extends State<HomePage> {
                     Colors.grey,
                 type:
                     BottomNavigationBarType.fixed,
+
                 items: const [
                   BottomNavigationBarItem(
                     icon: Icon(Icons.home),
                     label: 'Home',
                   ),
+
                   BottomNavigationBarItem(
                     icon: Icon(Icons.category),
                     label: 'Categories',
                   ),
+
                   BottomNavigationBarItem(
                     icon: Icon(Icons.video_library),
                     label: 'Videos',
                   ),
+
                   BottomNavigationBarItem(
                     icon: Icon(
                       Icons.shopping_cart_outlined,
                     ),
                     label: 'Cart',
                   ),
+
                   BottomNavigationBarItem(
                     icon: Icon(Icons.person),
                     label: 'Profile',
