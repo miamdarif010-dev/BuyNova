@@ -47,16 +47,12 @@ class _HomePageState extends State<HomePage> {
     switch (currency) {
       case 'BDT':
         return '৳';
-
       case 'USD':
         return '\$';
-
       case 'INR':
         return '₹';
-
       case 'EUR':
         return '€';
-
       case 'KRW':
       default:
         return '₩';
@@ -65,11 +61,6 @@ class _HomePageState extends State<HomePage> {
 
   // =========================================================
   // CURRENCY CONVERSION
-  //
-  // Base currency = KRW
-  //
-  // These are approximate rates for now.
-  // Live exchange rates can be connected later.
   // =========================================================
 
   double _convertPrice(
@@ -77,23 +68,18 @@ class _HomePageState extends State<HomePage> {
     String currency,
   ) {
     switch (currency) {
-      // 1 KRW ≈ 0.09 BDT
       case 'BDT':
         return krwPrice * 0.09;
 
-      // 1 KRW ≈ 0.00075 USD
       case 'USD':
         return krwPrice * 0.00075;
 
-      // 1 KRW ≈ 0.063 INR
       case 'INR':
         return krwPrice * 0.063;
 
-      // 1 KRW ≈ 0.00064 EUR
       case 'EUR':
         return krwPrice * 0.00064;
 
-      // Base currency
       case 'KRW':
       default:
         return krwPrice;
@@ -120,6 +106,108 @@ class _HomePageState extends State<HomePage> {
     }
 
     return '$symbol${convertedPrice.toStringAsFixed(2)}';
+  }
+
+  // =========================================================
+  // FAVORITE REFERENCE
+  // =========================================================
+
+  DocumentReference<Map<String, dynamic>> _favoriteReference(
+    String userId,
+    String productId,
+  ) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('favorites')
+        .doc(productId);
+  }
+
+  // =========================================================
+  // ADD / REMOVE FAVORITE
+  // =========================================================
+
+  Future<void> _toggleFavorite({
+    required User user,
+    required String productId,
+    required Map<String, dynamic> productData,
+  }) async {
+    final favoriteRef = _favoriteReference(
+      user.uid,
+      productId,
+    );
+
+    try {
+      final favoriteSnapshot = await favoriteRef.get();
+
+      if (favoriteSnapshot.exists) {
+        // =====================================================
+        // REMOVE FAVORITE
+        // =====================================================
+
+        await favoriteRef.delete();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Removed from Favorites'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      } else {
+        // =====================================================
+        // ADD FAVORITE
+        // =====================================================
+
+        final name =
+            productData['name']?.toString() ??
+                'Unnamed Product';
+
+        final imageUrl =
+            productData['imageUrl']?.toString() ?? '';
+
+        final category =
+            productData['category']?.toString() ?? '';
+
+        final price =
+            productData['price'] is num
+                ? (productData['price'] as num).toDouble()
+                : 0.0;
+
+        await favoriteRef.set({
+          'productId': productId,
+          'productName': name,
+          'productImageUrl': imageUrl,
+          'category': category,
+          'price': price,
+          'userId': user.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Added to Favorites ❤️'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not update Favorites: $e',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // =========================================================
@@ -308,7 +396,7 @@ class _HomePageState extends State<HomePage> {
           ) {
             return Scaffold(
               // ===================================================
-              // DRAWER / SIDE MENU
+              // DRAWER
               // ===================================================
 
               drawer: Drawer(
@@ -844,270 +932,415 @@ class _HomePageState extends State<HomePage> {
                           );
                         }
 
-                        return GridView.builder(
-                          padding:
-                              const EdgeInsets.all(8),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.75,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                          itemCount: docs.length,
-                          itemBuilder:
-                              (context, index) {
-                            final data =
-                                docs[index].data()
-                                    as Map<String, dynamic>;
+                        // =================================================
+                        // USER FAVORITES STREAM
+                        // =================================================
 
-                            final name =
-                                data['name']?.toString() ??
-                                    'Unnamed Product';
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: isLoggedIn
+                              ? FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user!.uid)
+                                  .collection('favorites')
+                                  .snapshots()
+                              : null,
+                          builder: (
+                            context,
+                            favoriteSnapshot,
+                          ) {
+                            final favoriteIds =
+                                <String>{};
 
-                            final rawPrice =
-                                data['price'] is num
-                                    ? (data['price'] as num)
-                                        .toDouble()
-                                    : 0.0;
+                            for (final favoriteDoc
+                                in favoriteSnapshot
+                                        .data?.docs ??
+                                    []) {
+                              favoriteIds.add(
+                                favoriteDoc.id,
+                              );
+                            }
 
-                            final displayPrice =
-                                _formatPrice(
-                              rawPrice,
-                              currency,
-                            );
-
-                            final imageUrl =
-                                data['imageUrl']?.toString();
-
-                            return Card(
-                              elevation: 2,
-                              shape:
-                                  RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(
-                                  10,
-                                ),
+                            return GridView.builder(
+                              padding:
+                                  const EdgeInsets.all(8),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.75,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
                               ),
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  // =============================================
-                                  // IMAGE
-                                  // =============================================
+                              itemCount: docs.length,
+                              itemBuilder:
+                                  (context, index) {
+                                final productDoc =
+                                    docs[index];
 
-                                  Expanded(
-                                    child: Container(
-                                      width: double.infinity,
-                                      decoration:
-                                          BoxDecoration(
-                                        color: Colors.grey[300],
-                                        borderRadius:
-                                            const BorderRadius
-                                                .vertical(
-                                          top: Radius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                      ),
-                                      child:
-                                          imageUrl != null &&
-                                                  imageUrl
-                                                      .isNotEmpty
-                                              ? ClipRRect(
-                                                  borderRadius:
-                                                      const BorderRadius
-                                                          .vertical(
-                                                    top:
-                                                        Radius.circular(
-                                                      10,
-                                                    ),
-                                                  ),
-                                                  child:
-                                                      Image.network(
-                                                    imageUrl,
-                                                    fit: BoxFit.cover,
-                                                    width:
-                                                        double.infinity,
-                                                    errorBuilder:
-                                                        (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) {
-                                                      return const Center(
-                                                        child:
-                                                            Icon(
-                                                          Icons.image,
-                                                          size: 50,
-                                                          color:
-                                                              Colors.grey,
-                                                        ),
-                                                      );
-                                                    },
-                                                  ),
-                                                )
-                                              : const Center(
-                                                  child: Icon(
-                                                    Icons.image,
-                                                    size: 50,
-                                                    color:
-                                                        Colors.grey,
-                                                  ),
-                                                ),
+                                final data =
+                                    productDoc.data()
+                                        as Map<String,
+                                            dynamic>;
+
+                                final productId =
+                                    productDoc.id;
+
+                                final name =
+                                    data['name']
+                                            ?.toString() ??
+                                        'Unnamed Product';
+
+                                final rawPrice =
+                                    data['price'] is num
+                                        ? (data['price']
+                                                as num)
+                                            .toDouble()
+                                        : 0.0;
+
+                                final displayPrice =
+                                    _formatPrice(
+                                  rawPrice,
+                                  currency,
+                                );
+
+                                final imageUrl =
+                                    data['imageUrl']
+                                        ?.toString();
+
+                                final isFavorite =
+                                    favoriteIds
+                                        .contains(
+                                  productId,
+                                );
+
+                                return Card(
+                                  elevation: 2,
+                                  shape:
+                                      RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(
+                                      10,
                                     ),
                                   ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment
+                                            .start,
+                                    children: [
+                                      // =============================================
+                                      // IMAGE + FAVORITE
+                                      // =============================================
 
-                                  // =============================================
-                                  // PRODUCT INFO
-                                  // =============================================
-
-                                  Padding(
-                                    padding:
-                                        const EdgeInsets.all(
-                                      8,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          name,
-                                          style:
-                                              const TextStyle(
-                                            fontWeight:
-                                                FontWeight.bold,
-                                          ),
-                                          maxLines: 1,
-                                          overflow:
-                                              TextOverflow.ellipsis,
-                                        ),
-
-                                        const SizedBox(
-                                          height: 4,
-                                        ),
-
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment
-                                                  .spaceBetween,
+                                      Expanded(
+                                        child: Stack(
                                           children: [
-                                            // =====================================
-                                            // CURRENCY PRICE
-                                            // =====================================
-
-                                            Flexible(
-                                              child: Text(
-                                                displayPrice,
-                                                style:
-                                                    const TextStyle(
-                                                  color:
-                                                      Colors.redAccent,
-                                                  fontWeight:
-                                                      FontWeight.bold,
-                                                  fontSize: 16,
-                                                ),
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow
-                                                        .ellipsis,
-                                              ),
-                                            ),
-
-                                            const SizedBox(
-                                              width: 5,
-                                            ),
-
-                                            // =====================================
-                                            // ADD TO CART
-                                            // =====================================
-
-                                            InkWell(
-                                              borderRadius:
-                                                  BorderRadius
-                                                      .circular(
-                                                20,
-                                              ),
-                                              onTap: () async {
-                                                if (!isLoggedIn) {
-                                                  await Navigator
-                                                      .push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder:
-                                                          (context) =>
-                                                              const LoginPage(),
-                                                    ),
-                                                  );
-                                                  return;
-                                                }
-
-                                                await CartService
-                                                    .addItem(
-                                                  id: docs[index]
-                                                      .id,
-                                                  name: name,
-                                                  price: rawPrice,
-                                                  imageUrl:
-                                                      imageUrl,
-                                                );
-
-                                                if (!context.mounted) {
-                                                  return;
-                                                }
-
-                                                ScaffoldMessenger
-                                                    .of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      '$name added to cart',
-                                                    ),
-                                                    behavior:
-                                                        SnackBarBehavior
-                                                            .floating,
-                                                    duration:
-                                                        const Duration(
-                                                      seconds: 1,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets
-                                                        .all(
-                                                  6,
-                                                ),
-                                                decoration:
-                                                    BoxDecoration(
-                                                  color:
-                                                      Colors.redAccent,
-                                                  borderRadius:
-                                                      BorderRadius
-                                                          .circular(
-                                                    20,
+                                            Container(
+                                              width:
+                                                  double.infinity,
+                                              decoration:
+                                                  BoxDecoration(
+                                                color: Colors
+                                                    .grey[300],
+                                                borderRadius:
+                                                    const BorderRadius
+                                                        .vertical(
+                                                  top:
+                                                      Radius.circular(
+                                                    10,
                                                   ),
                                                 ),
+                                              ),
+                                              child:
+                                                  imageUrl !=
+                                                              null &&
+                                                          imageUrl
+                                                              .isNotEmpty
+                                                      ? ClipRRect(
+                                                          borderRadius:
+                                                              const BorderRadius
+                                                                  .vertical(
+                                                            top:
+                                                                Radius.circular(
+                                                              10,
+                                                            ),
+                                                          ),
+                                                          child:
+                                                              Image.network(
+                                                            imageUrl,
+                                                            fit: BoxFit
+                                                                .cover,
+                                                            width:
+                                                                double.infinity,
+                                                            errorBuilder:
+                                                                (
+                                                              context,
+                                                              error,
+                                                              stackTrace,
+                                                            ) {
+                                                              return const Center(
+                                                                child:
+                                                                    Icon(
+                                                                  Icons
+                                                                      .image,
+                                                                  size:
+                                                                      50,
+                                                                  color:
+                                                                      Colors.grey,
+                                                                ),
+                                                              );
+                                                            },
+                                                          ),
+                                                        )
+                                                      : const Center(
+                                                          child:
+                                                              Icon(
+                                                            Icons
+                                                                .image,
+                                                            size:
+                                                                50,
+                                                            color:
+                                                                Colors.grey,
+                                                          ),
+                                                        ),
+                                            ),
+
+                                            // =========================================
+                                            // FAVORITE BUTTON
+                                            // =========================================
+
+                                            Positioned(
+                                              top: 8,
+                                              right: 8,
+                                              child:
+                                                  Material(
+                                                color: Colors
+                                                    .white,
+                                                shape:
+                                                    const CircleBorder(),
+                                                elevation: 2,
                                                 child:
-                                                    const Icon(
-                                                  Icons
-                                                      .add_shopping_cart,
-                                                  size: 16,
-                                                  color:
-                                                      Colors.white,
+                                                    InkWell(
+                                                  customBorder:
+                                                      const CircleBorder(),
+                                                  onTap:
+                                                      () async {
+                                                    if (!isLoggedIn ||
+                                                        user ==
+                                                            null) {
+                                                      await Navigator
+                                                          .push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder:
+                                                              (context) =>
+                                                                  const LoginPage(),
+                                                        ),
+                                                      );
+                                                      return;
+                                                    }
+
+                                                    await _toggleFavorite(
+                                                      user:
+                                                          user,
+                                                      productId:
+                                                          productId,
+                                                      productData:
+                                                          data,
+                                                    );
+                                                  },
+                                                  child:
+                                                      Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                      7,
+                                                    ),
+                                                    child:
+                                                        Icon(
+                                                      isFavorite
+                                                          ? Icons
+                                                              .favorite
+                                                          : Icons
+                                                              .favorite_border,
+                                                      color: isFavorite
+                                                          ? Colors
+                                                              .redAccent
+                                                          : Colors
+                                                              .grey,
+                                                      size:
+                                                          21,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ],
-                                    ),
+                                      ),
+
+                                      // =============================================
+                                      // PRODUCT INFO
+                                      // =============================================
+
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets
+                                                .all(
+                                          8,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment
+                                                  .start,
+                                          children: [
+                                            Text(
+                                              name,
+                                              style:
+                                                  const TextStyle(
+                                                fontWeight:
+                                                    FontWeight
+                                                        .bold,
+                                              ),
+                                              maxLines: 1,
+                                              overflow:
+                                                  TextOverflow
+                                                      .ellipsis,
+                                            ),
+
+                                            const SizedBox(
+                                              height: 4,
+                                            ),
+
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                // =====================================
+                                                // PRICE
+                                                // =====================================
+
+                                                Flexible(
+                                                  child:
+                                                      Text(
+                                                    displayPrice,
+                                                    style:
+                                                        const TextStyle(
+                                                      color:
+                                                          Colors.redAccent,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize:
+                                                          16,
+                                                    ),
+                                                    maxLines:
+                                                        1,
+                                                    overflow:
+                                                        TextOverflow
+                                                            .ellipsis,
+                                                  ),
+                                                ),
+
+                                                const SizedBox(
+                                                  width: 5,
+                                                ),
+
+                                                // =====================================
+                                                // ADD TO CART
+                                                // =====================================
+
+                                                InkWell(
+                                                  borderRadius:
+                                                      BorderRadius
+                                                          .circular(
+                                                    20,
+                                                  ),
+                                                  onTap:
+                                                      () async {
+                                                    if (!isLoggedIn) {
+                                                      await Navigator
+                                                          .push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder:
+                                                              (context) =>
+                                                                  const LoginPage(),
+                                                        ),
+                                                      );
+                                                      return;
+                                                    }
+
+                                                    await CartService
+                                                        .addItem(
+                                                      id: productId,
+                                                      name:
+                                                          name,
+                                                      price:
+                                                          rawPrice,
+                                                      imageUrl:
+                                                          imageUrl,
+                                                    );
+
+                                                    if (!context
+                                                        .mounted) {
+                                                      return;
+                                                    }
+
+                                                    ScaffoldMessenger
+                                                        .of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        content:
+                                                            Text(
+                                                          '$name added to cart',
+                                                        ),
+                                                        behavior:
+                                                            SnackBarBehavior
+                                                                .floating,
+                                                        duration:
+                                                            const Duration(
+                                                          seconds:
+                                                              1,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  child:
+                                                      Container(
+                                                    padding:
+                                                        const EdgeInsets
+                                                            .all(
+                                                      6,
+                                                    ),
+                                                    decoration:
+                                                        BoxDecoration(
+                                                      color: Colors
+                                                          .redAccent,
+                                                      borderRadius:
+                                                          BorderRadius
+                                                              .circular(
+                                                        20,
+                                                      ),
+                                                    ),
+                                                    child:
+                                                        const Icon(
+                                                      Icons
+                                                          .add_shopping_cart,
+                                                      size:
+                                                          16,
+                                                      color: Colors
+                                                          .white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             );
                           },
                         );
