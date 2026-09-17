@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'cart_page.dart';
 import 'login_page.dart';
+import 'checkout_page.dart';
 
 class ProductDetailsPage extends StatefulWidget {
   final String productId;
@@ -22,88 +23,92 @@ class ProductDetailsPage extends StatefulWidget {
 
 class _ProductDetailsPageState
     extends State<ProductDetailsPage> {
+  int _quantity = 1;
   bool _isFavorite = false;
   bool _loadingFavorite = true;
-  bool _addingToCart = false;
-
-  User? get _user =>
-      FirebaseAuth.instance.currentUser;
-
-  String _text(dynamic value, [String fallback = '']) {
-    final text = value?.toString().trim() ?? '';
-    return text.isEmpty ? fallback : text;
-  }
-
-  double _price(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(
-          value?.toString() ?? '0',
-        ) ??
-        0;
-  }
-
-  String _formatPrice(dynamic value) {
-    return '₩${_price(value).toStringAsFixed(0)}';
-  }
-
-  String get _name => _text(
-        widget.product['name'] ??
-            widget.product['productName'],
-        'BuyNova Product',
-      );
-
-  String get _imageUrl => _text(
-        widget.product['imageUrl'] ??
-            widget.product['productImageUrl'],
-      );
-
-  String get _category =>
-      _text(widget.product['category'], 'Product');
-
-  String get _description => _text(
-        widget.product['description'],
-        'No description available for this product.',
-      );
-
-  double get _productPrice => _price(
-        widget.product['price'] ??
-            widget.product['sellingPrice'] ??
-            0,
-      );
-
-  String get _sellerId =>
-      _text(widget.product['sellerCode'] ??
-          widget.product['sellerId']);
-
-  String get _sellerEmail =>
-      _text(widget.product['sellerEmail']);
 
   @override
   void initState() {
     super.initState();
-    _checkFavorite();
+    _loadFavoriteStatus();
   }
 
-  DocumentReference<Map<String, dynamic>>?
-      _favoriteRef() {
-    final user = _user;
+  // =========================================================
+  // PRODUCT DATA
+  // =========================================================
 
-    if (user == null) return null;
+  String get productName {
+    return widget.product['name']?.toString() ??
+        widget.product['productName']?.toString() ??
+        'Unnamed Product';
+  }
 
+  String get imageUrl {
+    return widget.product['imageUrl']?.toString() ??
+        widget.product['productImageUrl']?.toString() ??
+        '';
+  }
+
+  String get category {
+    return widget.product['category']?.toString() ?? '';
+  }
+
+  String get description {
+    return widget.product['description']?.toString() ??
+        'No description available.';
+  }
+
+  double get price {
+    final value =
+        widget.product['price'] ??
+        widget.product['sellingPrice'] ??
+        0;
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value.toString()) ?? 0;
+  }
+
+  String get sellerCode {
+    return widget.product['sellerCode']?.toString() ?? '';
+  }
+
+  String get sellerId {
+    return widget.product['sellerId']?.toString() ?? '';
+  }
+
+  String get sellerEmail {
+    return widget.product['sellerEmail']?.toString() ?? '';
+  }
+
+  double get subtotal {
+    return price * _quantity;
+  }
+
+  // =========================================================
+  // FAVORITE REFERENCE
+  // =========================================================
+
+  DocumentReference<Map<String, dynamic>>
+      _favoriteReference(String userId) {
     return FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(userId)
         .collection('favorites')
         .doc(widget.productId);
   }
 
-  Future<void> _checkFavorite() async {
-    final ref = _favoriteRef();
+  // =========================================================
+  // LOAD FAVORITE
+  // =========================================================
 
-    if (ref == null) {
+  Future<void> _loadFavoriteStatus() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
       if (mounted) {
         setState(() {
           _loadingFavorite = false;
@@ -113,131 +118,115 @@ class _ProductDetailsPageState
     }
 
     try {
-      final doc = await ref.get();
+      final snapshot =
+          await _favoriteReference(user.uid).get();
 
-      if (mounted) {
-        setState(() {
-          _isFavorite = doc.exists;
-          _loadingFavorite = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _isFavorite = snapshot.exists;
+        _loadingFavorite = false;
+      });
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _loadingFavorite = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _loadingFavorite = false;
+      });
     }
   }
 
+  // =========================================================
+  // TOGGLE FAVORITE
+  // =========================================================
+
   Future<void> _toggleFavorite() async {
-    final user = _user;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => const LoginPage(),
         ),
       );
+
+      await _loadFavoriteStatus();
       return;
     }
 
-    final ref = _favoriteRef();
-
-    if (ref == null) return;
+    final favoriteRef =
+        _favoriteReference(user.uid);
 
     try {
       if (_isFavorite) {
-        await ref.delete();
+        await favoriteRef.delete();
 
-        if (mounted) {
-          setState(() {
-            _isFavorite = false;
-          });
-        }
+        if (!mounted) return;
 
-        _showMessage('Removed from Favorites.');
+        setState(() {
+          _isFavorite = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Removed from Favorites'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
+        );
       } else {
-        await ref.set({
+        await favoriteRef.set({
           'productId': widget.productId,
-          'productName': _name,
-          'productImageUrl':
-              _imageUrl.isEmpty ? null : _imageUrl,
-          'category': _category,
-          'price': _productPrice,
+          'productName': productName,
+          'productImageUrl': imageUrl,
+          'category': category,
+          'price': price,
           'userId': user.uid,
           'createdAt':
               FieldValue.serverTimestamp(),
         });
 
-        if (mounted) {
-          setState(() {
-            _isFavorite = true;
-          });
-        }
+        if (!mounted) return;
 
-        _showMessage('Added to Favorites.');
-      }
-    } catch (e) {
-      _showMessage(
-        'Could not update Favorites: $e',
-      );
-    }
-  }
+        setState(() {
+          _isFavorite = true;
+        });
 
-  Future<void> _addToCart() async {
-    final user = _user;
-
-    if (user == null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const LoginPage(),
-        ),
-      );
-      return;
-    }
-
-    if (_addingToCart) return;
-
-    setState(() {
-      _addingToCart = true;
-    });
-
-    try {
-      await CartService.addItem(
-        id: widget.productId,
-        name: _name,
-        price: _productPrice,
-        imageUrl:
-            _imageUrl.isEmpty ? null : _imageUrl,
-      );
-
-      if (mounted) {
-        _showMessage(
-          '$_name added to Cart.',
-          showCartAction: true,
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Added to Favorites ❤️'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
         );
       }
     } catch (e) {
-      _showMessage(
-        'Could not add to Cart: $e',
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Favorite update failed: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _addingToCart = false;
-        });
-      }
     }
   }
 
-  void _buyNow() {
-    final user = _user;
+  // =========================================================
+  // ADD TO CART
+  // =========================================================
+
+  Future<void> _addToCart() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => const LoginPage(),
@@ -246,140 +235,113 @@ class _ProductDetailsPageState
       return;
     }
 
-    // Checkout will be connected here
-    // in the next shopping step.
-    _showMessage(
-      'Buy Now checkout will be connected next.',
-    );
+    try {
+      for (int i = 0; i < _quantity; i++) {
+        await CartService.addItem(
+          id: widget.productId,
+          name: productName,
+          price: price,
+          imageUrl:
+              imageUrl.isEmpty ? null : imageUrl,
+        );
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$_quantity × $productName added to cart',
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Could not add to cart: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
-  void _showMessage(
-    String message, {
-    bool showCartAction = false,
-  }) {
-    if (!mounted) return;
+  // =========================================================
+  // BUY NOW
+  // =========================================================
 
-    ScaffoldMessenger.of(context)
-        .hideCurrentSnackBar();
+  Future<void> _buyNow() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        action: showCartAction
-            ? SnackBarAction(
-                label: 'VIEW CART',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          const CartPage(),
-                    ),
-                  );
-                },
-              )
-            : null,
-      ),
-    );
-  }
-
-  Widget _buildProductImage() {
-    return Container(
-      width: double.infinity,
-      height: 330,
-      color: Colors.grey.shade100,
-      child: _imageUrl.isNotEmpty
-          ? Image.network(
-              _imageUrl,
-              fit: BoxFit.contain,
-              errorBuilder:
-                  (context, error, stackTrace) {
-                return const Center(
-                  child: Icon(
-                    Icons
-                        .image_not_supported_outlined,
-                    size: 70,
-                    color: Colors.grey,
-                  ),
-                );
-              },
-            )
-          : const Center(
-              child: Icon(
-                Icons.shopping_bag_outlined,
-                size: 80,
-                color: Colors.grey,
-              ),
-            ),
-    );
-  }
-
-  Widget _infoRow(
-    IconData icon,
-    String title,
-    String value,
-  ) {
-    if (value.isEmpty) {
-      return const SizedBox.shrink();
+    if (user == null) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LoginPage(),
+        ),
+      );
+      return;
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            size: 21,
-            color: Colors.redAccent,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CheckoutPage(
+          productId: widget.productId,
+          productName: productName,
+          price: price,
+          imageUrl:
+              imageUrl.isEmpty ? null : imageUrl,
+          quantity: _quantity,
+        ),
       ),
     );
   }
+
+  // =========================================================
+  // QUANTITY
+  // =========================================================
+
+  void _increaseQuantity() {
+    setState(() {
+      _quantity++;
+    });
+  }
+
+  void _decreaseQuantity() {
+    if (_quantity <= 1) return;
+
+    setState(() {
+      _quantity--;
+    });
+  }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.redAccent,
+        foregroundColor: Colors.white,
         title: const Text(
           'Product Details',
           style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
-        centerTitle: true,
-        backgroundColor: Colors.redAccent,
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
-            tooltip: 'Cart',
+            icon: const Icon(
+              Icons.shopping_cart_outlined,
+            ),
             onPressed: () {
               Navigator.push(
                 context,
@@ -389,44 +351,62 @@ class _ProductDetailsPageState
                 ),
               );
             },
-            icon: const Icon(
-              Icons.shopping_cart_outlined,
-            ),
           ),
         ],
       ),
+
       body: SingleChildScrollView(
+        padding: const EdgeInsets.only(
+          bottom: 100,
+        ),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                _buildProductImage(),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Material(
-                    color: Colors.white,
-                    shape: const CircleBorder(),
-                    elevation: 3,
-                    child: IconButton(
-                      onPressed: _loadingFavorite
-                          ? null
-                          : _toggleFavorite,
-                      icon: Icon(
-                        _isFavorite
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        color: _isFavorite
-                            ? Colors.redAccent
-                            : Colors.grey.shade700,
+            // =================================================
+            // IMAGE
+            // =================================================
+
+            SizedBox(
+              width: double.infinity,
+              height: 330,
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (
+                        context,
+                        error,
+                        stackTrace,
+                      ) {
+                        return Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: Icon(
+                              Icons.image,
+                              size: 80,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: Icon(
+                          Icons.image,
+                          size: 80,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
             ),
+
+            // =================================================
+            // PRODUCT INFORMATION
+            // =================================================
 
             Padding(
               padding: const EdgeInsets.all(16),
@@ -434,59 +414,76 @@ class _ProductDetailsPageState
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  // CATEGORY
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent
-                          .withValues(alpha: 0.08),
-                      borderRadius:
-                          BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _category,
-                      style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          productName,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                      IconButton(
+                        onPressed:
+                            _loadingFavorite
+                                ? null
+                                : _toggleFavorite,
+                        icon: Icon(
+                          _isFavorite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: _isFavorite
+                              ? Colors.redAccent
+                              : Colors.grey,
+                          size: 30,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  if (category.isNotEmpty)
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            Colors.redAccent.shade100,
+                        borderRadius:
+                            BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        category,
+                        style: const TextStyle(
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
 
                   const SizedBox(height: 12),
 
-                  // NAME
                   Text(
-                    _name,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // PRICE
-                  Text(
-                    _formatPrice(_productPrice),
+                    '₩${price.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontSize: 25,
-                      fontWeight: FontWeight.bold,
                       color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
 
                   const SizedBox(height: 20),
 
-                  const Divider(),
-
-                  const SizedBox(height: 15),
-
-                  // DESCRIPTION
                   const Text(
                     'Description',
                     style: TextStyle(
@@ -498,52 +495,136 @@ class _ProductDetailsPageState
                   const SizedBox(height: 8),
 
                   Text(
-                    _description,
-                    style: TextStyle(
+                    description,
+                    style: const TextStyle(
                       fontSize: 15,
                       height: 1.5,
-                      color: Colors.grey.shade700,
+                      color: Colors.black87,
                     ),
                   ),
 
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
 
-                  // PRODUCT INFORMATION
+                  // =================================================
+                  // QUANTITY
+                  // =================================================
+
                   const Text(
-                    'Product Information',
+                    'Quantity',
                     style: TextStyle(
-                      fontSize: 19,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
 
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 10),
 
-                  _infoRow(
-                    Icons.category_outlined,
-                    'Category',
-                    _category,
+                  Row(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color:
+                                Colors.grey.shade300,
+                          ),
+                          borderRadius:
+                              BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              onPressed:
+                                  _decreaseQuantity,
+                              icon: const Icon(
+                                Icons.remove,
+                              ),
+                            ),
+
+                            SizedBox(
+                              width: 35,
+                              child: Text(
+                                '$_quantity',
+                                textAlign:
+                                    TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                            ),
+
+                            IconButton(
+                              onPressed:
+                                  _increaseQuantity,
+                              icon: const Icon(
+                                Icons.add,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 20),
+
+                      Text(
+                        'Total: ₩${subtotal.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
                   ),
 
-                  _infoRow(
-                    Icons.inventory_2_outlined,
-                    'Product ID',
-                    widget.productId,
-                  ),
+                  const SizedBox(height: 24),
 
-                  _infoRow(
-                    Icons.store_outlined,
-                    'Seller ID',
-                    _sellerId,
-                  ),
+                  // =================================================
+                  // SELLER INFORMATION
+                  // =================================================
 
-                  _infoRow(
-                    Icons.email_outlined,
-                    'Seller Email',
-                    _sellerEmail,
-                  ),
+                  if (sellerCode.isNotEmpty ||
+                      sellerId.isNotEmpty ||
+                      sellerEmail.isNotEmpty)
+                    Card(
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Seller Information',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
 
-                  const SizedBox(height: 20),
+                            const SizedBox(height: 10),
+
+                            if (sellerCode.isNotEmpty)
+                              Text(
+                                'Seller ID: $sellerCode',
+                              ),
+
+                            if (sellerId.isNotEmpty)
+                              Text(
+                                'Seller UID: $sellerId',
+                              ),
+
+                            if (sellerEmail.isNotEmpty)
+                              Text(
+                                'Seller Email: $sellerEmail',
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -551,23 +632,20 @@ class _ProductDetailsPageState
         ),
       ),
 
+      // =========================================================
+      // BOTTOM ACTIONS
+      // =========================================================
+
       bottomNavigationBar: SafeArea(
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-            12,
-            10,
-            12,
-            10,
-          ),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Theme.of(context)
-                .scaffoldBackgroundColor,
+            color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black
-                    .withValues(alpha: 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, -3),
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
               ),
             ],
           ),
@@ -575,36 +653,30 @@ class _ProductDetailsPageState
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed:
-                      _addingToCart ? null : _addToCart,
-                  icon: _addingToCart
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(
-                          Icons
-                              .shopping_cart_outlined,
-                        ),
+                  onPressed: _addToCart,
+                  icon: const Icon(
+                    Icons.shopping_cart_outlined,
+                  ),
                   label: const Text(
                     'Add to Cart',
                   ),
-                  style: OutlinedButton.styleFrom(
+                  style:
+                      OutlinedButton.styleFrom(
                     foregroundColor:
                         Colors.redAccent,
                     side: const BorderSide(
                       color: Colors.redAccent,
                     ),
-                    minimumSize:
-                        const Size(0, 50),
+                    padding:
+                        const EdgeInsets.symmetric(
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
+
               const SizedBox(width: 10),
+
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _buyNow,
@@ -614,13 +686,15 @@ class _ProductDetailsPageState
                   label: const Text(
                     'Buy Now',
                   ),
-                  style: ElevatedButton.styleFrom(
+                  style:
+                      ElevatedButton.styleFrom(
                     backgroundColor:
                         Colors.redAccent,
-                    foregroundColor:
-                        Colors.white,
-                    minimumSize:
-                        const Size(0, 50),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
