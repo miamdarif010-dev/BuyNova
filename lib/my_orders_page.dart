@@ -156,8 +156,7 @@ class MyOrdersPage extends StatelessWidget {
     final sellerOrderId =
         sellerOrder['sellerOrderId']?.toString() ?? '';
 
-    final sellerId =
-        sellerOrder['sellerId']?.toString() ?? '';
+    
 
     final sellerCode =
         sellerOrder['sellerCode']?.toString() ?? '';
