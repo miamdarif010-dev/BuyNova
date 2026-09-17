@@ -11,6 +11,7 @@ import 'my_videos_page.dart';
 import 'entrepreneur_page.dart';
 import 'watch_earn_page.dart';
 import 'favorites_page.dart';
+import 'seller_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -176,6 +177,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const EntrepreneurPage(),
+      ),
+    );
+  }
+
+  void _openSellerDashboard() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SellerPage(),
       ),
     );
   }
@@ -441,9 +451,39 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  // =========================================================
+  // SELLER SECTION
+  // =========================================================
+
   List<Widget> _sellerSectionItems() {
     if (_isSellerApproved) {
       return [
+        // Seller Dashboard
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: const Icon(
+              Icons.dashboard_outlined,
+              color: Colors.redAccent,
+            ),
+            title: const Text(
+              'Seller Dashboard',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'Manage your BuyNova seller business.',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: _openSellerDashboard,
+          ),
+        ),
+
         _menuItem(
           icon: Icons.store_outlined,
           title: 'Shop Profile',
@@ -451,6 +491,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _featureNotAvailable('Shop Profile');
           },
         ),
+
         _menuItem(
           icon: Icons.location_on_outlined,
           title: 'Shop Location',
@@ -458,21 +499,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _featureNotAvailable('Shop Location');
           },
         ),
+
         _plusMenuItem(
           icon: Icons.inventory_2_outlined,
           title: 'My Products',
           onTap: _openMyProducts,
         ),
+
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
           onTap: _openMyVideos,
         ),
+
         _menuItem(
           icon: Icons.favorite_border,
           title: 'Favorites',
           onTap: _openFavorites,
         ),
+
         _menuItem(
           icon: Icons.receipt_long_outlined,
           title: 'Sales / Orders',
@@ -480,6 +525,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _featureNotAvailable('Sales / Orders');
           },
         ),
+
         _menuItem(
           icon: Icons.account_balance_wallet_outlined,
           title: 'Earnings',
@@ -487,6 +533,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _featureNotAvailable('Earnings');
           },
         ),
+
         _menuItem(
           icon: Icons.message_outlined,
           title: 'Messages',
@@ -575,6 +622,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     ];
   }
+
+  // =========================================================
+  // ENTREPRENEUR SECTION
+  // =========================================================
 
   List<Widget> _entrepreneurSectionItems() {
     if (_isEntrepreneurApproved) {
@@ -669,6 +720,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     ];
   }
 
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
     final user = currentUser;
@@ -704,16 +759,22 @@ class _UserProfilePageState extends State<UserProfilePage> {
           : RefreshIndicator(
               onRefresh: _loadUserData,
               child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
+                physics:
+                    const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
+                    // =================================================
                     // PROFILE CARD
+                    // =================================================
+
                     Card(
                       elevation: 0,
                       child: Padding(
-                        padding: const EdgeInsets.all(18),
+                        padding:
+                            const EdgeInsets.all(18),
                         child: Column(
                           children: [
                             GestureDetector(
@@ -721,46 +782,64 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               child: Container(
                                 width: 84,
                                 height: 84,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.grey.shade200,
+                                decoration:
+                                    BoxDecoration(
+                                  shape:
+                                      BoxShape.circle,
+                                  color:
+                                      Colors.grey.shade200,
                                 ),
-                                child: _profileImage(),
+                                child:
+                                    _profileImage(),
                               ),
                             ),
+
                             const SizedBox(height: 12),
+
                             Text(
                               _name.isNotEmpty
                                   ? _name
                                   : 'BuyNova User',
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontSize: 22,
-                                fontWeight: FontWeight.bold,
+                                fontWeight:
+                                    FontWeight.bold,
                               ),
                             ),
+
                             const SizedBox(height: 5),
+
                             Text(
                               user.email ?? '',
                               style: TextStyle(
-                                color: Colors.grey.shade600,
+                                color:
+                                    Colors.grey.shade600,
                               ),
                             ),
+
                             if (_phone.isNotEmpty) ...[
                               const SizedBox(height: 4),
                               Text(
                                 _phone,
                                 style: TextStyle(
-                                  color: Colors.grey.shade600,
+                                  color: Colors
+                                      .grey.shade600,
                                 ),
                               ),
                             ],
+
                             const SizedBox(height: 14),
+
                             SizedBox(
                               width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _openEditProfile,
+                              child:
+                                  OutlinedButton.icon(
+                                onPressed:
+                                    _openEditProfile,
                                 icon: const Icon(
-                                  Icons.edit_outlined,
+                                  Icons
+                                      .edit_outlined,
                                 ),
                                 label: const Text(
                                   'Edit Profile',
@@ -774,19 +853,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 16),
 
+                    // =================================================
                     // ADMIN
+                    // =================================================
+
                     if (_isAdmin) ...[
                       Card(
                         elevation: 0,
                         child: ListTile(
                           leading: const Icon(
-                            Icons.admin_panel_settings_outlined,
-                            color: Colors.redAccent,
+                            Icons
+                                .admin_panel_settings_outlined,
+                            color:
+                                Colors.redAccent,
                           ),
                           title: const Text(
                             'Admin Panel',
                             style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
                           subtitle: const Text(
@@ -795,15 +880,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           trailing: const Icon(
                             Icons.chevron_right,
                           ),
-                          onTap: _openAdminPanel,
+                          onTap:
+                              _openAdminPanel,
                         ),
                       ),
                       const SizedBox(height: 8),
                     ],
 
+                    // =================================================
                     // BUYER
+                    // =================================================
+
                     _expandableSectionHeader(
-                      icon: Icons.shopping_bag_outlined,
+                      icon:
+                          Icons.shopping_bag_outlined,
                       title: 'BUYER',
                       expanded: false,
                       onTap: () {
@@ -819,37 +909,51 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 8),
 
+                    // =================================================
                     // EARN & REWARDS
+                    // =================================================
+
                     _expandableSectionHeader(
                       icon: Icons.stars_outlined,
                       title: 'EARN & REWARDS',
-                      expanded: _earnExpanded,
+                      expanded:
+                          _earnExpanded,
                       onTap: () {
                         setState(() {
-                          _earnExpanded = !_earnExpanded;
+                          _earnExpanded =
+                              !_earnExpanded;
                         });
                       },
                     ),
 
                     if (_earnExpanded) ...[
                       _rewardsSummaryCard(),
+
                       _sectionNotification(
-                        icon: Icons.play_circle_outline,
+                        icon:
+                            Icons.play_circle_outline,
                         title: 'Watch & Earn',
-                        iconColor: Colors.redAccent,
-                        onTap: _openWatchEarn,
+                        iconColor:
+                            Colors.redAccent,
+                        onTap:
+                            _openWatchEarn,
                       ),
+
                       _sectionNotification(
-                        icon: Icons.video_library_outlined,
-                        title: 'Seller Video Rewards',
+                        icon:
+                            Icons.video_library_outlined,
+                        title:
+                            'Seller Video Rewards',
                         onTap: () {
                           _featureNotAvailable(
                             'Seller Video Rewards',
                           );
                         },
                       ),
+
                       _sectionNotification(
-                        icon: Icons.group_add_outlined,
+                        icon:
+                            Icons.group_add_outlined,
                         title: 'Referral',
                         onTap: () {
                           _featureNotAvailable(
@@ -861,11 +965,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 8),
 
-                    // ENTREPRENEUR / RESELLER
+                    // =================================================
+                    // ENTREPRENEUR
+                    // =================================================
+
                     _expandableSectionHeader(
-                      icon: Icons.business_center_outlined,
-                      title: 'ENTREPRENEUR / RESELLER',
-                      expanded: _entrepreneurExpanded,
+                      icon:
+                          Icons.business_center_outlined,
+                      title:
+                          'ENTREPRENEUR / RESELLER',
+                      expanded:
+                          _entrepreneurExpanded,
                       onTap: () {
                         setState(() {
                           _entrepreneurExpanded =
@@ -880,11 +990,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 8),
 
+                    // =================================================
                     // SELLER
+                    // =================================================
+
                     _expandableSectionHeader(
-                      icon: Icons.storefront_outlined,
+                      icon:
+                          Icons.storefront_outlined,
                       title: 'SELLER',
-                      expanded: _sellerExpanded,
+                      expanded:
+                          _sellerExpanded,
                       onTap: () {
                         setState(() {
                           _sellerExpanded =
@@ -899,14 +1014,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 16),
 
+                    // =================================================
                     // SETTINGS
+                    // =================================================
+
                     _menuItem(
-                      icon: Icons.settings_outlined,
+                      icon:
+                          Icons.settings_outlined,
                       title: 'Settings',
                       onTap: _openSettings,
                     ),
 
+                    // =================================================
                     // LOGOUT
+                    // =================================================
+
                     _menuItem(
                       icon: Icons.logout,
                       title: 'Logout',
@@ -914,12 +1036,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       onTap: () {
                         showDialog(
                           context: context,
-                          builder: (dialogContext) {
+                          builder:
+                              (dialogContext) {
                             return AlertDialog(
-                              title: const Text(
+                              title:
+                                  const Text(
                                 'Logout',
                               ),
-                              content: const Text(
+                              content:
+                                  const Text(
                                 'Are you sure you want to logout?',
                               ),
                               actions: [
@@ -929,7 +1054,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                       dialogContext,
                                     );
                                   },
-                                  child: const Text(
+                                  child:
+                                      const Text(
                                     'Cancel',
                                   ),
                                 ),
@@ -940,7 +1066,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     );
                                     _logout();
                                   },
-                                  child: const Text(
+                                  child:
+                                      const Text(
                                     'Logout',
                                   ),
                                 ),
