@@ -250,7 +250,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      _showMessage('Please login before placing an order.');
+      _showMessage(
+        'Please login before placing an order.',
+      );
       return;
     }
 
@@ -262,9 +264,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     try {
       final orderRef =
-          FirebaseFirestore.instance.collection('orders').doc();
+          FirebaseFirestore.instance
+              .collection('orders')
+              .doc();
 
-      final itemsData = widget.checkoutItems.map((item) {
+      final itemsData =
+          widget.checkoutItems.map((item) {
         return {
           'productId': item.productId,
           'productName': item.productName,
@@ -357,7 +362,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         builder: (context) {
           return AlertDialog(
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius:
+                  BorderRadius.circular(18),
             ),
             title: const Row(
               children: [
@@ -395,7 +401,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => const MyOrdersPage(),
+          builder: (context) =>
+              const MyOrdersPage(),
         ),
         (route) => route.isFirst,
       );
@@ -442,7 +449,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         height: 75,
         decoration: BoxDecoration(
           color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius:
+              BorderRadius.circular(10),
         ),
         child: const Icon(
           Icons.image_outlined,
@@ -453,7 +461,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius:
+          BorderRadius.circular(10),
       child: Image.network(
         imageUrl,
         width: 75,
@@ -482,13 +491,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Widget _productCard(CheckoutItem item) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin:
+          const EdgeInsets.only(bottom: 10),
       elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius:
+            BorderRadius.circular(14),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding:
+            const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -505,10 +517,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   Text(
                     item.productName,
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    overflow:
+                        TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -517,7 +531,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   Text(
                     '₩${item.price.toStringAsFixed(0)} × ${item.quantity}',
                     style: TextStyle(
-                      color: Colors.grey.shade700,
+                      color:
+                          Colors.grey.shade700,
                       fontSize: 14,
                     ),
                   ),
@@ -529,7 +544,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     style: const TextStyle(
                       color: Colors.redAccent,
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                 ],
@@ -552,7 +568,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     Color? valueColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         vertical: 5,
       ),
       child: Row(
@@ -593,7 +610,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.redAccent,
+        backgroundColor:
+            Colors.redAccent,
         foregroundColor: Colors.white,
         title: const Text(
           'Checkout',
@@ -614,7 +632,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
+              padding:
+                  const EdgeInsets.fromLTRB(
                 16,
                 16,
                 16,
@@ -632,14 +651,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     'Order Items',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
                   const SizedBox(height: 10),
 
                   ...items.map(
-                    (item) => _productCard(item),
+                    (item) =>
+                        _productCard(item),
                   ),
 
                   const SizedBox(height: 20),
@@ -652,25 +673,33 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     'Delivery Information',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
                   const SizedBox(height: 12),
 
                   TextField(
-                    controller: _nameController,
+                    controller:
+                        _nameController,
                     textInputAction:
                         TextInputAction.next,
-                    decoration: InputDecoration(
+                    decoration:
+                        InputDecoration(
                       labelText: 'Full Name',
                       hintText:
                           'Enter your full name',
                       prefixIcon:
-                          const Icon(Icons.person),
-                      border: OutlineInputBorder(
+                          const Icon(
+                        Icons.person,
+                      ),
+                      border:
+                          OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(12),
+                            BorderRadius.circular(
+                          12,
+                        ),
                       ),
                     ),
                   ),
@@ -678,20 +707,28 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(height: 12),
 
                   TextField(
-                    controller: _phoneController,
+                    controller:
+                        _phoneController,
                     keyboardType:
                         TextInputType.phone,
                     textInputAction:
                         TextInputAction.next,
-                    decoration: InputDecoration(
-                      labelText: 'Phone Number',
+                    decoration:
+                        InputDecoration(
+                      labelText:
+                          'Phone Number',
                       hintText:
                           'Enter your phone number',
                       prefixIcon:
-                          const Icon(Icons.phone),
-                      border: OutlineInputBorder(
+                          const Icon(
+                        Icons.phone,
+                      ),
+                      border:
+                          OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(12),
+                            BorderRadius.circular(
+                          12,
+                        ),
                       ),
                     ),
                   ),
@@ -699,27 +736,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(height: 12),
 
                   TextField(
-                    controller: _addressController,
+                    controller:
+                        _addressController,
                     keyboardType:
-                        TextInputType.streetAddress,
+                        TextInputType
+                            .streetAddress,
                     maxLines: 3,
-                    decoration: InputDecoration(
+                    decoration:
+                        InputDecoration(
                       labelText:
                           'Delivery Address',
                       hintText:
                           'Enter your complete delivery address',
                       prefixIcon:
                           const Padding(
-                        padding: EdgeInsets.only(
+                        padding:
+                            EdgeInsets.only(
                           bottom: 45,
                         ),
                         child: Icon(
                           Icons.location_on,
                         ),
                       ),
-                      border: OutlineInputBorder(
+                      border:
+                          OutlineInputBorder(
                         borderRadius:
-                            BorderRadius.circular(12),
+                            BorderRadius.circular(
+                          12,
+                        ),
                       ),
                     ),
                   ),
@@ -734,7 +778,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     'Payment Method',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -745,38 +790,48 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     shape:
                         RoundedRectangleBorder(
                       borderRadius:
-                          BorderRadius.circular(12),
+                          BorderRadius.circular(
+                        12,
+                      ),
                       side: BorderSide(
                         color:
                             Colors.grey.shade300,
                       ),
                     ),
-                    child: RadioListTile<String>(
-                      value:
-                          'Cash on Delivery',
+                    child: RadioGroup<String>(
                       groupValue:
                           _paymentMethod,
                       onChanged: (value) {
-                        if (value == null) return;
+                        if (value == null) {
+                          return;
+                        }
 
                         setState(() {
-                          _paymentMethod = value;
+                          _paymentMethod =
+                              value;
                         });
                       },
-                      title: const Text(
-                        'Cash on Delivery',
-                        style: TextStyle(
-                          fontWeight:
-                              FontWeight.w600,
+                      child:
+                          const RadioListTile<
+                              String>(
+                        value:
+                            'Cash on Delivery',
+                        title: Text(
+                          'Cash on Delivery',
+                          style: TextStyle(
+                            fontWeight:
+                                FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      subtitle: const Text(
-                        'Pay when your order arrives',
-                      ),
-                      secondary: const Icon(
-                        Icons.payments_outlined,
-                        color:
-                            Colors.redAccent,
+                        subtitle: Text(
+                          'Pay when your order arrives',
+                        ),
+                        secondary: Icon(
+                          Icons
+                              .payments_outlined,
+                          color:
+                              Colors.redAccent,
+                        ),
                       ),
                     ),
                   ),
@@ -791,7 +846,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     'Order Summary',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -800,28 +856,35 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   Card(
                     child: Padding(
                       padding:
-                          const EdgeInsets.all(16),
+                          const EdgeInsets.all(
+                        16,
+                      ),
                       child: Column(
                         children: [
                           _summaryRow(
                             'Products',
                             '${items.length}',
                           ),
+
                           _summaryRow(
                             'Total Quantity',
                             '$totalQuantity',
                           ),
+
                           _summaryRow(
                             'Subtotal',
                             '₩${subtotal.toStringAsFixed(0)}',
                           ),
+
                           _summaryRow(
                             'Delivery Fee',
                             '₩${deliveryFee.toStringAsFixed(0)}',
                           ),
+
                           const Divider(
                             height: 20,
                           ),
+
                           _summaryRow(
                             'Total',
                             '₩${grandTotal.toStringAsFixed(0)}',
@@ -841,68 +904,79 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // PLACE ORDER BUTTON
       // =========================================================
 
-      bottomNavigationBar: items.isEmpty
-          ? null
-          : SafeArea(
-              child: Container(
-                padding:
-                    const EdgeInsets.all(12),
-                decoration:
-                    const BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: Offset(0, -2),
+      bottomNavigationBar:
+          items.isEmpty
+              ? null
+              : SafeArea(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.all(
+                      12,
                     ),
-                  ],
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed:
-                        _placingOrder
-                            ? null
-                            : _placeOrder,
-                    style:
-                        ElevatedButton.styleFrom(
-                      backgroundColor:
-                          Colors.redAccent,
-                      foregroundColor:
-                          Colors.white,
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
+                    decoration:
+                        const BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              Colors.black12,
+                          blurRadius: 8,
+                          offset:
+                              Offset(0, -2),
                         ),
-                      ),
+                      ],
                     ),
-                    child: _placingOrder
-                        ? const SizedBox(
-                            width: 25,
-                            height: 25,
-                            child:
-                                CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            'Place Order • ₩${grandTotal.toStringAsFixed(0)}',
-                            style:
-                                const TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  FontWeight.bold,
+                    child: SizedBox(
+                      width:
+                          double.infinity,
+                      height: 54,
+                      child:
+                          ElevatedButton(
+                        onPressed:
+                            _placingOrder
+                                ? null
+                                : _placeOrder,
+                        style:
+                            ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Colors.redAccent,
+                          foregroundColor:
+                              Colors.white,
+                          shape:
+                              RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              12,
                             ),
                           ),
+                        ),
+                        child: _placingOrder
+                            ? const SizedBox(
+                                width: 25,
+                                height: 25,
+                                child:
+                                    CircularProgressIndicator(
+                                  strokeWidth:
+                                      2.5,
+                                  color:
+                                      Colors.white,
+                                ),
+                              )
+                            : Text(
+                                'Place Order • ₩${grandTotal.toStringAsFixed(0)}',
+                                style:
+                                    const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
+                                ),
+                              ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
     );
   }
 
