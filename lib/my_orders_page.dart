@@ -8,7 +8,7 @@ class MyOrdersPage extends StatelessWidget {
   const MyOrdersPage({super.key});
 
   String _statusText(String status) {
-    switch (status.toLowerCase()) {
+    switch (status) {
       case 'placed':
         return 'Order Placed';
       case 'confirmed':
@@ -22,20 +22,20 @@ class MyOrdersPage extends StatelessWidget {
       case 'cancelled':
         return 'Cancelled';
       default:
-        return status.isEmpty ? 'Order Placed' : status;
+        return 'Order Placed';
     }
   }
 
   Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
+    switch (status) {
       case 'placed':
         return Colors.orange;
       case 'confirmed':
         return Colors.blue;
       case 'processing':
-        return Colors.deepPurple;
-      case 'shipped':
         return Colors.indigo;
+      case 'shipped':
+        return Colors.purple;
       case 'delivered':
         return Colors.green;
       case 'cancelled':
@@ -45,19 +45,31 @@ class MyOrdersPage extends StatelessWidget {
     }
   }
 
+  bool _canCancel(String status) {
+    return status == 'placed' ||
+        status == 'confirmed' ||
+        status == 'processing';
+  }
+
   String _formatDate(dynamic value) {
-    if (value is! Timestamp) {
-      return '';
+    if (value is Timestamp) {
+      final date = value.toDate();
+
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year.toString();
+
+      final hour = date.hour == 0
+          ? 12
+          : (date.hour > 12 ? date.hour - 12 : date.hour);
+
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+
+      return '$day/$month/$year $hour:$minute $period';
     }
 
-    final date = value.toDate();
-
-    String two(int number) {
-      return number.toString().padLeft(2, '0');
-    }
-
-    return '${date.year}-${two(date.month)}-${two(date.day)} '
-        '${two(date.hour)}:${two(date.minute)}';
+    return 'Date unavailable';
   }
 
   double _number(dynamic value) {
@@ -65,10 +77,7 @@ class MyOrdersPage extends StatelessWidget {
       return value.toDouble();
     }
 
-    return double.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   int _int(dynamic value) {
@@ -76,30 +85,7 @@ class MyOrdersPage extends StatelessWidget {
       return value.toInt();
     }
 
-    return int.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
-  }
-
-  String _sellerName(
-    Map<String, dynamic> sellerOrder,
-  ) {
-    final sellerCode =
-        sellerOrder['sellerCode']?.toString() ?? '';
-
-    final sellerEmail =
-        sellerOrder['sellerEmail']?.toString() ?? '';
-
-    if (sellerCode.isNotEmpty) {
-      return sellerCode;
-    }
-
-    if (sellerEmail.isNotEmpty) {
-      return sellerEmail;
-    }
-
-    return 'Seller';
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Widget _statusChip(String status) {
@@ -118,8 +104,8 @@ class MyOrdersPage extends StatelessWidget {
         _statusText(status),
         style: TextStyle(
           color: color,
-          fontWeight: FontWeight.w700,
           fontSize: 12,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -130,83 +116,261 @@ class MyOrdersPage extends StatelessWidget {
       width: 64,
       height: 64,
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: const Icon(
-        Icons.shopping_bag_outlined,
-        color: Colors.grey,
+      child: Icon(
+        Icons.image_outlined,
+        color: Colors.grey.shade500,
       ),
     );
   }
 
-  Widget _buildProductImage(String imageUrl) {
-    if (imageUrl.isEmpty) {
-      return _imagePlaceholder();
+  Widget _buildProductItem(
+    Map<String, dynamic> item,
+  ) {
+    final name = (item['name'] ?? 'Product').toString();
+
+    final imageUrl =
+        (item['imageUrl'] ??
+                item['productImageUrl'] ??
+                '')
+            .toString();
+
+    final quantity = _int(item['quantity'] ?? 1);
+
+    final price = _number(item['price']);
+
+    Widget image;
+
+    if (imageUrl.isNotEmpty) {
+      image = ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          imageUrl,
+          width: 64,
+          height: 64,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) {
+            return _imagePlaceholder();
+          },
+        ),
+      );
+    } else {
+      image = _imagePlaceholder();
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.network(
-        imageUrl,
-        width: 64,
-        height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (
-          context,
-          error,
-          stackTrace,
-        ) {
-          return _imagePlaceholder();
-        },
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          image,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Quantity: $quantity',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '₩${(price * quantity).toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSellerOrder(
+  Future<void> _cancelSellerOrder(
     BuildContext context,
-    Map<String, dynamic> sellerOrder,
-  ) {
-    final sellerCode =
-        sellerOrder['sellerCode']?.toString() ?? '';
+    String sellerOrderId,
+    Map<String, dynamic> sellerOrderData,
+  ) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-    final sellerEmail =
-        sellerOrder['sellerEmail']?.toString() ?? '';
+    if (currentUser == null) {
+      return;
+    }
 
-    final status =
-        sellerOrder['orderStatus']?.toString() ??
-            'placed';
+    final customerId =
+        (sellerOrderData['customerId'] ?? '').toString();
 
-    final paymentStatus =
-        sellerOrder['paymentStatus']?.toString() ??
-            'pending';
-
-    final sellerSubtotal =
-        _number(
-          sellerOrder['sellerSubtotal'],
-        );
-
-    final totalQuantity =
-        _int(
-          sellerOrder['totalQuantity'],
-        );
-
-    final items =
-        (sellerOrder['items'] as List?) ?? [];
-
-    return Container(
-      margin: const EdgeInsets.only(
-        bottom: 16,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.grey.withValues(
-            alpha: 0.15,
+    if (customerId != currentUser.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You cannot cancel this order.',
           ),
         ),
-      ),
+      );
+      return;
+    }
+
+    final currentStatus =
+        (sellerOrderData['orderStatus'] ?? 'placed').toString();
+
+    if (!_canCancel(currentStatus)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'This order cannot be cancelled because it is already ${_statusText(currentStatus)}.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cancel Order?'),
+          content: const Text(
+            'Are you sure you want to cancel this order?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('No'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Yes, Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final sellerOrderRef = FirebaseFirestore.instance
+          .collection('seller_orders')
+          .doc(sellerOrderId);
+
+      final latestSnapshot =
+          await sellerOrderRef.get();
+
+      if (!latestSnapshot.exists) {
+        throw Exception('Seller order not found.');
+      }
+
+      final latestData =
+          latestSnapshot.data() ?? {};
+
+      final latestCustomerId =
+          (latestData['customerId'] ?? '').toString();
+
+      if (latestCustomerId != currentUser.uid) {
+        throw Exception(
+          'You cannot cancel this order.',
+        );
+      }
+
+      final latestStatus =
+          (latestData['orderStatus'] ?? 'placed').toString();
+
+      if (!_canCancel(latestStatus)) {
+        throw Exception(
+          'This order can no longer be cancelled.',
+        );
+      }
+
+      await sellerOrderRef.update({
+        'orderStatus': 'cancelled',
+        'cancelledBy': 'customer',
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Order cancelled successfully.',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not cancel order: $e',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildSellerOrderCard(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+
+    final sellerCode =
+        (data['sellerCode'] ?? 'Seller').toString();
+
+    final status =
+        (data['orderStatus'] ?? 'placed').toString();
+
+    final subtotal =
+        _number(data['sellerSubtotal']);
+
+    final itemsRaw = data['items'];
+
+    final items = itemsRaw is List
+        ? itemsRaw
+            .map(
+              (item) => Map<String, dynamic>.from(
+                item as Map,
+              ),
+            )
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -215,40 +379,18 @@ class MyOrdersPage extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent
-                        .withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.storefront_outlined,
-                    color: Colors.redAccent,
-                  ),
+                const Icon(
+                  Icons.storefront_outlined,
+                  color: Colors.redAccent,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Seller',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      Text(
-                        _sellerName(sellerOrder),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    sellerCode,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 _statusChip(status),
@@ -257,157 +399,10 @@ class MyOrdersPage extends StatelessWidget {
 
             const SizedBox(height: 14),
 
-            if (sellerCode.isNotEmpty)
-              _infoRow(
-                Icons.badge_outlined,
-                'Seller ID',
-                sellerCode,
-              ),
+            if (items.isNotEmpty)
+              ...items.map(_buildProductItem),
 
-            if (sellerEmail.isNotEmpty)
-              _infoRow(
-                Icons.email_outlined,
-                'Seller Email',
-                sellerEmail,
-              ),
-
-            const Divider(height: 24),
-
-            if (items.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(
-                  vertical: 10,
-                ),
-                child: Text(
-                  'No products found.',
-                  style: TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-              )
-            else
-              ...items.map(
-                (item) {
-                  final product =
-                      Map<String, dynamic>.from(
-                    item as Map,
-                  );
-
-                  final name =
-                      product['name']?.toString() ??
-                          'Product';
-
-                  final imageUrl =
-                      product['imageUrl']
-                              ?.toString() ??
-                          '';
-
-                  final quantity =
-                      _int(
-                    product['quantity'],
-                  );
-
-                  final price =
-                      _number(
-                    product['price'],
-                  );
-
-                  final total =
-                      _number(
-                    product['total'],
-                  );
-
-                  final productTotal =
-                      total > 0
-                          ? total
-                          : price * quantity;
-
-                  return Container(
-                    margin:
-                        const EdgeInsets.only(
-                      bottom: 12,
-                    ),
-                    child: Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        _buildProductImage(
-                          imageUrl,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
-                              Text(
-                                name,
-                                maxLines: 2,
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
-                                style:
-                                    const TextStyle(
-                                  fontWeight:
-                                      FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 5,
-                              ),
-                              Text(
-                                'Qty: $quantity',
-                                style:
-                                    const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 3,
-                              ),
-                              Text(
-                                '₩${productTotal.toStringAsFixed(0)}',
-                                style:
-                                    const TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-
-            const Divider(height: 24),
-
-            Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Items',
-                  style: TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-                Text(
-                  '$totalQuantity',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
+            const Divider(),
 
             Row(
               mainAxisAlignment:
@@ -416,423 +411,319 @@ class MyOrdersPage extends StatelessWidget {
                 const Text(
                   'Seller Subtotal',
                   style: TextStyle(
-                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '₩${sellerSubtotal.toStringAsFixed(0)}',
+                  '₩${subtotal.toStringAsFixed(0)}',
                   style: const TextStyle(
+                    color: Colors.redAccent,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-            Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Payment',
-                  style: TextStyle(
-                    color: Colors.grey,
+            if (_canCancel(status))
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _cancelSellerOrder(
+                      context,
+                      doc.id,
+                      data,
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.cancel_outlined,
+                    color: Colors.red,
+                  ),
+                  label: const Text(
+                    'Cancel Order',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(
+                      color: Colors.red,
+                    ),
                   ),
                 ),
-                Text(
-                  paymentStatus.toUpperCase(),
-                  style: TextStyle(
-                    color:
-                        paymentStatus
-                                .toLowerCase() ==
-                            'paid'
-                        ? Colors.green
-                        : Colors.orange,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _infoRow(
-    IconData icon,
-    String title,
-    String value,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        bottom: 7,
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 17,
-            color: Colors.grey,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$title: ',
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              overflow:
-                  TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight:
-                    FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMainOrder(
+  Widget _buildMainOrderCard(
     BuildContext context,
-    Map<String, dynamic> order,
-    List<Map<String, dynamic>> sellerOrders,
+    QueryDocumentSnapshot<Map<String, dynamic>> orderDoc,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>>
+        sellerOrders,
   ) {
-    final orderId =
-        order['orderId']?.toString() ?? '';
+    final data = orderDoc.data();
+
+    final orderId = orderDoc.id;
 
     final mainStatus =
-        order['orderStatus']?.toString() ??
-            'placed';
-
-    final paymentMethod =
-        order['paymentMethod']?.toString() ??
-            '';
+        (data['orderStatus'] ?? 'placed').toString();
 
     final total =
-        _number(order['total']);
+        _number(data['total']);
 
-    return Container(
-      margin: const EdgeInsets.only(
-        bottom: 28,
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.redAccent.withValues(
-                    alpha: 0.12,
-                  ),
-                  Colors.redAccent.withValues(
-                    alpha: 0.04,
-                  ),
-                ],
-              ),
-              borderRadius:
-                  BorderRadius.circular(18),
-            ),
-            child: Column(
+    final createdAt =
+        _formatDate(data['createdAt']);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 22),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.receipt_long,
-                      color: Colors.redAccent,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Order',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            orderId.isEmpty
-                                ? 'Order'
-                                : orderId,
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _statusChip(mainStatus),
-                  ],
-                ),
-
-                const SizedBox(height: 14),
-
-                Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Total',
-                      style: TextStyle(
-                        color: Colors.grey,
-                      ),
-                    ),
-                    Text(
-                      '₩${total.toStringAsFixed(0)}',
-                      style:
-                          const TextStyle(
-                        fontSize: 18,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (paymentMethod.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Payment: $paymentMethod',
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-
-                if (order['createdAt'] !=
-                    null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Ordered: '
-                    '${_formatDate(
-                      order['createdAt'],
-                    )}',
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 16),
-
-                // TRACK ORDER BUTTON
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: orderId.isEmpty
-                        ? null
-                        : () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    OrderTrackingPage(
-                                  orderId: orderId,
-                                ),
-                              ),
-                            );
-                          },
-                    icon: const Icon(
-                      Icons.local_shipping_outlined,
-                    ),
-                    label: const Text(
-                      'Track Order',
-                    ),
-                    style:
-                        ElevatedButton.styleFrom(
-                      backgroundColor:
-                          Colors.redAccent,
-                      foregroundColor:
-                          Colors.white,
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        vertical: 13,
-                      ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Order',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '#$orderId',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                _statusChip(mainStatus),
               ],
             ),
-          ),
 
-          const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
-          if (sellerOrders.isNotEmpty)
-            ...sellerOrders.map(
-              (sellerOrder) =>
-                  _buildSellerOrder(
-                context,
-                sellerOrder,
+            Text(
+              createdAt,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
               ),
-            )
-          else
-            Container(
-              padding:
-                  const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color:
-                    Theme.of(context)
-                        .cardColor,
-                borderRadius:
-                    BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.grey
-                      .withValues(
-                    alpha: 0.15,
-                  ),
-                ),
-              ),
-              child: const Row(
+            ),
+
+            const SizedBox(height: 14),
+
+            if (total > 0)
+              Row(
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: Colors.grey,
+                  const Text(
+                    'Order Total',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Seller order details are not available yet.',
-                      style: TextStyle(
-                        color: Colors.grey,
-                      ),
+                  Text(
+                    '₩${total.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                      color: Colors.redAccent,
                     ),
                   ),
                 ],
               ),
+
+            const SizedBox(height: 14),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          OrderTrackingPage(
+                        orderId: orderId,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(
+                  Icons.local_shipping_outlined,
+                ),
+                label: const Text('Track Order'),
+              ),
             ),
-        ],
+
+            if (sellerOrders.isNotEmpty) ...[
+              const SizedBox(height: 18),
+
+              const Text(
+                'Seller Orders',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              ...sellerOrders.map(
+                (sellerOrder) =>
+                    _buildSellerOrderCard(
+                  context,
+                  sellerOrder,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text(
-            'My Orders',
-          ),
+          title: const Text('My Orders'),
+          centerTitle: true,
         ),
         body: const Center(
           child: Text(
-            'Please login to view your orders.',
+            'Please login first.',
           ),
         ),
       );
     }
 
-    final ordersStream =
-        FirebaseFirestore.instance
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Orders'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
             .collection('orders')
             .where(
               'userId',
               isEqualTo: user.uid,
             )
-            .snapshots();
-
-    final sellerOrdersStream =
-        FirebaseFirestore.instance
-            .collection('seller_orders')
-            .where(
-              'customerId',
-              isEqualTo: user.uid,
-            )
-            .snapshots();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'My Orders',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<
-          QuerySnapshot<
-              Map<String, dynamic>>>(
-        stream: ordersStream,
-        builder: (
-          context,
-          orderSnapshot,
-        ) {
+            .snapshots(),
+        builder: (context, orderSnapshot) {
           if (orderSnapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child:
-                  CircularProgressIndicator(),
+              child: CircularProgressIndicator(),
             );
           }
 
           if (orderSnapshot.hasError) {
             return Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Failed to load orders.\n\n'
+                  'Unable to load orders.\n\n'
                   '${orderSnapshot.error}',
-                  textAlign:
-                      TextAlign.center,
+                  textAlign: TextAlign.center,
                 ),
               ),
             );
           }
 
-          final orders =
+          final orderDocs =
               orderSnapshot.data?.docs ?? [];
 
+          if (orderDocs.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.shopping_bag_outlined,
+                    size: 70,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'No Orders Yet',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Your orders will appear here.',
+                    style: TextStyle(
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final sortedOrders =
+              [...orderDocs];
+
+          sortedOrders.sort((a, b) {
+            final aTime =
+                a.data()['createdAt'];
+
+            final bTime =
+                b.data()['createdAt'];
+
+            if (aTime is Timestamp &&
+                bTime is Timestamp) {
+              return bTime.compareTo(aTime);
+            }
+
+            return 0;
+          });
+
           return StreamBuilder<
-              QuerySnapshot<
-                  Map<String, dynamic>>>(
-            stream: sellerOrdersStream,
-            builder: (
-              context,
-              sellerSnapshot,
-            ) {
-              if (sellerSnapshot
-                      .connectionState ==
+              QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('seller_orders')
+                .where(
+                  'customerId',
+                  isEqualTo: user.uid,
+                )
+                .snapshots(),
+            builder:
+                (context, sellerSnapshot) {
+              if (sellerSnapshot.connectionState ==
                   ConnectionState.waiting) {
                 return const Center(
-                  child:
-                      CircularProgressIndicator(),
+                  child: CircularProgressIndicator(),
                 );
               }
 
@@ -842,114 +733,46 @@ class MyOrdersPage extends StatelessWidget {
                     padding:
                         const EdgeInsets.all(20),
                     child: Text(
-                      'Failed to load seller orders.\n\n'
+                      'Unable to load seller orders.\n\n'
                       '${sellerSnapshot.error}',
-                      textAlign:
-                          TextAlign.center,
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 );
               }
 
               final sellerDocs =
-                  sellerSnapshot.data?.docs ??
-                      [];
+                  sellerSnapshot.data?.docs ?? [];
 
-              final Map<String,
-                      List<
-                          Map<String,
-                              dynamic>>>
-                  sellerOrdersByMainOrder = {};
+              final sellerOrdersByOrderId =
+                  <String,
+                      List<QueryDocumentSnapshot<
+                          Map<String, dynamic>>>>{};
 
-              for (final doc
+              for (final sellerDoc
                   in sellerDocs) {
-                final data = doc.data();
+                final data =
+                    sellerDoc.data();
 
                 final orderId =
-                    data['orderId']
-                            ?.toString() ??
-                        '';
+                    (data['orderId'] ?? '')
+                        .toString();
 
                 if (orderId.isEmpty) {
                   continue;
                 }
 
-                sellerOrdersByMainOrder
+                sellerOrdersByOrderId
                     .putIfAbsent(
-                      orderId,
-                      () => [],
-                    )
-                    .add(data);
+                  orderId,
+                  () => [],
+                )
+                    .add(sellerDoc);
               }
-
-              if (orders.isEmpty) {
-                return ListView(
-                  physics:
-                      const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(
-                      height: 120,
-                    ),
-                    Icon(
-                      Icons
-                          .shopping_bag_outlined,
-                      size: 80,
-                      color: Colors.grey,
-                    ),
-                    SizedBox(height: 20),
-                    Center(
-                      child: Text(
-                        'No Orders Yet',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Center(
-                      child: Text(
-                        'Your orders will appear here.',
-                        style: TextStyle(
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              final sortedOrders =
-                  [...orders];
-
-              sortedOrders.sort(
-                (a, b) {
-                  final aDate =
-                      a.data()['createdAt'];
-
-                  final bDate =
-                      b.data()['createdAt'];
-
-                  if (aDate is Timestamp &&
-                      bDate is Timestamp) {
-                    return bDate.compareTo(
-                      aDate,
-                    );
-                  }
-
-                  return 0;
-                },
-              );
 
               return ListView.builder(
                 padding:
-                    const EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  30,
-                ),
+                    const EdgeInsets.all(16),
                 itemCount:
                     sortedOrders.length,
                 itemBuilder:
@@ -957,26 +780,14 @@ class MyOrdersPage extends StatelessWidget {
                   final orderDoc =
                       sortedOrders[index];
 
-                  final orderData =
-                      orderDoc.data();
-
-                  final orderId =
-                      orderData['orderId']
-                                  ?.toString()
-                                  .isNotEmpty ==
-                              true
-                          ? orderData['orderId']
-                              .toString()
-                          : orderDoc.id;
-
                   final sellerOrders =
-                      sellerOrdersByMainOrder[
-                              orderId] ??
+                      sellerOrdersByOrderId[
+                              orderDoc.id] ??
                           [];
 
-                  return _buildMainOrder(
+                  return _buildMainOrderCard(
                     context,
-                    orderData,
+                    orderDoc,
                     sellerOrders,
                   );
                 },
