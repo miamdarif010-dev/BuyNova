@@ -5,12 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'buyer_page.dart';
 import 'edit_profile_page.dart';
 import 'settings_page.dart';
-import 'cart_page.dart';
 import 'admin_panel_page.dart';
 import 'my_products_page.dart';
 import 'my_videos_page.dart';
 import 'entrepreneur_page.dart';
 import 'watch_earn_page.dart';
+import 'favorites_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -76,10 +76,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
       final data = doc.data();
 
+      final rawPoints = data?['pointsBalance'];
+
+      int points = 0;
+
+      if (rawPoints is int) {
+        points = rawPoints;
+      } else if (rawPoints is num) {
+        points = rawPoints.toInt();
+      } else if (rawPoints != null) {
+        points = int.tryParse(rawPoints.toString()) ?? 0;
+      }
+
       if (mounted) {
         setState(() {
           _name = (data?['name'] ?? '').toString();
           _phone = (data?['phone'] ?? '').toString();
+
           _profileImageUrl =
               (data?['profileImageUrl'] ?? '').toString();
 
@@ -89,13 +102,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           _entrepreneurStatus =
               (data?['entrepreneurStatus'] ?? '').toString();
 
-          _pointsBalance =
-              (data?['pointsBalance'] ?? 0) is int
-                  ? data?['pointsBalance'] ?? 0
-                  : int.tryParse(
-                        (data?['pointsBalance'] ?? '0').toString(),
-                      ) ??
-                      0;
+          _pointsBalance = points;
 
           _isLoading = false;
         });
@@ -155,15 +162,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  void _openCart() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const CartPage(),
-      ),
-    );
-  }
-
   void _openAdminPanel() {
     Navigator.push(
       context,
@@ -191,11 +189,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  void _notification(String title) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$title notifications coming soon.'),
-        behavior: SnackBarBehavior.floating,
+  void _openFavorites() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FavoritesPage(),
       ),
     );
   }
@@ -471,6 +469,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
           onTap: _openMyVideos,
         ),
         _menuItem(
+          icon: Icons.favorite_border,
+          title: 'Favorites',
+          onTap: _openFavorites,
+        ),
+        _menuItem(
           icon: Icons.receipt_long_outlined,
           title: 'Sales / Orders',
           onTap: () {
@@ -580,6 +583,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
           icon: Icons.storefront_outlined,
           title: 'My Store',
           onTap: _openEntrepreneur,
+        ),
+        _menuItem(
+          icon: Icons.favorite_border,
+          title: 'Favorites',
+          onTap: _openFavorites,
         ),
         _menuItem(
           icon: Icons.receipt_long_outlined,
@@ -793,9 +801,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       const SizedBox(height: 8),
                     ],
 
-                    // =========================
                     // BUYER
-                    // =========================
                     _expandableSectionHeader(
                       icon: Icons.shopping_bag_outlined,
                       title: 'BUYER',
@@ -813,9 +819,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 8),
 
-                    // =========================
                     // EARN & REWARDS
-                    // =========================
                     _expandableSectionHeader(
                       icon: Icons.stars_outlined,
                       title: 'EARN & REWARDS',
@@ -857,9 +861,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 8),
 
-                    // =========================
                     // ENTREPRENEUR / RESELLER
-                    // =========================
                     _expandableSectionHeader(
                       icon: Icons.business_center_outlined,
                       title: 'ENTREPRENEUR / RESELLER',
@@ -878,9 +880,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 8),
 
-                    // =========================
                     // SELLER
-                    // =========================
                     _expandableSectionHeader(
                       icon: Icons.storefront_outlined,
                       title: 'SELLER',
@@ -899,18 +899,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     const SizedBox(height: 16),
 
-                    // =========================
                     // SETTINGS
-                    // =========================
                     _menuItem(
                       icon: Icons.settings_outlined,
                       title: 'Settings',
                       onTap: _openSettings,
                     ),
 
-                    // =========================
                     // LOGOUT
-                    // =========================
                     _menuItem(
                       icon: Icons.logout,
                       title: 'Logout',
