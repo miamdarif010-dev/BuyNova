@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class MyOrdersPage extends StatelessWidget {
   const MyOrdersPage({super.key});
@@ -20,22 +20,24 @@ class MyOrdersPage extends StatelessWidget {
       case 'cancelled':
         return 'Cancelled';
       default:
-        return status.isEmpty ? 'Order Placed' : status;
+        return status.isEmpty ? 'Unknown' : status;
     }
   }
 
   Color _statusColor(String status) {
     switch (status) {
+      case 'placed':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      case 'processing':
+        return Colors.deepPurple;
+      case 'shipped':
+        return Colors.indigo;
       case 'delivered':
         return Colors.green;
       case 'cancelled':
         return Colors.red;
-      case 'shipped':
-        return Colors.blue;
-      case 'processing':
-        return Colors.orange;
-      case 'confirmed':
-        return Colors.teal;
       default:
         return Colors.grey;
     }
@@ -45,262 +47,280 @@ class MyOrdersPage extends StatelessWidget {
     if (value is Timestamp) {
       final date = value.toDate();
 
-      return '${date.day.toString().padLeft(2, '0')}/'
-          '${date.month.toString().padLeft(2, '0')}/'
-          '${date.year} '
-          '${date.hour.toString().padLeft(2, '0')}:'
-          '${date.minute.toString().padLeft(2, '0')}';
+      final day =
+          date.day.toString().padLeft(2, '0');
+      final month =
+          date.month.toString().padLeft(2, '0');
+      final year = date.year.toString();
+
+      final hour =
+          date.hour.toString().padLeft(2, '0');
+      final minute =
+          date.minute.toString().padLeft(2, '0');
+
+      return '$day/$month/$year $hour:$minute';
     }
 
     return 'Processing...';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('My Orders'),
-          backgroundColor: Colors.redAccent,
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(
-          child: Text(
-            'Please sign in to see your orders.',
-            style: TextStyle(fontSize: 16),
-          ),
-        ),
-      );
+  double _number(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'My Orders',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.redAccent,
-        foregroundColor: Colors.white,
-      ),
-
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('orders')
-            .where(
-              'userId',
-              isEqualTo: user.uid,
-            )
-            .snapshots(),
-
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text(
-                  'Failed to load orders.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                color: Colors.redAccent,
-              ),
-            );
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-
-          if (docs.isEmpty) {
-            return _emptyOrders(context);
-          }
-
-          // Sort newest first locally.
-          final sortedDocs = [...docs];
-
-          sortedDocs.sort((a, b) {
-            final aData =
-                a.data() as Map<String, dynamic>;
-            final bData =
-                b.data() as Map<String, dynamic>;
-
-            final aTime = aData['createdAt'];
-            final bTime = bData['createdAt'];
-
-            if (aTime is Timestamp &&
-                bTime is Timestamp) {
-              return bTime.compareTo(aTime);
-            }
-
-            return 0;
-          });
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: sortedDocs.length,
-            itemBuilder: (context, index) {
-              final doc = sortedDocs[index];
-
-              final data =
-                  doc.data() as Map<String, dynamic>;
-
-              return _OrderCard(
-                data: data,
-                orderId: doc.id,
-                statusText: _statusText(
-                  data['orderStatus']
-                          ?.toString() ??
-                      'placed',
-                ),
-                statusColor: _statusColor(
-                  data['orderStatus']
-                          ?.toString() ??
-                      'placed',
-                ),
-                formattedDate: _formatDate(
-                  data['createdAt'],
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 
-  Widget _emptyOrders(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.shopping_bag_outlined,
-              size: 80,
-              color: Colors.grey.shade400,
-            ),
+  int _int(dynamic value) {
+    if (value is num) {
+      return value.toInt();
+    }
 
-            const SizedBox(height: 16),
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
+  }
 
-            const Text(
-              'No Orders Yet',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+  Widget _statusChip(String status) {
+    final color = _statusColor(status);
 
-            const SizedBox(height: 8),
-
-            Text(
-              'Your orders will appear here.',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text(
-                'Continue Shopping',
-              ),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _statusText(status),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
         ),
       ),
     );
   }
-}
 
-// =============================================================
-// ORDER CARD
-// =============================================================
-
-class _OrderCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  final String orderId;
-  final String statusText;
-  final Color statusColor;
-  final String formattedDate;
-
-  const _OrderCard({
-    required this.data,
-    required this.orderId,
-    required this.statusText,
-    required this.statusColor,
-    required this.formattedDate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final productName =
-        data['productName']?.toString() ??
-            'Product';
+  Widget _buildItemCard(
+    Map<String, dynamic> item,
+  ) {
+    final name =
+        (item['productName'] ?? 'Product').toString();
 
     final imageUrl =
-        data['imageUrl']?.toString() ?? '';
+        (item['imageUrl'] ?? '').toString();
+
+    final price =
+        _number(item['price']);
 
     final quantity =
-        data['quantity'] is num
-            ? (data['quantity'] as num).toInt()
-            : 1;
+        _int(item['quantity']);
 
-    final total =
-        data['total'] is num
-            ? (data['total'] as num).toDouble()
-            : 0.0;
+    final itemTotal =
+        _number(item['total']);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 65,
+            height: 65,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius:
+                  BorderRadius.circular(10),
+            ),
+            child: imageUrl.trim().isNotEmpty
+                ? ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(10),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (
+                        context,
+                        error,
+                        stackTrace,
+                      ) {
+                        return const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: Colors.grey,
+                        );
+                      },
+                    ),
+                  )
+                : const Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Colors.grey,
+                  ),
+          ),
+
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  '₩${price.toStringAsFixed(0)} × $quantity',
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Text(
+            '₩${itemTotal.toStringAsFixed(0)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data() ?? {};
+
+    final orderId =
+        (data['orderId'] ?? document.id).toString();
+
+    final status =
+        (data['orderStatus'] ?? 'placed').toString();
 
     final paymentMethod =
-        data['paymentMethod']?.toString() ??
-            'Cash on Delivery';
+        (data['paymentMethod'] ?? 'Cash on Delivery')
+            .toString();
+
+    final paymentStatus =
+        (data['paymentStatus'] ?? 'pending')
+            .toString();
+
+    final total =
+        _number(data['total']);
+
+    final subtotal =
+        _number(data['subtotal']);
+
+    final deliveryFee =
+        _number(data['deliveryFee']);
+
+    final itemCount =
+        _int(data['itemCount']);
+
+    final totalQuantity =
+        _int(data['totalQuantity']);
+
+    final createdAt =
+        data['createdAt'];
+
+    final rawItems = data['items'];
+
+    final List<Map<String, dynamic>> items = [];
+
+    if (rawItems is List) {
+      for (final rawItem in rawItems) {
+        if (rawItem is Map) {
+          items.add(
+            Map<String, dynamic>.from(rawItem),
+          );
+        }
+      }
+    }
+
+    // পুরোনো single-product order support
+    if (items.isEmpty &&
+        data['productName'] != null) {
+      items.add({
+        'productId':
+            data['productId'] ?? '',
+        'productName':
+            data['productName'] ?? 'Product',
+        'imageUrl':
+            data['imageUrl'] ?? '',
+        'price':
+            data['productPrice'] ?? 0,
+        'quantity':
+            data['quantity'] ?? 1,
+        'total':
+            data['subtotal'] ??
+                data['total'] ??
+                0,
+      });
+    }
+
+    final displayItemCount =
+        itemCount > 0
+            ? itemCount
+            : items.length;
+
+    final displayQuantity =
+        totalQuantity > 0
+            ? totalQuantity
+            : items.fold<int>(
+                0,
+                (sum, item) =>
+                    sum +
+                    _int(item['quantity']),
+              );
 
     return Card(
       margin: const EdgeInsets.only(
-        bottom: 12,
+        bottom: 16,
       ),
       elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius:
+            BorderRadius.circular(18),
       ),
-
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            // =================================================
-            // ORDER HEADER
-            // =================================================
-
             Row(
               children: [
                 const Icon(
                   Icons.receipt_long_outlined,
-                  color: Colors.redAccent,
+                  size: 22,
                 ),
 
                 const SizedBox(width: 8),
@@ -310,6 +330,130 @@ class _OrderCard extends StatelessWidget {
                     'Order #${orderId.length > 8 ? orderId.substring(0, 8) : orderId}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+
+                _statusChip(status),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              _formatDate(createdAt),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+
+            const Divider(height: 24),
+
+            Text(
+              '$displayItemCount product(s) • $displayQuantity item(s)',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            ...items.map(
+              _buildItemCard,
+            ),
+
+            const SizedBox(height: 14),
+
+            Container(
+              padding:
+                  const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius:
+                    BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Subtotal',
+                        style: TextStyle(
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Text(
+                        '₩${subtotal.toStringAsFixed(0)}',
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Delivery',
+                        style: TextStyle(
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Text(
+                        '₩${deliveryFee.toStringAsFixed(0)}',
+                      ),
+                    ],
+                  ),
+
+                  const Divider(height: 18),
+
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Total',
+                        style: TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        '₩${total.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                          fontSize: 17,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                const Icon(
+                  Icons.payments_outlined,
+                  size: 19,
+                  color: Colors.grey,
+                ),
+
+                const SizedBox(width: 7),
+
+                Expanded(
+                  child: Text(
+                    paymentMethod,
+                    style: const TextStyle(
+                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -321,141 +465,30 @@ class _OrderCard extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        statusColor.withOpacity(0.12),
+                    color: paymentStatus ==
+                            'paid'
+                        ? Colors.green
+                            .withValues(alpha: 0.12)
+                        : Colors.orange
+                            .withValues(alpha: 0.12),
                     borderRadius:
                         BorderRadius.circular(20),
                   ),
                   child: Text(
-                    statusText,
+                    paymentStatus
+                        .toUpperCase(),
                     style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      color: paymentStatus ==
+                              'paid'
+                          ? Colors.green
+                          : Colors.orange,
+                      fontSize: 11,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                 ),
               ],
-            ),
-
-            const Divider(height: 20),
-
-            // =================================================
-            // PRODUCT
-            // =================================================
-
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 78,
-                  height: 78,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius:
-                        BorderRadius.circular(8),
-                  ),
-                  child: imageUrl.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(8),
-                          child: Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder:
-                                (
-                              context,
-                              error,
-                              stackTrace,
-                            ) {
-                              return const Icon(
-                                Icons.image,
-                                size: 35,
-                                color: Colors.grey,
-                              );
-                            },
-                          ),
-                        )
-                      : const Icon(
-                          Icons.image,
-                          size: 35,
-                          color: Colors.grey,
-                        ),
-                ),
-
-                const SizedBox(width: 12),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        productName,
-                        maxLines: 2,
-                        overflow:
-                            TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 7),
-
-                      Text(
-                        'Quantity: $quantity',
-                        style: TextStyle(
-                          color:
-                              Colors.grey.shade700,
-                        ),
-                      ),
-
-                      const SizedBox(height: 5),
-
-                      Text(
-                        '₩${total.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // =================================================
-            // ORDER DETAILS
-            // =================================================
-
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius:
-                    BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  _infoRow(
-                    'Payment',
-                    paymentMethod,
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  _infoRow(
-                    'Order Date',
-                    formattedDate,
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -463,32 +496,172 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(
-    String title,
-    String value,
-  ) {
-    return Row(
-      mainAxisAlignment:
-          MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 13,
-          ),
+  @override
+  Widget build(BuildContext context) {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('My Orders'),
         ),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Please login to see your orders.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
-      ],
+      );
+    }
+
+    final ordersStream = FirebaseFirestore
+        .instance
+        .collection('orders')
+        .where(
+          'userId',
+          isEqualTo: user.uid,
+        )
+        .snapshots();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Orders'),
+      ),
+
+      body: StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>>(
+        stream: ordersStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(20),
+                child: Text(
+                  'Could not load orders.\n${snapshot.error}',
+                  textAlign:
+                      TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          final documents =
+              snapshot.data?.docs ?? [];
+
+          final sortedDocuments =
+              [...documents];
+
+          sortedDocuments.sort(
+            (a, b) {
+              final aTime =
+                  a.data()['createdAt'];
+
+              final bTime =
+                  b.data()['createdAt'];
+
+              if (aTime is Timestamp &&
+                  bTime is Timestamp) {
+                return bTime
+                    .compareTo(aTime);
+              }
+
+              return 0;
+            },
+          );
+
+          if (sortedDocuments.isEmpty) {
+            return Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons
+                          .shopping_bag_outlined,
+                      size: 90,
+                      color: Colors.grey,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    const Text(
+                      'No Orders Yet',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    const Text(
+                      'Your orders will appear here.',
+                      textAlign:
+                          TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+
+                    const SizedBox(height: 22),
+
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(
+                          context,
+                        );
+                      },
+                      style:
+                          ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Colors.redAccent,
+                        foregroundColor:
+                            Colors.white,
+                      ),
+                      child: const Text(
+                        'Continue Shopping',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding:
+                const EdgeInsets.all(16),
+            itemCount:
+                sortedDocuments.length,
+            itemBuilder:
+                (context, index) {
+              return _buildOrderCard(
+                sortedDocuments[index],
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
