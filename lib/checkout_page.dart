@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'my_orders_page.dart';
 
@@ -23,17 +23,26 @@ class CheckoutItem {
 }
 
 class CheckoutPage extends StatefulWidget {
-  /// Cart থেকে একাধিক product পাঠানোর জন্য
+  // =========================================================
+  // NEW CART CHECKOUT
+  // =========================================================
+
   final List<CheckoutItem> items;
 
-  /// Buy Now-এর পুরোনো single-product system-এর জন্য
+  // =========================================================
+  // OLD BUY NOW COMPATIBILITY
+  // =========================================================
+
   final String? productId;
   final String? productName;
   final double? price;
   final String? imageUrl;
   final int? quantity;
 
-  /// Cart থেকে এলে order দেওয়ার পর cart clear হবে
+  // =========================================================
+  // CLEAR CART AFTER SUCCESS
+  // =========================================================
+
   final bool clearCartOnSuccess;
 
   const CheckoutPage({
@@ -46,6 +55,10 @@ class CheckoutPage extends StatefulWidget {
     this.quantity,
     this.clearCartOnSuccess = false,
   });
+
+  // =========================================================
+  // RESOLVE CHECKOUT ITEMS
+  // =========================================================
 
   List<CheckoutItem> get checkoutItems {
     if (items.isNotEmpty) {
@@ -67,95 +80,181 @@ class CheckoutPage extends StatefulWidget {
       ];
     }
 
-    return [];
+    return const [];
   }
 
   @override
-  State<CheckoutPage> createState() => _CheckoutPageState();
+  State<CheckoutPage> createState() =>
+      _CheckoutPageState();
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
-  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController =
+      TextEditingController();
 
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _phoneController =
+      TextEditingController();
+
+  final TextEditingController _addressController =
+      TextEditingController();
 
   bool _placingOrder = false;
 
+  String _paymentMethod = 'Cash on Delivery';
+
   static const double deliveryFee = 3000;
 
-  List<CheckoutItem> get items => widget.checkoutItems;
+  // =========================================================
+  // SUBTOTAL
+  // =========================================================
 
   double get subtotal {
-    double value = 0;
+    double total = 0;
 
-    for (final item in items) {
-      value += item.total;
+    for (final item in widget.checkoutItems) {
+      total += item.total;
     }
 
-    return value;
+    return total;
   }
 
-  double get total {
+  // =========================================================
+  // TOTAL QUANTITY
+  // =========================================================
+
+  int get totalQuantity {
+    int quantity = 0;
+
+    for (final item in widget.checkoutItems) {
+      quantity += item.quantity;
+    }
+
+    return quantity;
+  }
+
+  // =========================================================
+  // GRAND TOTAL
+  // =========================================================
+
+  double get grandTotal {
     return subtotal + deliveryFee;
   }
 
-  int get totalQuantity {
-    int value = 0;
-
-    for (final item in items) {
-      value += item.quantity;
-    }
-
-    return value;
-  }
+  // =========================================================
+  // INIT
+  // =========================================================
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadUserInformation();
   }
 
+  // =========================================================
+  // LOAD USER INFORMATION
+  // =========================================================
+
+  Future<void> _loadUserInformation() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!mounted) return;
+
+      final data = snapshot.data();
+
+      if (data != null) {
+        _nameController.text =
+            data['name']?.toString() ?? '';
+
+        _phoneController.text =
+            data['phone']?.toString() ?? '';
+      }
+    } catch (_) {
+      // Keep checkout usable even if profile loading fails.
+    }
+  }
+
+  // =========================================================
+  // CLEAR CART
+  // =========================================================
+
   Future<void> _clearCart(String uid) async {
-    final cartRef = FirebaseFirestore.instance
+    final snapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .collection('cart');
+        .collection('cart')
+        .get();
 
-    final snapshot = await cartRef.get();
-
-    if (snapshot.docs.isEmpty) {
-      return;
-    }
+    if (snapshot.docs.isEmpty) return;
 
     final batch = FirebaseFirestore.instance.batch();
 
-    for (final doc in snapshot.docs) {
-      batch.delete(doc.reference);
+    for (final document in snapshot.docs) {
+      batch.delete(document.reference);
     }
 
     await batch.commit();
   }
 
-  Future<void> _placeOrder() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
+  // =========================================================
+  // VALIDATE
+  // =========================================================
+
+  bool _validateForm() {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final address = _addressController.text.trim();
+
+    if (name.isEmpty) {
+      _showMessage('Please enter your full name.');
+      return false;
     }
+
+    if (phone.isEmpty) {
+      _showMessage('Please enter your phone number.');
+      return false;
+    }
+
+    if (address.isEmpty) {
+      _showMessage('Please enter your delivery address.');
+      return false;
+    }
+
+    if (phone.length < 7) {
+      _showMessage('Please enter a valid phone number.');
+      return false;
+    }
+
+    if (widget.checkoutItems.isEmpty) {
+      _showMessage('No products selected.');
+      return false;
+    }
+
+    return true;
+  }
+
+  // =========================================================
+  // PLACE ORDER
+  // =========================================================
+
+  Future<void> _placeOrder() async {
+    if (_placingOrder) return;
 
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      _showMessage('Please login first.');
+      _showMessage('Please login before placing an order.');
       return;
     }
 
-    if (items.isEmpty) {
-      _showMessage('Your cart is empty.');
-      return;
-    }
+    if (!_validateForm()) return;
 
     setState(() {
       _placingOrder = true;
@@ -165,7 +264,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final orderRef =
           FirebaseFirestore.instance.collection('orders').doc();
 
-      final orderItems = items.map((item) {
+      final itemsData = widget.checkoutItems.map((item) {
         return {
           'productId': item.productId,
           'productName': item.productName,
@@ -178,56 +277,133 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       await orderRef.set({
         'orderId': orderRef.id,
+
         'userId': user.uid,
         'userEmail': user.email ?? '',
 
-        'customerName': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'address': _addressController.text.trim(),
+        'customerName':
+            _nameController.text.trim(),
 
-        'items': orderItems,
-        'itemCount': items.length,
-        'totalQuantity': totalQuantity,
+        'phone':
+            _phoneController.text.trim(),
+
+        'address':
+            _addressController.text.trim(),
+
+        // =====================================================
+        // MULTI PRODUCT ITEMS
+        // =====================================================
+
+        'items': itemsData,
+
+        'itemCount':
+            widget.checkoutItems.length,
+
+        'totalQuantity':
+            totalQuantity,
+
+        // =====================================================
+        // MONEY
+        // =====================================================
 
         'subtotal': subtotal,
+
         'deliveryFee': deliveryFee,
-        'total': total,
 
-        'paymentMethod': 'Cash on Delivery',
-        'paymentStatus': 'pending',
-        'orderStatus': 'placed',
+        'total': grandTotal,
 
-        'createdAt': FieldValue.serverTimestamp(),
+        // =====================================================
+        // PAYMENT
+        // =====================================================
+
+        'paymentMethod':
+            _paymentMethod,
+
+        'paymentStatus':
+            'pending',
+
+        // =====================================================
+        // ORDER STATUS
+        // =====================================================
+
+        'orderStatus':
+            'placed',
+
+        // =====================================================
+        // DATE
+        // =====================================================
+
+        'createdAt':
+            FieldValue.serverTimestamp(),
       });
+
+      // =======================================================
+      // CLEAR CART ONLY FOR CART CHECKOUT
+      // =======================================================
 
       if (widget.clearCartOnSuccess) {
         await _clearCart(user.uid);
       }
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Order placed successfully!'),
-          backgroundColor: Colors.green,
-        ),
+      // =======================================================
+      // SUCCESS DIALOG
+      // =======================================================
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: 30,
+                ),
+                SizedBox(width: 10),
+                Text('Order Placed'),
+              ],
+            ),
+            content: Text(
+              'Your order has been placed successfully.\n\n'
+              'Order ID:\n${orderRef.id}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
       );
 
-      await Navigator.pushReplacement(
+      if (!mounted) return;
+
+      // =======================================================
+      // GO TO MY ORDERS
+      // =======================================================
+
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (context) => const MyOrdersPage(),
         ),
+        (route) => route.isFirst,
       );
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       _showMessage(
-        'Failed to place order. Please try again.',
+        'Could not place order.\n$e',
       );
     } finally {
       if (mounted) {
@@ -238,117 +414,168 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
   }
 
+  // =========================================================
+  // MESSAGE
+  // =========================================================
+
   void _showMessage(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  Widget _buildProductItem(CheckoutItem item) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+  // =========================================================
+  // PRODUCT IMAGE
+  // =========================================================
+
+  Widget _productImage(CheckoutItem item) {
+    final imageUrl = item.imageUrl ?? '';
+
+    if (imageUrl.isEmpty) {
+      return Container(
+        width: 75,
+        height: 75,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(
+          Icons.image_outlined,
+          color: Colors.grey,
+          size: 35,
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        imageUrl,
+        width: 75,
+        height: 75,
+        fit: BoxFit.cover,
+        errorBuilder:
+            (context, error, stackTrace) {
+          return Container(
+            width: 75,
+            height: 75,
+            color: Colors.grey.shade200,
+            child: const Icon(
+              Icons.image_outlined,
+              color: Colors.grey,
+              size: 35,
             ),
-            child: item.imageUrl != null &&
-                    item.imageUrl!.trim().isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      item.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (
-                        context,
-                        error,
-                        stackTrace,
-                      ) {
-                        return const Icon(
-                          Icons.image_not_supported_outlined,
-                          color: Colors.grey,
-                        );
-                      },
-                    ),
-                  )
-                : const Icon(
-                    Icons.shopping_bag_outlined,
-                    color: Colors.grey,
-                    size: 30,
-                  ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.productName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '₩${item.price.toStringAsFixed(0)} × ${item.quantity}',
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '₩${item.total.toStringAsFixed(0)}',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
+
+  // =========================================================
+  // PRODUCT CARD
+  // =========================================================
+
+  Widget _productCard(CheckoutItem item) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            _productImage(item),
+
+            const SizedBox(width: 12),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.productName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    '₩${item.price.toStringAsFixed(0)} × ${item.quantity}',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 14,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    '₩${item.total.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // SUMMARY ROW
+  // =========================================================
 
   Widget _summaryRow(
     String title,
     String value, {
     bool bold = false,
+    Color? valueColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        vertical: 5,
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight:
-                  bold ? FontWeight.bold : FontWeight.normal,
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: bold
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
             ),
           ),
           Text(
             value,
             style: TextStyle(
               fontSize: 15,
-              fontWeight:
-                  bold ? FontWeight.bold : FontWeight.normal,
+              fontWeight: bold
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              color: valueColor,
             ),
           ),
         ],
@@ -356,247 +583,338 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Checkout'),
-        ),
-        body: const Center(
-          child: Text(
-            'No products available for checkout.',
-          ),
-        ),
-      );
-    }
+    final items = widget.checkoutItems;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Checkout'),
+        backgroundColor: Colors.redAccent,
+        foregroundColor: Colors.white,
+        title: const Text(
+          'Checkout',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Delivery Information',
+
+      body: items.isEmpty
+          ? const Center(
+              child: Text(
+                'No products selected.',
                 style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                  color: Colors.grey,
                 ),
               ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                120,
+              ),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  // =================================================
+                  // ORDER ITEMS
+                  // =================================================
 
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: const Icon(Icons.person_outline),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  const Text(
+                    'Order Items',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                validator: (value) {
-                  if (value == null ||
-                      value.trim().isEmpty) {
-                    return 'Please enter your name';
-                  }
 
-                  return null;
-                },
-              ),
+                  const SizedBox(height: 10),
 
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: const Icon(Icons.phone_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  ...items.map(
+                    (item) => _productCard(item),
                   ),
-                ),
-                validator: (value) {
-                  if (value == null ||
-                      value.trim().isEmpty) {
-                    return 'Please enter your phone number';
-                  }
 
-                  if (value.trim().length < 8) {
-                    return 'Please enter a valid phone number';
-                  }
+                  const SizedBox(height: 20),
 
-                  return null;
-                },
-              ),
+                  // =================================================
+                  // DELIVERY INFORMATION
+                  // =================================================
 
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _addressController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'Delivery Address',
-                  prefixIcon: const Icon(
-                    Icons.location_on_outlined,
+                  const Text(
+                    'Delivery Information',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+
+                  const SizedBox(height: 12),
+
+                  TextField(
+                    controller: _nameController,
+                    textInputAction:
+                        TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'Full Name',
+                      hintText:
+                          'Enter your full name',
+                      prefixIcon:
+                          const Icon(Icons.person),
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
-                ),
-                validator: (value) {
-                  if (value == null ||
-                      value.trim().isEmpty) {
-                    return 'Please enter delivery address';
-                  }
 
-                  return null;
-                },
-              ),
+                  const SizedBox(height: 12),
 
-              const SizedBox(height: 28),
-
-              const Text(
-                'Order Items',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              ...items.map(_buildProductItem),
-
-              const SizedBox(height: 14),
-
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  children: [
-                    _summaryRow(
-                      'Products',
-                      '${items.length}',
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType:
+                        TextInputType.phone,
+                    textInputAction:
+                        TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number',
+                      hintText:
+                          'Enter your phone number',
+                      prefixIcon:
+                          const Icon(Icons.phone),
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(12),
+                      ),
                     ),
-                    _summaryRow(
-                      'Total Quantity',
-                      '$totalQuantity',
-                    ),
-                    _summaryRow(
-                      'Subtotal',
-                      '₩${subtotal.toStringAsFixed(0)}',
-                    ),
-                    _summaryRow(
-                      'Delivery',
-                      '₩${deliveryFee.toStringAsFixed(0)}',
-                    ),
-                    const Divider(),
-                    _summaryRow(
-                      'Total',
-                      '₩${total.toStringAsFixed(0)}',
-                      bold: true,
-                    ),
-                  ],
-                ),
-              ),
+                  ),
 
-              const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.payments_outlined,
-                      color: Colors.green,
+                  TextField(
+                    controller: _addressController,
+                    keyboardType:
+                        TextInputType.streetAddress,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText:
+                          'Delivery Address',
+                      hintText:
+                          'Enter your complete delivery address',
+                      prefixIcon:
+                          const Padding(
+                        padding: EdgeInsets.only(
+                          bottom: 45,
+                        ),
+                        child: Icon(
+                          Icons.location_on,
+                        ),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(12),
+                      ),
                     ),
-                    SizedBox(width: 12),
-                    Expanded(
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // =================================================
+                  // PAYMENT METHOD
+                  // =================================================
+
+                  const Text(
+                    'Payment Method',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Card(
+                    elevation: 0,
+                    shape:
+                        RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(12),
+                      side: BorderSide(
+                        color:
+                            Colors.grey.shade300,
+                      ),
+                    ),
+                    child: RadioListTile<String>(
+                      value:
+                          'Cash on Delivery',
+                      groupValue:
+                          _paymentMethod,
+                      onChanged: (value) {
+                        if (value == null) return;
+
+                        setState(() {
+                          _paymentMethod = value;
+                        });
+                      },
+                      title: const Text(
+                        'Cash on Delivery',
+                        style: TextStyle(
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Pay when your order arrives',
+                      ),
+                      secondary: const Icon(
+                        Icons.payments_outlined,
+                        color:
+                            Colors.redAccent,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // =================================================
+                  // ORDER SUMMARY
+                  // =================================================
+
+                  const Text(
+                    'Order Summary',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Card(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.all(16),
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Cash on Delivery',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          _summaryRow(
+                            'Products',
+                            '${items.length}',
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Pay when your order is delivered.',
-                            style: TextStyle(
-                              color: Colors.grey,
-                            ),
+                          _summaryRow(
+                            'Total Quantity',
+                            '$totalQuantity',
+                          ),
+                          _summaryRow(
+                            'Subtotal',
+                            '₩${subtotal.toStringAsFixed(0)}',
+                          ),
+                          _summaryRow(
+                            'Delivery Fee',
+                            '₩${deliveryFee.toStringAsFixed(0)}',
+                          ),
+                          const Divider(
+                            height: 20,
+                          ),
+                          _summaryRow(
+                            'Total',
+                            '₩${grandTotal.toStringAsFixed(0)}',
+                            bold: true,
+                            valueColor:
+                                Colors.redAccent,
                           ),
                         ],
                       ),
                     ),
-                    Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
+                  ),
+                ],
+              ),
+            ),
+
+      // =========================================================
+      // PLACE ORDER BUTTON
+      // =========================================================
+
+      bottomNavigationBar: items.isEmpty
+          ? null
+          : SafeArea(
+              child: Container(
+                padding:
+                    const EdgeInsets.all(12),
+                decoration:
+                    const BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, -2),
                     ),
                   ],
                 ),
-              ),
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed:
-                      _placingOrder ? null : _placeOrder,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: _placingOrder
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          'Place Order • ₩${total.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed:
+                        _placingOrder
+                            ? null
+                            : _placeOrder,
+                    style:
+                        ElevatedButton.styleFrom(
+                      backgroundColor:
+                          Colors.redAccent,
+                      foregroundColor:
+                          Colors.white,
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(
+                          12,
                         ),
+                      ),
+                    ),
+                    child: _placingOrder
+                        ? const SizedBox(
+                            width: 25,
+                            height: 25,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Place Order • ₩${grandTotal.toStringAsFixed(0)}',
+                            style:
+                                const TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                  ),
                 ),
               ),
-
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
+  }
+
+  // =========================================================
+  // DISPOSE
+  // =========================================================
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
   }
 }
