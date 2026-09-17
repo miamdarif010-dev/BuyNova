@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class OrderTrackingPage extends StatelessWidget {
@@ -28,25 +29,6 @@ class OrderTrackingPage extends StatelessWidget {
     }
   }
 
-  IconData _statusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'placed':
-        return Icons.receipt_long_outlined;
-      case 'confirmed':
-        return Icons.check_circle_outline;
-      case 'processing':
-        return Icons.inventory_2_outlined;
-      case 'shipped':
-        return Icons.local_shipping_outlined;
-      case 'delivered':
-        return Icons.home_outlined;
-      case 'cancelled':
-        return Icons.cancel_outlined;
-      default:
-        return Icons.receipt_long_outlined;
-    }
-  }
-
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'placed':
@@ -63,6 +45,25 @@ class OrderTrackingPage extends StatelessWidget {
         return Colors.red;
       default:
         return Colors.grey;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'placed':
+        return Icons.receipt_long_outlined;
+      case 'confirmed':
+        return Icons.check_circle_outline;
+      case 'processing':
+        return Icons.inventory_2_outlined;
+      case 'shipped':
+        return Icons.local_shipping_outlined;
+      case 'delivered':
+        return Icons.home_outlined;
+      case 'cancelled':
+        return Icons.cancel_outlined;
+      default:
+        return Icons.receipt_long_outlined;
     }
   }
 
@@ -90,16 +91,79 @@ class OrderTrackingPage extends StatelessWidget {
 
     final date = value.toDate();
 
-    String two(int value) {
-      return value.toString().padLeft(2, '0');
+    String two(int number) {
+      return number.toString().padLeft(2, '0');
     }
 
     return '${date.year}-${two(date.month)}-${two(date.day)} '
         '${two(date.hour)}:${two(date.minute)}';
   }
 
+  // =====================================================
+  // CALCULATE OVERALL STATUS FROM ALL SELLERS
+  // =====================================================
+
+  String _calculateOverallStatus(
+    List<Map<String, dynamic>> sellerOrders,
+    String fallbackStatus,
+  ) {
+    if (sellerOrders.isEmpty) {
+      return fallbackStatus;
+    }
+
+    final statuses = sellerOrders
+        .map(
+          (order) =>
+              order['orderStatus']
+                  ?.toString()
+                  .toLowerCase() ??
+              'placed',
+        )
+        .toList();
+
+    // If every seller order is delivered
+    if (statuses.every(
+      (status) => status == 'delivered',
+    )) {
+      return 'delivered';
+    }
+
+    // If all seller orders are cancelled
+    if (statuses.every(
+      (status) => status == 'cancelled',
+    )) {
+      return 'cancelled';
+    }
+
+    // If any seller is shipped
+    if (statuses.any(
+      (status) => status == 'shipped',
+    )) {
+      return 'shipped';
+    }
+
+    // If any seller is processing
+    if (statuses.any(
+      (status) => status == 'processing',
+    )) {
+      return 'processing';
+    }
+
+    // If any seller is confirmed
+    if (statuses.any(
+      (status) => status == 'confirmed',
+    )) {
+      return 'confirmed';
+    }
+
+    return 'placed';
+  }
+
+  // =====================================================
+  // TRACKING STEP
+  // =====================================================
+
   Widget _buildStep({
-    required BuildContext context,
     required String title,
     required IconData icon,
     required bool active,
@@ -108,7 +172,8 @@ class OrderTrackingPage extends StatelessWidget {
     required Color color,
   }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
         SizedBox(
           width: 42,
@@ -118,32 +183,46 @@ class OrderTrackingPage extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: active || completed
-                      ? color.withValues(alpha: 0.12)
-                      : Colors.grey.withValues(alpha: 0.10),
+                  color:
+                      active || completed
+                          ? color.withValues(
+                              alpha: 0.12,
+                            )
+                          : Colors.grey.withValues(
+                              alpha: 0.10,
+                            ),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: active || completed
-                        ? color
-                        : Colors.grey.withValues(alpha: 0.35),
+                    color:
+                        active || completed
+                            ? color
+                            : Colors.grey.withValues(
+                                alpha: 0.35,
+                              ),
                     width: 2,
                   ),
                 ),
                 child: Icon(
                   icon,
                   size: 21,
-                  color: active || completed
-                      ? color
-                      : Colors.grey,
+                  color:
+                      active || completed
+                          ? color
+                          : Colors.grey,
                 ),
               ),
               if (!isLast)
                 Container(
                   width: 2,
                   height: 45,
-                  color: completed
-                      ? color.withValues(alpha: 0.55)
-                      : Colors.grey.withValues(alpha: 0.20),
+                  color:
+                      completed
+                          ? color.withValues(
+                              alpha: 0.55,
+                            )
+                          : Colors.grey.withValues(
+                              alpha: 0.20,
+                            ),
                 ),
             ],
           ),
@@ -151,7 +230,10 @@ class OrderTrackingPage extends StatelessWidget {
         const SizedBox(width: 14),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.only(top: 9),
+            padding:
+                const EdgeInsets.only(
+              top: 9,
+            ),
             child: Text(
               title,
               style: TextStyle(
@@ -173,7 +255,6 @@ class OrderTrackingPage extends StatelessWidget {
   }
 
   Widget _buildTracking(
-    BuildContext context,
     String status,
   ) {
     final normalized =
@@ -183,10 +264,15 @@ class OrderTrackingPage extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.red.withValues(
+            alpha: 0.08,
+          ),
+          borderRadius:
+              BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.red.withValues(alpha: 0.20),
+            color: Colors.red.withValues(
+              alpha: 0.20,
+            ),
           ),
         ),
         child: Row(
@@ -197,16 +283,17 @@ class OrderTrackingPage extends StatelessWidget {
               size: 32,
             ),
             const SizedBox(width: 12),
-            Expanded(
+            const Expanded(
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text(
                     'Order Cancelled',
                     style: TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                       color: Colors.red,
                     ),
                   ),
@@ -248,18 +335,13 @@ class OrderTrackingPage extends StatelessWidget {
       children: List.generate(
         steps.length,
         (index) {
-          final completed =
-              index < currentIndex;
-
-          final active =
-              index == currentIndex;
-
           return _buildStep(
-            context: context,
             title: steps[index],
             icon: icons[index],
-            active: active,
-            completed: completed,
+            active:
+                index == currentIndex,
+            completed:
+                index < currentIndex,
             isLast:
                 index == steps.length - 1,
             color: Colors.redAccent,
@@ -268,6 +350,10 @@ class OrderTrackingPage extends StatelessWidget {
       ),
     );
   }
+
+  // =====================================================
+  // SELLER ORDER CARD
+  // =====================================================
 
   Widget _buildSellerOrderCard(
     BuildContext context,
@@ -280,12 +366,16 @@ class OrderTrackingPage extends StatelessWidget {
         data['sellerEmail']?.toString() ?? '';
 
     final status =
-        data['orderStatus']?.toString() ?? 'placed';
+        data['orderStatus']?.toString() ??
+            'placed';
 
     final sellerSubtotal =
         (data['sellerSubtotal'] as num?)
                 ?.toDouble() ??
             0;
+
+    final items =
+        (data['items'] as List?) ?? [];
 
     return Container(
       margin: const EdgeInsets.only(
@@ -294,7 +384,8 @@ class OrderTrackingPage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius:
+            BorderRadius.circular(18),
         border: Border.all(
           color: Colors.grey.withValues(
             alpha: 0.15,
@@ -317,7 +408,8 @@ class OrderTrackingPage extends StatelessWidget {
                   'Seller Order',
                   style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ),
@@ -328,16 +420,21 @@ class OrderTrackingPage extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _statusColor(status)
-                      .withValues(alpha: 0.12),
+                  color:
+                      _statusColor(status)
+                          .withValues(
+                    alpha: 0.12,
+                  ),
                   borderRadius:
                       BorderRadius.circular(20),
                 ),
                 child: Text(
                   _statusText(status),
                   style: TextStyle(
-                    color: _statusColor(status),
-                    fontWeight: FontWeight.bold,
+                    color:
+                        _statusColor(status),
+                    fontWeight:
+                        FontWeight.bold,
                     fontSize: 12,
                   ),
                 ),
@@ -359,7 +456,9 @@ class OrderTrackingPage extends StatelessWidget {
           if (sellerEmail.isNotEmpty)
             Padding(
               padding:
-                  const EdgeInsets.only(top: 4),
+                  const EdgeInsets.only(
+                top: 4,
+              ),
               child: Text(
                 'Seller: $sellerEmail',
                 style: const TextStyle(
@@ -371,12 +470,33 @@ class OrderTrackingPage extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          _buildTracking(
-            context,
-            status,
-          ),
+          // Mini tracking
+          _buildTracking(status),
 
           const SizedBox(height: 14),
+
+          // Product count
+          Row(
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Products',
+                style: TextStyle(
+                  color: Colors.grey,
+                ),
+              ),
+              Text(
+                '${items.length}',
+                style: const TextStyle(
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 7),
 
           Row(
             mainAxisAlignment:
@@ -392,17 +512,21 @@ class OrderTrackingPage extends StatelessWidget {
                 '₩${sellerSubtotal.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
             ],
           ),
 
-          if (data['updatedAt'] != null) ...[
-            const SizedBox(height: 6),
+          if (data['updatedAt'] !=
+              null) ...[
+            const SizedBox(height: 7),
             Text(
-              'Last updated: '
-              '${_formatDate(data['updatedAt'])}',
+              'Updated: '
+              '${_formatDate(
+                data['updatedAt'],
+              )}',
               style: const TextStyle(
                 color: Colors.grey,
                 fontSize: 11,
@@ -415,7 +539,27 @@ class OrderTrackingPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Track Order',
+          ),
+        ),
+        body: const Center(
+          child: Text(
+            'Please login to track your order.',
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -427,27 +571,35 @@ class OrderTrackingPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: StreamBuilder<
-          DocumentSnapshot<Map<String, dynamic>>>(
+          DocumentSnapshot<
+              Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('orders')
             .doc(orderId)
             .snapshots(),
-        builder: (context, orderSnapshot) {
-          if (orderSnapshot.connectionState ==
+        builder: (
+          context,
+          orderSnapshot,
+        ) {
+          if (orderSnapshot
+                  .connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             );
           }
 
           if (orderSnapshot.hasError) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding:
+                    const EdgeInsets.all(20),
                 child: Text(
                   'Failed to load order.\n\n'
                   '${orderSnapshot.error}',
-                  textAlign: TextAlign.center,
+                  textAlign:
+                      TextAlign.center,
                 ),
               ),
             );
@@ -463,9 +615,10 @@ class OrderTrackingPage extends StatelessWidget {
           }
 
           final order =
-              orderSnapshot.data!.data() ?? {};
+              orderSnapshot.data!.data() ??
+                  {};
 
-          final mainStatus =
+          final fallbackStatus =
               order['orderStatus']
                       ?.toString() ??
                   'placed';
@@ -476,22 +629,28 @@ class OrderTrackingPage extends StatelessWidget {
                   0;
 
           return StreamBuilder<
-              QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('seller_orders')
-                .where(
-                  'orderId',
-                  isEqualTo: orderId,
-                )
-                .snapshots(),
+              QuerySnapshot<
+                  Map<String, dynamic>>>(
+            stream:
+                FirebaseFirestore.instance
+                    .collection(
+                      'seller_orders',
+                    )
+                    .where(
+                      'orderId',
+                      isEqualTo: orderId,
+                    )
+                    .snapshots(),
             builder: (
               context,
               sellerSnapshot,
             ) {
-              if (sellerSnapshot.connectionState ==
+              if (sellerSnapshot
+                      .connectionState ==
                   ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(),
+                  child:
+                      CircularProgressIndicator(),
                 );
               }
 
@@ -503,29 +662,51 @@ class OrderTrackingPage extends StatelessWidget {
                     child: Text(
                       'Failed to load seller orders.\n\n'
                       '${sellerSnapshot.error}',
-                      textAlign: TextAlign.center,
+                      textAlign:
+                          TextAlign.center,
                     ),
                   ),
                 );
               }
 
               final sellerOrders =
-                  sellerSnapshot.data?.docs ?? [];
+                  sellerSnapshot.data?.docs
+                          .map(
+                            (doc) =>
+                                doc.data(),
+                          )
+                          .toList() ??
+                      [];
+
+              // Calculate overall status
+              final overallStatus =
+                  _calculateOverallStatus(
+                sellerOrders,
+                fallbackStatus,
+              );
 
               return ListView(
-                padding: const EdgeInsets.fromLTRB(
+                padding:
+                    const EdgeInsets.fromLTRB(
                   16,
                   18,
                   16,
                   30,
                 ),
                 children: [
-                  // Order header
+                  // =================================================
+                  // MAIN ORDER HEADER
+                  // =================================================
+
                   Container(
                     padding:
-                        const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                        const EdgeInsets.all(
+                      18,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      gradient:
+                          LinearGradient(
                         colors: [
                           Colors.redAccent
                               .withValues(
@@ -538,7 +719,9 @@ class OrderTrackingPage extends StatelessWidget {
                         ],
                       ),
                       borderRadius:
-                          BorderRadius.circular(20),
+                          BorderRadius.circular(
+                        20,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment:
@@ -547,12 +730,15 @@ class OrderTrackingPage extends StatelessWidget {
                         Row(
                           children: [
                             const Icon(
-                              Icons.local_shipping,
+                              Icons
+                                  .local_shipping,
                               color:
                                   Colors.redAccent,
                               size: 28,
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(
+                              width: 10,
+                            ),
                             Expanded(
                               child: Text(
                                 'Order #$orderId',
@@ -560,51 +746,78 @@ class OrderTrackingPage extends StatelessWidget {
                                     const TextStyle(
                                   fontSize: 18,
                                   fontWeight:
-                                      FontWeight.bold,
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
                             ),
                           ],
                         ),
 
-                        const SizedBox(height: 16),
-
-                        Text(
-                          _statusText(mainStatus),
-                          style: TextStyle(
-                            color:
-                                _statusColor(
-                              mainStatus,
-                            ),
-                            fontSize: 16,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
+                        const SizedBox(
+                          height: 16,
                         ),
 
-                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              _statusIcon(
+                                overallStatus,
+                              ),
+                              color:
+                                  _statusColor(
+                                overallStatus,
+                              ),
+                            ),
+                            const SizedBox(
+                              width: 8,
+                            ),
+                            Text(
+                              _statusText(
+                                overallStatus,
+                              ),
+                              style: TextStyle(
+                                color:
+                                    _statusColor(
+                                  overallStatus,
+                                ),
+                                fontSize: 16,
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(
+                          height: 8,
+                        ),
 
                         Text(
                           'Total: '
                           '₩${total.toStringAsFixed(0)}',
-                          style: const TextStyle(
+                          style:
+                              const TextStyle(
                             fontSize: 15,
                             fontWeight:
-                                FontWeight.w600,
+                                FontWeight
+                                    .w600,
                           ),
                         ),
 
-                        if (order['createdAt'] !=
-                            null) ...[
-                          const SizedBox(height: 5),
+                        if (sellerOrders
+                            .length >
+                            1) ...[
+                          const SizedBox(
+                            height: 6,
+                          ),
                           Text(
-                            'Ordered: '
-                            '${_formatDate(
-                              order['createdAt'],
-                            )}',
+                            '${sellerOrders.length} sellers in this order',
                             style:
                                 const TextStyle(
-                              color: Colors.grey,
+                              color:
+                                  Colors.grey,
                               fontSize: 12,
                             ),
                           ),
@@ -613,26 +826,37 @@ class OrderTrackingPage extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 22,
+                  ),
 
                   const Text(
-                    'Order Progress',
+                    'Overall Order Progress',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  _buildTracking(
-                    context,
-                    mainStatus,
+                  const SizedBox(
+                    height: 16,
                   ),
 
-                  const SizedBox(height: 28),
+                  _buildTracking(
+                    overallStatus,
+                  ),
 
-                  if (sellerOrders.isNotEmpty) ...[
+                  const SizedBox(
+                    height: 28,
+                  ),
+
+                  // =================================================
+                  // SELLER ORDERS
+                  // =================================================
+
+                  if (sellerOrders
+                      .isNotEmpty) ...[
                     const Text(
                       'Seller Orders',
                       style: TextStyle(
@@ -641,14 +865,47 @@ class OrderTrackingPage extends StatelessWidget {
                             FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(
+                      height: 12,
+                    ),
                     ...sellerOrders.map(
-                      (doc) => _buildSellerOrderCard(
+                      (sellerOrder) =>
+                          _buildSellerOrderCard(
                         context,
-                        doc.data(),
+                        sellerOrder,
                       ),
                     ),
-                  ],
+                  ] else
+                    Container(
+                      padding:
+                          const EdgeInsets.all(
+                        16,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Theme.of(context)
+                                .cardColor,
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          16,
+                        ),
+                        border: Border.all(
+                          color: Colors.grey
+                              .withValues(
+                            alpha: 0.15,
+                          ),
+                        ),
+                      ),
+                      child: const Text(
+                        'Seller tracking information '
+                        'is not available yet.',
+                        style: TextStyle(
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
                 ],
               );
             },
