@@ -1,12 +1,143 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 import 'add_product_page.dart';
 import 'my_products_page.dart';
+import 'seller_orders_page.dart';
 
 class SellerPage extends StatelessWidget {
   const SellerPage({super.key});
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _statCard({
+    required BuildContext context,
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 28,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _menuCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool enabled = true,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 1,
+      child: ListTile(
+        enabled: enabled,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 6,
+        ),
+        leading: CircleAvatar(
+          child: Icon(icon),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+        ),
+        onTap: enabled ? onTap : null,
+      ),
+    );
+  }
+
+  void _openAddProduct(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddProductPage(),
+      ),
+    );
+  }
+
+  void _openMyProducts(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyProductsPage(),
+      ),
+    );
+  }
+
+  void _openSellerOrders(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SellerOrdersPage(),
+      ),
+    );
+  }
+
+  void _comingSoon(
+    BuildContext context,
+    String title,
+  ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title will be added next.'),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,13 +147,10 @@ class SellerPage extends StatelessWidget {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Seller Dashboard'),
-          backgroundColor: Colors.redAccent,
-          foregroundColor: Colors.white,
         ),
         body: const Center(
           child: Text(
             'Please login first.',
-            style: TextStyle(fontSize: 16),
           ),
         ),
       );
@@ -31,15 +159,24 @@ class SellerPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seller Dashboard'),
-        backgroundColor: Colors.redAccent,
-        foregroundColor: Colors.white,
       ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      body: StreamBuilder<
+          DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .snapshots(),
         builder: (context, userSnapshot) {
+          if (userSnapshot.hasError) {
+            return Center(
+              child: Text(
+                'Unable to load seller information.\n\n'
+                '${userSnapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
           if (userSnapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
@@ -47,15 +184,21 @@ class SellerPage extends StatelessWidget {
             );
           }
 
-          final userData = userSnapshot.data?.data() ?? {};
-
-          final sellerCode =
-              userData['sellerCode']?.toString() ?? 'N/A';
+          final userData =
+              userSnapshot.data?.data() ?? {};
 
           final sellerStatus =
-              userData['sellerStatus']?.toString() ?? 'pending';
+              userData['sellerStatus']
+                  ?.toString() ??
+              'pending';
 
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          final sellerCode =
+              userData['sellerCode']
+                  ?.toString() ??
+              'Not assigned';
+
+          return StreamBuilder<
+              QuerySnapshot<Map<String, dynamic>>>(
             stream: FirebaseFirestore.instance
                 .collection('products')
                 .where(
@@ -64,10 +207,26 @@ class SellerPage extends StatelessWidget {
                 )
                 .snapshots(),
             builder: (context, productSnapshot) {
+              if (productSnapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Unable to load products.\n\n'
+                    '${productSnapshot.error}',
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              }
+
+              if (productSnapshot.connectionState ==
+                  ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+
               final products =
                   productSnapshot.data?.docs ?? [];
 
-              int totalProducts = products.length;
               int totalStock = 0;
               int totalSales = 0;
               int totalViews = 0;
@@ -75,75 +234,62 @@ class SellerPage extends StatelessWidget {
               for (final product in products) {
                 final data = product.data();
 
-                totalStock += data['stock'] is num
-                    ? (data['stock'] as num).toInt()
-                    : 0;
+                totalStock +=
+                    (data['stock'] as num?)
+                            ?.toInt() ??
+                        0;
 
-                totalSales += data['salesCount'] is num
-                    ? (data['salesCount'] as num).toInt()
-                    : 0;
+                totalSales +=
+                    (data['salesCount'] as num?)
+                            ?.toInt() ??
+                        0;
 
-                totalViews += data['views'] is num
-                    ? (data['views'] as num).toInt()
-                    : 0;
+                totalViews +=
+                    (data['views'] as num?)
+                            ?.toInt() ??
+                        0;
               }
 
               final isApproved =
                   sellerStatus == 'approved';
 
-              return RefreshIndicator(
-                onRefresh: () async {
-                  await FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user.uid)
-                      .get();
+              final statusColor =
+                  _statusColor(sellerStatus);
 
-                  await FirebaseFirestore.instance
-                      .collection('products')
-                      .where(
-                        'sellerId',
-                        isEqualTo: user.uid,
-                      )
-                      .get();
-                },
+              return RefreshIndicator(
+                onRefresh: () async {},
                 child: ListView(
-                  physics:
-                      const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // =========================================
-                    // SELLER HEADER
-                    // =========================================
-
+                    // Seller Header
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        borderRadius:
+                            BorderRadius.circular(20),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                           colors: [
-                            Colors.redAccent,
-                            Colors.red,
+                            Theme.of(context)
+                                .colorScheme
+                                .primaryContainer,
+                            Theme.of(context)
+                                .colorScheme
+                                .secondaryContainer,
                           ],
                         ),
-                        borderRadius:
-                            BorderRadius.circular(18),
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            width: 58,
-                            height: 58,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius:
-                                  BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.storefront_rounded,
-                              color: Colors.redAccent,
+                          const CircleAvatar(
+                            radius: 32,
+                            child: Icon(
+                              Icons.storefront,
                               size: 34,
                             ),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment:
@@ -152,29 +298,33 @@ class SellerPage extends StatelessWidget {
                                 const Text(
                                   'BuyNova Seller',
                                   style: TextStyle(
-                                    color: Colors.white,
                                     fontSize: 20,
                                     fontWeight:
                                         FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(height: 5),
+                                const SizedBox(height: 6),
                                 Text(
                                   'Seller ID: $sellerCode',
                                   style: const TextStyle(
-                                    color: Colors.white70,
                                     fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  user.email ?? '',
+                                  maxLines: 1,
+                                  overflow:
+                                      TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors
+                                        .grey
+                                        .shade700,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                          Icon(
-                            isApproved
-                                ? Icons.verified
-                                : Icons.pending,
-                            color: Colors.white,
-                            size: 30,
                           ),
                         ],
                       ),
@@ -182,66 +332,53 @@ class SellerPage extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    // =========================================
-                    // APPROVAL STATUS
-                    // =========================================
-
+                    // Approval Status
                     Container(
-                      padding: const EdgeInsets.all(14),
+                      padding:
+                          const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isApproved
-                            ? Colors.green.withValues(
-                                alpha: 0.10,
-                              )
-                            : Colors.orange.withValues(
-                                alpha: 0.10,
-                              ),
+                        color: statusColor.withValues(
+                          alpha: 0.10,
+                        ),
                         borderRadius:
-                            BorderRadius.circular(14),
+                            BorderRadius.circular(16),
                         border: Border.all(
-                          color: isApproved
-                              ? Colors.green.withValues(
-                                  alpha: 0.25,
-                                )
-                              : Colors.orange.withValues(
-                                  alpha: 0.25,
-                                ),
+                          color: statusColor.withValues(
+                            alpha: 0.30,
+                          ),
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             isApproved
-                                ? Icons.check_circle
-                                : Icons.pending,
-                            color: isApproved
-                                ? Colors.green
-                                : Colors.orange,
+                                ? Icons.verified
+                                : Icons.info_outline,
+                            color: statusColor,
+                            size: 28,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment:
                                   CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  isApproved
-                                      ? 'Seller Approved'
-                                      : 'Seller Approval Pending',
-                                  style: const TextStyle(
+                                  'Seller Status',
+                                  style: TextStyle(
                                     fontWeight:
                                         FontWeight.bold,
+                                    color: statusColor,
                                   ),
                                 ),
-                                const SizedBox(height: 3),
+                                const SizedBox(height: 4),
                                 Text(
-                                  isApproved
-                                      ? 'You can manage your products.'
-                                      : 'Please wait for BuyNova Admin approval.',
+                                  sellerStatus
+                                      .toUpperCase(),
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    color:
-                                        Colors.grey.shade600,
+                                    color: statusColor,
+                                    fontWeight:
+                                        FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -251,72 +388,69 @@ class SellerPage extends StatelessWidget {
                       ),
                     ),
 
-                    const SizedBox(height: 20),
-
-                    // =========================================
-                    // STATISTICS
-                    // =========================================
+                    const SizedBox(height: 22),
 
                     const Text(
-                      'Seller Overview',
+                      'Overview',
                       style: TextStyle(
-                        fontSize: 19,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
 
                     const SizedBox(height: 12),
 
+                    // Statistics
                     GridView.count(
                       crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics:
-                          const NeverScrollableScrollPhysics(),
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
                       childAspectRatio: 1.45,
+                      shrinkWrap: true,
+                      physics:
+                          const NeverScrollableScrollPhysics(),
                       children: [
                         _statCard(
-                          icon:
-                              Icons.inventory_2_outlined,
+                          context: context,
                           title: 'Products',
                           value:
-                              '$totalProducts',
+                              products.length.toString(),
+                          icon:
+                              Icons.inventory_2_outlined,
                         ),
                         _statCard(
-                          icon:
-                              Icons.warehouse_outlined,
+                          context: context,
                           title: 'Stock',
                           value:
-                              '$totalStock',
+                              totalStock.toString(),
+                          icon:
+                              Icons.warehouse_outlined,
                         ),
                         _statCard(
-                          icon:
-                              Icons.shopping_bag_outlined,
+                          context: context,
                           title: 'Sales',
                           value:
-                              '$totalSales',
+                              totalSales.toString(),
+                          icon:
+                              Icons.shopping_cart_checkout,
                         ),
                         _statCard(
-                          icon:
-                              Icons.visibility_outlined,
+                          context: context,
                           title: 'Views',
                           value:
-                              '$totalViews',
+                              totalViews.toString(),
+                          icon:
+                              Icons.visibility_outlined,
                         ),
                       ],
                     ),
 
                     const SizedBox(height: 24),
 
-                    // =========================================
-                    // PRODUCT MANAGEMENT
-                    // =========================================
-
                     const Text(
                       'Product Management',
                       style: TextStyle(
-                        fontSize: 19,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -328,44 +462,27 @@ class SellerPage extends StatelessWidget {
                       icon:
                           Icons.add_box_outlined,
                       title: 'Add Product',
-                      subtitle:
-                          'Add a new product to BuyNova',
-                      color: Colors.green,
+                      subtitle: isApproved
+                          ? 'Add a new product to BuyNova.'
+                          : 'Seller approval is required.',
                       enabled: isApproved,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const AddProductPage(),
-                          ),
-                        );
+                        _openAddProduct(context);
                       },
                     ),
-
-                    const SizedBox(height: 10),
 
                     _menuCard(
                       context: context,
                       icon:
-                          Icons.inventory_2_outlined,
+                          Icons.inventory_outlined,
                       title: 'My Products',
                       subtitle:
-                          'View, edit and delete your products',
-                      color: Colors.blue,
+                          'Manage, edit and delete your products.',
                       enabled: true,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const MyProductsPage(),
-                          ),
-                        );
+                        _openMyProducts(context);
                       },
                     ),
-
-                    const SizedBox(height: 10),
 
                     _menuCard(
                       context: context,
@@ -373,22 +490,12 @@ class SellerPage extends StatelessWidget {
                           Icons.receipt_long_outlined,
                       title: 'Orders',
                       subtitle:
-                          'Manage orders for your products',
-                      color: Colors.orange,
-                      enabled: true,
+                          'View orders containing your products.',
+                      enabled: isApproved,
                       onTap: () {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Seller Orders will be added next.',
-                            ),
-                          ),
-                        );
+                        _openSellerOrders(context);
                       },
                     ),
-
-                    const SizedBox(height: 10),
 
                     _menuCard(
                       context: context,
@@ -396,54 +503,38 @@ class SellerPage extends StatelessWidget {
                           Icons.video_library_outlined,
                       title: 'Seller Videos',
                       subtitle:
-                          'Create and manage product videos',
-                      color: Colors.purple,
-                      enabled: true,
+                          'Create videos and promote your products.',
+                      enabled: isApproved,
                       onTap: () {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Seller Videos will be added next.',
-                            ),
-                          ),
+                        _comingSoon(
+                          context,
+                          'Seller Videos',
                         );
                       },
                     ),
 
-                    const SizedBox(height: 10),
-
                     _menuCard(
                       context: context,
                       icon:
-                          Icons.bar_chart_outlined,
+                          Icons.analytics_outlined,
                       title: 'Sales Analytics',
                       subtitle:
-                          'View your product performance',
-                      color: Colors.teal,
-                      enabled: true,
+                          'View sales and product performance.',
+                      enabled: isApproved,
                       onTap: () {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Sales Analytics will be added next.',
-                            ),
-                          ),
+                        _comingSoon(
+                          context,
+                          'Sales Analytics',
                         );
                       },
                     ),
 
                     const SizedBox(height: 24),
 
-                    // =========================================
-                    // SELLER INFORMATION
-                    // =========================================
-
                     const Text(
                       'Seller Information',
                       style: TextStyle(
-                        fontSize: 19,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -451,34 +542,53 @@ class SellerPage extends StatelessWidget {
                     const SizedBox(height: 12),
 
                     Card(
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(14),
-                      ),
                       child: Padding(
                         padding:
                             const EdgeInsets.all(16),
                         child: Column(
                           children: [
-                            _infoRow(
-                              Icons.badge_outlined,
-                              'Seller ID',
-                              sellerCode,
+                            ListTile(
+                              contentPadding:
+                                  EdgeInsets.zero,
+                              leading: const Icon(
+                                Icons.badge_outlined,
+                              ),
+                              title:
+                                  const Text('Seller ID'),
+                              subtitle:
+                                  Text(sellerCode),
                             ),
-                            const Divider(height: 24),
-                            _infoRow(
-                              Icons.email_outlined,
-                              'Email',
-                              user.email ?? 'N/A',
+                            const Divider(),
+                            ListTile(
+                              contentPadding:
+                                  EdgeInsets.zero,
+                              leading: const Icon(
+                                Icons.email_outlined,
+                              ),
+                              title:
+                                  const Text('Email'),
+                              subtitle:
+                                  Text(user.email ?? ''),
                             ),
-                            const Divider(height: 24),
-                            _infoRow(
-                              isApproved
-                                  ? Icons.verified
-                                  : Icons.pending,
-                              'Status',
-                              sellerStatus,
+                            const Divider(),
+                            ListTile(
+                              contentPadding:
+                                  EdgeInsets.zero,
+                              leading: Icon(
+                                Icons.verified_outlined,
+                                color: statusColor,
+                              ),
+                              title:
+                                  const Text('Status'),
+                              subtitle: Text(
+                                sellerStatus
+                                    .toUpperCase(),
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -493,190 +603,6 @@ class SellerPage extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-
-  // =========================================================
-  // STAT CARD
-  // =========================================================
-
-  static Widget _statCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(
-                  alpha: 0.10,
-                ),
-                borderRadius:
-                    BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: Colors.redAccent,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color:
-                          Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // MENU CARD
-  // =========================================================
-
-  static Widget _menuCard({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required bool enabled,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ListTile(
-        enabled: enabled,
-        contentPadding:
-            const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 6,
-        ),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius:
-                BorderRadius.circular(14),
-          ),
-          child: Icon(
-            icon,
-            color: enabled
-                ? color
-                : Colors.grey,
-          ),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Text(
-          enabled
-              ? subtitle
-              : 'Available after seller approval',
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
-        onTap: enabled
-            ? onTap
-            : () {
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Your seller account must be approved first.',
-                    ),
-                  ),
-                );
-              },
-      ),
-    );
-  }
-
-  // =========================================================
-  // INFO ROW
-  // =========================================================
-
-  static Widget _infoRow(
-    IconData icon,
-    String title,
-    String value,
-  ) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 22,
-          color: Colors.redAccent,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                value,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
