@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'cart_page.dart';
+import 'my_orders_page.dart';
 import 'my_videos_page.dart';
 
 class BuyerPage extends StatelessWidget {
@@ -49,6 +50,15 @@ class BuyerPage extends StatelessWidget {
     );
   }
 
+  void _openOrders(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyOrdersPage(),
+      ),
+    );
+  }
+
   void _openCart(BuildContext context) {
     Navigator.push(
       context,
@@ -79,15 +89,16 @@ class BuyerPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
-            // =====================================================
+            // =========================
             // BUYER HEADER
-            // =====================================================
-
+            // =========================
             Card(
               elevation: 0,
               child: Padding(
@@ -109,7 +120,9 @@ class BuyerPage extends StatelessWidget {
                         color: Colors.redAccent,
                       ),
                     ),
+
                     const SizedBox(width: 14),
+
                     const Expanded(
                       child: Column(
                         crossAxisAlignment:
@@ -139,10 +152,9 @@ class BuyerPage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // =====================================================
+            // =========================
             // NOTIFICATIONS
-            // =====================================================
-
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.notifications_none,
@@ -156,26 +168,21 @@ class BuyerPage extends StatelessWidget {
               },
             ),
 
-            // =====================================================
-            // ORDERS
-            // =====================================================
-
+            // =========================
+            // MY ORDERS
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.receipt_long_outlined,
               title: 'My Orders',
               onTap: () {
-                _comingSoon(
-                  context,
-                  'My Orders',
-                );
+                _openOrders(context);
               },
             ),
 
-            // =====================================================
+            // =========================
             // FAVORITES
-            // =====================================================
-
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.favorite_border,
@@ -189,10 +196,9 @@ class BuyerPage extends StatelessWidget {
               },
             ),
 
-            // =====================================================
-            // CART
-            // =====================================================
-
+            // =========================
+            // MY CART
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.shopping_cart_outlined,
@@ -202,10 +208,9 @@ class BuyerPage extends StatelessWidget {
               },
             ),
 
-            // =====================================================
+            // =========================
             // RECENTLY VIEWED
-            // =====================================================
-
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.history,
@@ -218,10 +223,9 @@ class BuyerPage extends StatelessWidget {
               },
             ),
 
-            // =====================================================
+            // =========================
             // COUPONS
-            // =====================================================
-
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.local_offer_outlined,
@@ -234,10 +238,9 @@ class BuyerPage extends StatelessWidget {
               },
             ),
 
-            // =====================================================
+            // =========================
             // MY VIDEOS
-            // =====================================================
-
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.video_library_outlined,
@@ -247,10 +250,9 @@ class BuyerPage extends StatelessWidget {
               },
             ),
 
-            // =====================================================
+            // =========================
             // MESSAGES
-            // =====================================================
-
+            // =========================
             _menuItem(
               context: context,
               icon: Icons.message_outlined,
