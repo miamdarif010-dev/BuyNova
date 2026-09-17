@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'order_tracking_page.dart';
+
 class MyOrdersPage extends StatelessWidget {
   const MyOrdersPage({super.key});
 
@@ -44,18 +46,18 @@ class MyOrdersPage extends StatelessWidget {
   }
 
   String _formatDate(dynamic value) {
-    if (value is Timestamp) {
-      final date = value.toDate();
-
-      String two(int number) {
-        return number.toString().padLeft(2, '0');
-      }
-
-      return '${date.year}-${two(date.month)}-${two(date.day)} '
-          '${two(date.hour)}:${two(date.minute)}';
+    if (value is! Timestamp) {
+      return '';
     }
 
-    return '';
+    final date = value.toDate();
+
+    String two(int number) {
+      return number.toString().padLeft(2, '0');
+    }
+
+    return '${date.year}-${two(date.month)}-${two(date.day)} '
+        '${two(date.hour)}:${two(date.minute)}';
   }
 
   double _number(dynamic value) {
@@ -63,7 +65,10 @@ class MyOrdersPage extends StatelessWidget {
       return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ?? 0;
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 
   int _int(dynamic value) {
@@ -71,10 +76,15 @@ class MyOrdersPage extends StatelessWidget {
       return value.toInt();
     }
 
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 
-  String _sellerName(Map<String, dynamic> sellerOrder) {
+  String _sellerName(
+    Map<String, dynamic> sellerOrder,
+  ) {
     final sellerCode =
         sellerOrder['sellerCode']?.toString() ?? '';
 
@@ -142,7 +152,11 @@ class MyOrdersPage extends StatelessWidget {
         width: 64,
         height: 64,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
+        errorBuilder: (
+          context,
+          error,
+          stackTrace,
+        ) {
           return _imagePlaceholder();
         },
       ),
@@ -153,11 +167,6 @@ class MyOrdersPage extends StatelessWidget {
     BuildContext context,
     Map<String, dynamic> sellerOrder,
   ) {
-    final sellerOrderId =
-        sellerOrder['sellerOrderId']?.toString() ?? '';
-
-    
-
     final sellerCode =
         sellerOrder['sellerCode']?.toString() ?? '';
 
@@ -165,49 +174,53 @@ class MyOrdersPage extends StatelessWidget {
         sellerOrder['sellerEmail']?.toString() ?? '';
 
     final status =
-        sellerOrder['orderStatus']?.toString() ?? 'placed';
+        sellerOrder['orderStatus']?.toString() ??
+            'placed';
 
     final paymentStatus =
-        sellerOrder['paymentStatus']?.toString() ?? 'pending';
+        sellerOrder['paymentStatus']?.toString() ??
+            'pending';
 
     final sellerSubtotal =
-        _number(sellerOrder['sellerSubtotal']);
+        _number(
+          sellerOrder['sellerSubtotal'],
+        );
 
     final totalQuantity =
-        _int(sellerOrder['totalQuantity']);
+        _int(
+          sellerOrder['totalQuantity'],
+        );
 
     final items =
         (sellerOrder['items'] as List?) ?? [];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(
+        bottom: 16,
+      ),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.grey.withValues(alpha: 0.15),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+          color: Colors.grey.withValues(
+            alpha: 0.15,
           ),
-        ],
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
-            // Seller header
             Row(
               children: [
                 Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.10),
+                    color: Colors.redAccent
+                        .withValues(alpha: 0.10),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -244,7 +257,6 @@ class MyOrdersPage extends StatelessWidget {
 
             const SizedBox(height: 14),
 
-            // Seller information
             if (sellerCode.isNotEmpty)
               _infoRow(
                 Icons.badge_outlined,
@@ -259,19 +271,13 @@ class MyOrdersPage extends StatelessWidget {
                 sellerEmail,
               ),
 
-            if (sellerOrderId.isNotEmpty)
-              _infoRow(
-                Icons.receipt_long_outlined,
-                'Seller Order',
-                sellerOrderId,
-              ),
-
             const Divider(height: 24),
 
-            // Products
             if (items.isEmpty)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
+                padding: EdgeInsets.symmetric(
+                  vertical: 10,
+                ),
                 child: Text(
                   'No products found.',
                   style: TextStyle(
@@ -280,79 +286,108 @@ class MyOrdersPage extends StatelessWidget {
                 ),
               )
             else
-              ...items.map((item) {
-                final product =
-                    Map<String, dynamic>.from(item as Map);
+              ...items.map(
+                (item) {
+                  final product =
+                      Map<String, dynamic>.from(
+                    item as Map,
+                  );
 
-                final name =
-                    product['name']?.toString() ??
-                        'Product';
+                  final name =
+                      product['name']?.toString() ??
+                          'Product';
 
-                final imageUrl =
-                    product['imageUrl']?.toString() ?? '';
+                  final imageUrl =
+                      product['imageUrl']
+                              ?.toString() ??
+                          '';
 
-                final quantity =
-                    _int(product['quantity']);
+                  final quantity =
+                      _int(
+                    product['quantity'],
+                  );
 
-                final price =
-                    _number(product['price']);
+                  final price =
+                      _number(
+                    product['price'],
+                  );
 
-                final total =
-                    _number(product['total']);
+                  final total =
+                      _number(
+                    product['total'],
+                  );
 
-                final productTotal =
-                    total > 0 ? total : price * quantity;
+                  final productTotal =
+                      total > 0
+                          ? total
+                          : price * quantity;
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      _buildProductImage(imageUrl),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              maxLines: 2,
-                              overflow:
-                                  TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Qty: $quantity',
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '₩${productTotal.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
+                  return Container(
+                    margin:
+                        const EdgeInsets.only(
+                      bottom: 12,
+                    ),
+                    child: Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        _buildProductImage(
+                          imageUrl,
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
+                            children: [
+                              Text(
+                                name,
+                                maxLines: 2,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 5,
+                              ),
+                              Text(
+                                'Qty: $quantity',
+                                style:
+                                    const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 3,
+                              ),
+                              Text(
+                                '₩${productTotal.toStringAsFixed(0)}',
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
 
             const Divider(height: 24),
 
-            // Summary
             Row(
               mainAxisAlignment:
                   MainAxisAlignment.spaceBetween,
@@ -409,7 +444,9 @@ class MyOrdersPage extends StatelessWidget {
                 Text(
                   paymentStatus.toUpperCase(),
                   style: TextStyle(
-                    color: paymentStatus.toLowerCase() ==
+                    color:
+                        paymentStatus
+                                .toLowerCase() ==
                             'paid'
                         ? Colors.green
                         : Colors.orange,
@@ -419,17 +456,6 @@ class MyOrdersPage extends StatelessWidget {
                 ),
               ],
             ),
-
-            const SizedBox(height: 12),
-
-            if (sellerOrder['createdAt'] != null)
-              Text(
-                'Ordered: ${_formatDate(sellerOrder['createdAt'])}',
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                ),
-              ),
           ],
         ),
       ),
@@ -442,7 +468,9 @@ class MyOrdersPage extends StatelessWidget {
     String value,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.only(
+        bottom: 7,
+      ),
       child: Row(
         children: [
           Icon(
@@ -461,10 +489,12 @@ class MyOrdersPage extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              overflow: TextOverflow.ellipsis,
+              overflow:
+                  TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
+                fontWeight:
+                    FontWeight.w600,
               ),
             ),
           ),
@@ -482,30 +512,39 @@ class MyOrdersPage extends StatelessWidget {
         order['orderId']?.toString() ?? '';
 
     final mainStatus =
-        order['orderStatus']?.toString() ?? 'placed';
+        order['orderStatus']?.toString() ??
+            'placed';
 
     final paymentMethod =
-        order['paymentMethod']?.toString() ?? '';
+        order['paymentMethod']?.toString() ??
+            '';
 
     final total =
         _number(order['total']);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(
+        bottom: 28,
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
-          // Main order header
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.redAccent.withValues(alpha: 0.12),
-                  Colors.redAccent.withValues(alpha: 0.04),
+                  Colors.redAccent.withValues(
+                    alpha: 0.12,
+                  ),
+                  Colors.redAccent.withValues(
+                    alpha: 0.04,
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(18),
+              borderRadius:
+                  BorderRadius.circular(18),
             ),
             child: Column(
               crossAxisAlignment:
@@ -534,8 +573,10 @@ class MyOrdersPage extends StatelessWidget {
                             orderId.isEmpty
                                 ? 'Order'
                                 : orderId,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
                               fontSize: 15,
                             ),
                           ),
@@ -560,9 +601,11 @@ class MyOrdersPage extends StatelessWidget {
                     ),
                     Text(
                       '₩${total.toStringAsFixed(0)}',
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
                   ],
@@ -579,39 +622,96 @@ class MyOrdersPage extends StatelessWidget {
                   ),
                 ],
 
-                if (order['createdAt'] != null) ...[
+                if (order['createdAt'] !=
+                    null) ...[
                   const SizedBox(height: 6),
                   Text(
-                    'Ordered: ${_formatDate(order['createdAt'])}',
+                    'Ordered: '
+                    '${_formatDate(
+                      order['createdAt'],
+                    )}',
                     style: const TextStyle(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
                   ),
                 ],
+
+                const SizedBox(height: 16),
+
+                // TRACK ORDER BUTTON
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: orderId.isEmpty
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    OrderTrackingPage(
+                                  orderId: orderId,
+                                ),
+                              ),
+                            );
+                          },
+                    icon: const Icon(
+                      Icons.local_shipping_outlined,
+                    ),
+                    label: const Text(
+                      'Track Order',
+                    ),
+                    style:
+                        ElevatedButton.styleFrom(
+                      backgroundColor:
+                          Colors.redAccent,
+                      foregroundColor:
+                          Colors.white,
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        vertical: 13,
+                      ),
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(
+                          12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
 
           const SizedBox(height: 12),
 
-          // Seller orders
           if (sellerOrders.isNotEmpty)
             ...sellerOrders.map(
-              (sellerOrder) => _buildSellerOrder(
+              (sellerOrder) =>
+                  _buildSellerOrder(
                 context,
                 sellerOrder,
               ),
             )
           else
             Container(
-              padding: const EdgeInsets.all(16),
+              padding:
+                  const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(16),
+                color:
+                    Theme.of(context)
+                        .cardColor,
+                borderRadius:
+                    BorderRadius.circular(16),
                 border: Border.all(
-                  color:
-                      Colors.grey.withValues(alpha: 0.15),
+                  color: Colors.grey
+                      .withValues(
+                    alpha: 0.15,
+                  ),
                 ),
               ),
               child: const Row(
@@ -639,12 +739,15 @@ class MyOrdersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('My Orders'),
+          title: const Text(
+            'My Orders',
+          ),
         ),
         body: const Center(
           child: Text(
@@ -654,13 +757,14 @@ class MyOrdersPage extends StatelessWidget {
       );
     }
 
-    final ordersStream = FirebaseFirestore.instance
-        .collection('orders')
-        .where(
-          'userId',
-          isEqualTo: user.uid,
-        )
-        .snapshots();
+    final ordersStream =
+        FirebaseFirestore.instance
+            .collection('orders')
+            .where(
+              'userId',
+              isEqualTo: user.uid,
+            )
+            .snapshots();
 
     final sellerOrdersStream =
         FirebaseFirestore.instance
@@ -681,66 +785,90 @@ class MyOrdersPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      body: StreamBuilder<
+          QuerySnapshot<
+              Map<String, dynamic>>>(
         stream: ordersStream,
-        builder: (context, orderSnapshot) {
+        builder: (
+          context,
+          orderSnapshot,
+        ) {
           if (orderSnapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             );
           }
 
           if (orderSnapshot.hasError) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding:
+                    const EdgeInsets.all(20),
                 child: Text(
-                  'Failed to load orders.\n\n${orderSnapshot.error}',
-                  textAlign: TextAlign.center,
+                  'Failed to load orders.\n\n'
+                  '${orderSnapshot.error}',
+                  textAlign:
+                      TextAlign.center,
                 ),
               ),
             );
           }
 
-          final orders = orderSnapshot.data?.docs ?? [];
+          final orders =
+              orderSnapshot.data?.docs ?? [];
 
           return StreamBuilder<
-              QuerySnapshot<Map<String, dynamic>>>(
+              QuerySnapshot<
+                  Map<String, dynamic>>>(
             stream: sellerOrdersStream,
-            builder: (context, sellerSnapshot) {
-              if (sellerSnapshot.connectionState ==
+            builder: (
+              context,
+              sellerSnapshot,
+            ) {
+              if (sellerSnapshot
+                      .connectionState ==
                   ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(),
+                  child:
+                      CircularProgressIndicator(),
                 );
               }
 
               if (sellerSnapshot.hasError) {
                 return Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding:
+                        const EdgeInsets.all(20),
                     child: Text(
                       'Failed to load seller orders.\n\n'
                       '${sellerSnapshot.error}',
-                      textAlign: TextAlign.center,
+                      textAlign:
+                          TextAlign.center,
                     ),
                   ),
                 );
               }
 
               final sellerDocs =
-                  sellerSnapshot.data?.docs ?? [];
+                  sellerSnapshot.data?.docs ??
+                      [];
 
               final Map<String,
-                      List<Map<String, dynamic>>>
+                      List<
+                          Map<String,
+                              dynamic>>>
                   sellerOrdersByMainOrder = {};
 
-              for (final doc in sellerDocs) {
+              for (final doc
+                  in sellerDocs) {
                 final data = doc.data();
 
                 final orderId =
-                    data['orderId']?.toString() ?? '';
+                    data['orderId']
+                            ?.toString() ??
+                        '';
 
                 if (orderId.isEmpty) {
                   continue;
@@ -755,69 +883,77 @@ class MyOrdersPage extends StatelessWidget {
               }
 
               if (orders.isEmpty) {
-                return RefreshIndicator(
-                  onRefresh: () async {},
-                  child: ListView(
-                    physics:
-                        const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
-                      Icon(
-                        Icons.shopping_bag_outlined,
-                        size: 80,
-                        color: Colors.grey,
-                      ),
-                      SizedBox(height: 20),
-                      Center(
-                        child: Text(
-                          'No Orders Yet',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+                return ListView(
+                  physics:
+                      const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    SizedBox(
+                      height: 120,
+                    ),
+                    Icon(
+                      Icons
+                          .shopping_bag_outlined,
+                      size: 80,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 20),
+                    Center(
+                      child: Text(
+                        'No Orders Yet',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 8),
-                      Center(
-                        child: Text(
-                          'Your orders will appear here.',
-                          style: TextStyle(
-                            color: Colors.grey,
-                          ),
+                    ),
+                    SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        'Your orders will appear here.',
+                        style: TextStyle(
+                          color: Colors.grey,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 );
               }
 
               final sortedOrders =
                   [...orders];
 
-              sortedOrders.sort((a, b) {
-                final aDate =
-                    a.data()['createdAt'];
+              sortedOrders.sort(
+                (a, b) {
+                  final aDate =
+                      a.data()['createdAt'];
 
-                final bDate =
-                    b.data()['createdAt'];
+                  final bDate =
+                      b.data()['createdAt'];
 
-                if (aDate is Timestamp &&
-                    bDate is Timestamp) {
-                  return bDate.compareTo(aDate);
-                }
+                  if (aDate is Timestamp &&
+                      bDate is Timestamp) {
+                    return bDate.compareTo(
+                      aDate,
+                    );
+                  }
 
-                return 0;
-              });
+                  return 0;
+                },
+              );
 
               return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(
+                padding:
+                    const EdgeInsets.fromLTRB(
                   16,
                   16,
                   16,
                   30,
                 ),
-                itemCount: sortedOrders.length,
-                itemBuilder: (context, index) {
+                itemCount:
+                    sortedOrders.length,
+                itemBuilder:
+                    (context, index) {
                   final orderDoc =
                       sortedOrders[index];
 
@@ -826,12 +962,12 @@ class MyOrdersPage extends StatelessWidget {
 
                   final orderId =
                       orderData['orderId']
-                              ?.toString()
-                              .isNotEmpty ==
-                          true
-                      ? orderData['orderId']
-                          .toString()
-                      : orderDoc.id;
+                                  ?.toString()
+                                  .isNotEmpty ==
+                              true
+                          ? orderData['orderId']
+                              .toString()
+                          : orderDoc.id;
 
                   final sellerOrders =
                       sellerOrdersByMainOrder[
