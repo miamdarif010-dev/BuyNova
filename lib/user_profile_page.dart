@@ -12,6 +12,7 @@ import 'entrepreneur_page.dart';
 import 'watch_earn_page.dart';
 import 'favorites_page.dart';
 import 'seller_page.dart';
+import 'notifications_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -92,6 +93,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       if (mounted) {
         setState(() {
           _name = (data?['name'] ?? '').toString();
+
           _phone = (data?['phone'] ?? '').toString();
 
           _profileImageUrl =
@@ -124,6 +126,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       }
     }
   }
+
+  // =========================================================
+  // NAVIGATION
+  // =========================================================
 
   void _openEditProfile() {
     Navigator.push(
@@ -208,6 +214,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  void _openNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NotificationsPage(),
+      ),
+    );
+  }
+
   void _featureNotAvailable(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -216,6 +231,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
   }
+
+  // =========================================================
+  // SELLER APPLICATION
+  // =========================================================
 
   Future<void> _becomeSeller() async {
     final user = currentUser;
@@ -228,10 +247,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
           .doc(user.uid)
           .set(
         {
-          'name': _name.isNotEmpty ? _name : 'BuyNova User',
+          'name': _name.isNotEmpty
+              ? _name
+              : 'BuyNova User',
           'email': user.email ?? '',
           'sellerStatus': 'pending',
-          'sellerRequestedAt': FieldValue.serverTimestamp(),
+          'sellerRequestedAt':
+              FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
@@ -261,6 +283,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
+  // =========================================================
+  // LOGOUT
+  // =========================================================
+
   Future<void> _logout() async {
     try {
       await FirebaseAuth.instance.signOut();
@@ -281,6 +307,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
+  // =========================================================
+  // PROFILE IMAGE
+  // =========================================================
+
   Widget _profileImage() {
     if (_profileImageUrl.isNotEmpty) {
       return ClipOval(
@@ -289,7 +319,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
           width: 78,
           height: 78,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
+          errorBuilder:
+              (context, error, stackTrace) {
             return const Icon(
               Icons.person,
               size: 44,
@@ -306,6 +337,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       color: Colors.grey,
     );
   }
+
+  // =========================================================
+  // SECTION HEADER
+  // =========================================================
 
   Widget _expandableSectionHeader({
     required IconData icon,
@@ -338,6 +373,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  // =========================================================
+  // SECTION NOTIFICATION ITEM
+  // =========================================================
+
   Widget _sectionNotification({
     required IconData icon,
     required String title,
@@ -366,6 +405,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
   }
+
+  // =========================================================
+  // NORMAL MENU ITEM
+  // =========================================================
 
   Widget _menuItem({
     required IconData icon,
@@ -396,6 +439,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  // =========================================================
+  // PLUS MENU ITEM
+  // =========================================================
+
   Widget _plusMenuItem({
     required IconData icon,
     required String title,
@@ -424,6 +471,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
   }
+
+  // =========================================================
+  // REWARDS SUMMARY
+  // =========================================================
 
   Widget _rewardsSummaryCard() {
     return Card(
@@ -458,7 +509,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
   List<Widget> _sellerSectionItems() {
     if (_isSellerApproved) {
       return [
-        // Seller Dashboard
         Card(
           elevation: 0,
           margin: const EdgeInsets.only(bottom: 8),
@@ -488,7 +538,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
           icon: Icons.store_outlined,
           title: 'Shop Profile',
           onTap: () {
-            _featureNotAvailable('Shop Profile');
+            _featureNotAvailable(
+              'Shop Profile',
+            );
           },
         ),
 
@@ -496,7 +548,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
           icon: Icons.location_on_outlined,
           title: 'Shop Location',
           onTap: () {
-            _featureNotAvailable('Shop Location');
+            _featureNotAvailable(
+              'Shop Location',
+            );
           },
         ),
 
@@ -522,15 +576,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
           icon: Icons.receipt_long_outlined,
           title: 'Sales / Orders',
           onTap: () {
-            _featureNotAvailable('Sales / Orders');
+            _featureNotAvailable(
+              'Sales / Orders',
+            );
           },
         ),
 
         _menuItem(
-          icon: Icons.account_balance_wallet_outlined,
+          icon:
+              Icons.account_balance_wallet_outlined,
           title: 'Earnings',
           onTap: () {
-            _featureNotAvailable('Earnings');
+            _featureNotAvailable(
+              'Earnings',
+            );
           },
         ),
 
@@ -538,7 +597,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
           icon: Icons.message_outlined,
           title: 'Messages',
           onTap: () {
-            _featureNotAvailable('Messages');
+            _featureNotAvailable(
+              'Messages',
+            );
           },
         ),
       ];
@@ -589,7 +650,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
             ),
             trailing: TextButton(
               onPressed: _becomeSeller,
-              child: const Text('Apply Again'),
+              child: const Text(
+                'Apply Again',
+              ),
             ),
           ),
         ),
@@ -635,35 +698,46 @@ class _UserProfilePageState extends State<UserProfilePage> {
           title: 'My Store',
           onTap: _openEntrepreneur,
         ),
+
         _menuItem(
           icon: Icons.favorite_border,
           title: 'Favorites',
           onTap: _openFavorites,
         ),
+
         _menuItem(
           icon: Icons.receipt_long_outlined,
           title: 'Reseller Orders',
           onTap: () {
-            _featureNotAvailable('Reseller Orders');
+            _featureNotAvailable(
+              'Reseller Orders',
+            );
           },
         ),
+
         _menuItem(
           icon: Icons.monetization_on_outlined,
           title: 'My Profit',
           onTap: () {
-            _featureNotAvailable('My Profit');
+            _featureNotAvailable(
+              'My Profit',
+            );
           },
         ),
+
         _plusMenuItem(
           icon: Icons.video_library_outlined,
           title: 'My Videos',
           onTap: _openMyVideos,
         ),
+
         _menuItem(
           icon: Icons.message_outlined,
           title: 'Messages',
           onTap: () {
-            _featureNotAvailable('Messages');
+            _featureNotAvailable(
+              'Messages',
+            );
           },
         ),
       ];
@@ -731,7 +805,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('My Profile'),
+          title: const Text(
+            'My Profile',
+          ),
           centerTitle: true,
         ),
         body: const Center(
@@ -751,7 +827,83 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ),
         ),
         centerTitle: true,
+
+        // =====================================================
+        // NOTIFICATIONS BUTTON
+        // =====================================================
+
+        actions: [
+          StreamBuilder<
+              QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('notifications')
+                .where(
+                  'isRead',
+                  isEqualTo: false,
+                )
+                .snapshots(),
+            builder: (context, snapshot) {
+              final unreadCount =
+                  snapshot.data?.docs.length ?? 0;
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    tooltip: 'Notifications',
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                    ),
+                    onPressed:
+                        _openNotifications,
+                  ),
+
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 7,
+                      top: 7,
+                      child: Container(
+                        constraints:
+                            const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration:
+                            const BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            unreadCount > 99
+                                ? '99+'
+                                : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(width: 4),
+        ],
       ),
+
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(),
@@ -761,11 +913,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
               child: SingleChildScrollView(
                 physics:
                     const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding:
+                    const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
+
                     // =================================================
                     // PROFILE CARD
                     // =================================================
@@ -777,8 +931,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             const EdgeInsets.all(18),
                         child: Column(
                           children: [
+
                             GestureDetector(
-                              onTap: _openEditProfile,
+                              onTap:
+                                  _openEditProfile,
                               child: Container(
                                 width: 84,
                                 height: 84,
@@ -794,7 +950,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               ),
                             ),
 
-                            const SizedBox(height: 12),
+                            const SizedBox(
+                              height: 12,
+                            ),
 
                             Text(
                               _name.isNotEmpty
@@ -808,7 +966,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               ),
                             ),
 
-                            const SizedBox(height: 5),
+                            const SizedBox(
+                              height: 5,
+                            ),
 
                             Text(
                               user.email ?? '',
@@ -819,7 +979,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             ),
 
                             if (_phone.isNotEmpty) ...[
-                              const SizedBox(height: 4),
+                              const SizedBox(
+                                height: 4,
+                              ),
                               Text(
                                 _phone,
                                 style: TextStyle(
@@ -829,10 +991,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               ),
                             ],
 
-                            const SizedBox(height: 14),
+                            const SizedBox(
+                              height: 14,
+                            ),
 
                             SizedBox(
-                              width: double.infinity,
+                              width:
+                                  double.infinity,
                               child:
                                   OutlinedButton.icon(
                                 onPressed:
@@ -851,7 +1016,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(
+                      height: 16,
+                    ),
 
                     // =================================================
                     // ADMIN
@@ -884,8 +1051,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               _openAdminPanel,
                         ),
                       ),
-                      const SizedBox(height: 8),
+
+                      const SizedBox(
+                        height: 8,
+                      ),
                     ],
+
+                    // =================================================
+                    // NOTIFICATIONS
+                    // =================================================
+
+                    _menuItem(
+                      icon:
+                          Icons.notifications_outlined,
+                      title: 'Notifications',
+                      iconColor:
+                          Colors.redAccent,
+                      onTap:
+                          _openNotifications,
+                    ),
 
                     // =================================================
                     // BUYER
@@ -907,15 +1091,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       },
                     ),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(
+                      height: 8,
+                    ),
 
                     // =================================================
                     // EARN & REWARDS
                     // =================================================
 
                     _expandableSectionHeader(
-                      icon: Icons.stars_outlined,
-                      title: 'EARN & REWARDS',
+                      icon:
+                          Icons.stars_outlined,
+                      title:
+                          'EARN & REWARDS',
                       expanded:
                           _earnExpanded,
                       onTap: () {
@@ -932,7 +1120,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       _sectionNotification(
                         icon:
                             Icons.play_circle_outline,
-                        title: 'Watch & Earn',
+                        title:
+                            'Watch & Earn',
                         iconColor:
                             Colors.redAccent,
                         onTap:
@@ -954,7 +1143,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       _sectionNotification(
                         icon:
                             Icons.group_add_outlined,
-                        title: 'Referral',
+                        title:
+                            'Referral',
                         onTap: () {
                           _featureNotAvailable(
                             'Referral',
@@ -963,7 +1153,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ],
 
-                    const SizedBox(height: 8),
+                    const SizedBox(
+                      height: 8,
+                    ),
 
                     // =================================================
                     // ENTREPRENEUR
@@ -988,7 +1180,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ..._entrepreneurSectionItems(),
                     ],
 
-                    const SizedBox(height: 8),
+                    const SizedBox(
+                      height: 8,
+                    ),
 
                     // =================================================
                     // SELLER
@@ -1012,7 +1206,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ..._sellerSectionItems(),
                     ],
 
-                    const SizedBox(height: 16),
+                    const SizedBox(
+                      height: 16,
+                    ),
 
                     // =================================================
                     // SETTINGS
@@ -1022,7 +1218,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       icon:
                           Icons.settings_outlined,
                       title: 'Settings',
-                      onTap: _openSettings,
+                      onTap:
+                          _openSettings,
                     ),
 
                     // =================================================
@@ -1048,6 +1245,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                 'Are you sure you want to logout?',
                               ),
                               actions: [
+
                                 TextButton(
                                   onPressed: () {
                                     Navigator.pop(
@@ -1059,11 +1257,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     'Cancel',
                                   ),
                                 ),
+
                                 ElevatedButton(
                                   onPressed: () {
                                     Navigator.pop(
                                       dialogContext,
                                     );
+
                                     _logout();
                                   },
                                   child:
@@ -1078,7 +1278,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       },
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(
+                      height: 20,
+                    ),
                   ],
                 ),
               ),
