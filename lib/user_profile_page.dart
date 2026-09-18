@@ -25,12 +25,20 @@ class UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<UserProfilePage> {
   bool _isLoading = true;
 
+  bool _adminExpanded = false;
+  bool _buyerExpanded = false;
+  bool _earnExpanded = false;
+  bool _entrepreneurExpanded = false;
+  bool _sellerExpanded = false;
+
   String _name = '';
   String _phone = '';
   String _profileImageUrl = '';
 
   String _sellerStatus = '';
   String _entrepreneurStatus = '';
+
+  int _pointsBalance = 0;
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
@@ -77,6 +85,18 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
       final data = doc.data();
 
+      final rawPoints = data?['pointsBalance'];
+
+      int points = 0;
+
+      if (rawPoints is int) {
+        points = rawPoints;
+      } else if (rawPoints is num) {
+        points = rawPoints.toInt();
+      } else if (rawPoints != null) {
+        points = int.tryParse(rawPoints.toString()) ?? 0;
+      }
+
       if (mounted) {
         setState(() {
           _name = (data?['name'] ?? '').toString();
@@ -90,6 +110,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
           _entrepreneurStatus =
               (data?['entrepreneurStatus'] ?? '').toString();
+
+          _pointsBalance = points;
 
           _isLoading = false;
         });
@@ -135,6 +157,24 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  void _openMyProducts() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyProductsPage(),
+      ),
+    );
+  }
+
+  void _openMyVideos() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyVideosPage(),
+      ),
+    );
+  }
+
   void _openAdminPanel() {
     Navigator.push(
       context,
@@ -162,7 +202,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  void _openSeller() {
+  void _openSellerDashboard() {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -198,23 +238,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  void _openMyProducts() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MyProductsPage(),
-      ),
-    );
-  }
-
-  void _openMyVideos() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MyVideosPage(),
-      ),
-    );
-  }
+  // =========================================================
+  // SELLER MESSAGES
+  // =========================================================
 
   void _openSellerMessages() {
     Navigator.push(
@@ -348,9 +374,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // SECTION HEADER
   // =========================================================
 
-  Widget _sectionHeader({
+  Widget _expandableSectionHeader({
     required IconData icon,
     required String title,
+    required bool expanded,
     required VoidCallback onTap,
   }) {
     return Card(
@@ -370,8 +397,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
             fontSize: 16,
           ),
         ),
-        trailing: const Icon(
-          Icons.chevron_right,
+        trailing: Icon(
+          expanded
+              ? Icons.keyboard_arrow_up
+              : Icons.chevron_right,
         ),
         onTap: onTap,
       ),
@@ -379,7 +408,39 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // MENU ITEM
+  // SECTION NOTIFICATION
+  // =========================================================
+
+  Widget _sectionNotification() {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: 8,
+      ),
+      child: ListTile(
+        leading: const Icon(
+          Icons.notifications_outlined,
+          color: Colors.redAccent,
+        ),
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
+        onTap: _openNotifications,
+      ),
+    );
+  }
+
+  // =========================================================
+  // NORMAL MENU ITEM
   // =========================================================
 
   Widget _menuItem({
@@ -412,38 +473,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
           Icons.chevron_right,
         ),
         onTap: onTap,
-      ),
-    );
-  }
-
-  // =========================================================
-  // NOTIFICATIONS
-  // =========================================================
-
-  Widget _sectionNotification() {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(
-        left: 12,
-        right: 12,
-        bottom: 8,
-      ),
-      child: ListTile(
-        leading: const Icon(
-          Icons.notifications_outlined,
-          color: Colors.redAccent,
-        ),
-        title: const Text(
-          'Notifications',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
-        onTap: _openNotifications,
       ),
     );
   }
@@ -486,164 +515,129 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // BUYER QUICK OPTIONS
+  // REWARDS SUMMARY
   // =========================================================
 
-  Widget _buyerOptions() {
-    return Column(
-      children: [
-        _sectionNotification(),
-
-        _menuItem(
-          icon: Icons.shopping_bag_outlined,
-          title: 'Buyer Dashboard',
-          onTap: _openBuyer,
+  Widget _rewardsSummaryCard() {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: 8,
+      ),
+      child: ListTile(
+        leading: const Icon(
+          Icons.stars_outlined,
+          color: Colors.orange,
         ),
-
-        _menuItem(
-          icon: Icons.favorite_border,
-          title: 'Favorites',
-          onTap: _openFavorites,
-        ),
-
-        _menuItem(
-          icon: Icons.shopping_cart_outlined,
-          title: 'Cart',
-          onTap: _openBuyer,
-        ),
-
-        _menuItem(
-          icon: Icons.receipt_long_outlined,
-          title: 'My Orders',
-          onTap: _openBuyer,
-        ),
-
-        _menuItem(
-          icon: Icons.help_outline,
-          title: 'Help & Support',
-          onTap: _openBuyer,
-        ),
-
-        _menuItem(
-          icon: Icons.assignment_return_outlined,
-          title: 'Return & Refund',
-          onTap: _openBuyer,
-        ),
-      ],
-    );
-  }
-
-  // =========================================================
-  // EARN OPTIONS
-  // =========================================================
-
-  Widget _earnOptions() {
-    return Column(
-      children: [
-        _sectionNotification(),
-
-        _menuItem(
-          icon: Icons.play_circle_outline,
-          title: 'Watch & Earn',
-          iconColor: Colors.redAccent,
-          onTap: _openWatchEarn,
-        ),
-
-        _menuItem(
-          icon: Icons.video_library_outlined,
-          title: 'Seller Video Rewards',
-          onTap: () {
-            _featureNotAvailable(
-              'Seller Video Rewards',
-            );
-          },
-        ),
-
-        _menuItem(
-          icon: Icons.group_add_outlined,
-          title: 'Referral',
-          onTap: () {
-            _featureNotAvailable(
-              'Referral',
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  // =========================================================
-  // SELLER OPTIONS
-  // =========================================================
-
-  Widget _sellerOptions() {
-    if (!_isSellerApproved) {
-      return Column(
-        children: [
-          _sectionNotification(),
-
-          Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(
-              left: 12,
-              right: 12,
-              bottom: 8,
-            ),
-            child: ListTile(
-              leading: Icon(
-                _sellerStatus == 'pending'
-                    ? Icons.pending_outlined
-                    : _sellerStatus == 'rejected'
-                        ? Icons.cancel_outlined
-                        : Icons.storefront_outlined,
-                color: _sellerStatus == 'pending'
-                    ? Colors.orange
-                    : Colors.redAccent,
-              ),
-              title: Text(
-                _sellerStatus == 'pending'
-                    ? 'Seller Request Pending'
-                    : _sellerStatus == 'rejected'
-                        ? 'Seller Request Rejected'
-                        : 'Become a Seller',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              subtitle: Text(
-                _sellerStatus == 'pending'
-                    ? 'Your seller request is waiting for admin approval.'
-                    : _sellerStatus == 'rejected'
-                        ? 'You can submit a new seller request.'
-                        : 'Apply to sell your products on BuyNova.',
-              ),
-              trailing: _sellerStatus == 'rejected'
-                  ? TextButton(
-                      onPressed: _becomeSeller,
-                      child: const Text(
-                        'Apply Again',
-                      ),
-                    )
-                  : const Icon(
-                      Icons.chevron_right,
-                    ),
-              onTap: _sellerStatus.isEmpty
-                  ? _becomeSeller
-                  : null,
-            ),
+        title: const Text(
+          'My Points',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
           ),
-        ],
-      );
-    }
+        ),
+        subtitle: Text(
+          '$_pointsBalance points available',
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
+        onTap: _openWatchEarn,
+      ),
+    );
+  }
 
-    return Column(
-      children: [
+  // =========================================================
+  // BUYER SECTION
+  // =========================================================
+
+  List<Widget> _buyerSectionItems() {
+    return [
+      _sectionNotification(),
+
+      _menuItem(
+        icon: Icons.shopping_bag_outlined,
+        title: 'Buyer Dashboard',
+        onTap: _openBuyer,
+      ),
+
+      _menuItem(
+        icon: Icons.favorite_border,
+        title: 'Favorites',
+        onTap: _openFavorites,
+      ),
+
+      _menuItem(
+        icon: Icons.shopping_cart_outlined,
+        title: 'Cart',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+
+      _menuItem(
+        icon: Icons.receipt_long_outlined,
+        title: 'My Orders',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+
+      _menuItem(
+        icon: Icons.help_outline,
+        title: 'Help & Support',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+
+      _menuItem(
+        icon: Icons.assignment_return_outlined,
+        title: 'Return & Refund',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+    ];
+  }
+
+  // =========================================================
+  // SELLER SECTION
+  // =========================================================
+
+  List<Widget> _sellerSectionItems() {
+    if (_isSellerApproved) {
+      return [
         _sectionNotification(),
 
-        _menuItem(
-          icon: Icons.dashboard_outlined,
-          title: 'Seller Dashboard',
-          onTap: _openSeller,
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
+          child: ListTile(
+            leading: const Icon(
+              Icons.dashboard_outlined,
+              color: Colors.redAccent,
+            ),
+            title: const Text(
+              'Seller Dashboard',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'Manage your BuyNova seller business.',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: _openSellerDashboard,
+          ),
         ),
 
         _menuItem(
@@ -709,17 +703,115 @@ class _UserProfilePageState extends State<UserProfilePage> {
           title: 'Messages',
           onTap: _openSellerMessages,
         ),
-      ],
-    );
+      ];
+    }
+
+    if (_sellerStatus == 'pending') {
+      return [
+        _sectionNotification(),
+
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
+          child: ListTile(
+            leading: const Icon(
+              Icons.pending_outlined,
+              color: Colors.orange,
+            ),
+            title: const Text(
+              'Seller Request Pending',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'Your seller request is waiting for admin approval.',
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (_sellerStatus == 'rejected') {
+      return [
+        _sectionNotification(),
+
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
+          child: ListTile(
+            leading: const Icon(
+              Icons.cancel_outlined,
+              color: Colors.red,
+            ),
+            title: const Text(
+              'Seller Request Rejected',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'You can submit a new seller request.',
+            ),
+            trailing: TextButton(
+              onPressed: _becomeSeller,
+              child: const Text(
+                'Apply Again',
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      _sectionNotification(),
+
+      Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: 8,
+        ),
+        child: ListTile(
+          leading: const Icon(
+            Icons.storefront_outlined,
+            color: Colors.redAccent,
+          ),
+          title: const Text(
+            'Become a Seller',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: const Text(
+            'Apply to sell your products on BuyNova.',
+          ),
+          trailing: const Icon(
+            Icons.chevron_right,
+          ),
+          onTap: _becomeSeller,
+        ),
+      ),
+    ];
   }
 
   // =========================================================
-  // ENTREPRENEUR OPTIONS
+  // ENTREPRENEUR SECTION
   // =========================================================
 
-  Widget _entrepreneurOptions() {
-    return Column(
-      children: [
+  List<Widget> _entrepreneurSectionItems() {
+    if (_isEntrepreneurApproved) {
+      return [
         _sectionNotification(),
 
         _menuItem(
@@ -769,8 +861,70 @@ class _UserProfilePageState extends State<UserProfilePage> {
             );
           },
         ),
-      ],
-    );
+      ];
+    }
+
+    if (_entrepreneurStatus == 'pending') {
+      return [
+        _sectionNotification(),
+
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
+          child: ListTile(
+            leading: const Icon(
+              Icons.pending_outlined,
+              color: Colors.orange,
+            ),
+            title: const Text(
+              'Entrepreneur Request Pending',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'Your entrepreneur request is waiting for admin approval.',
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      _sectionNotification(),
+
+      Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: 8,
+        ),
+        child: ListTile(
+          leading: const Icon(
+            Icons.business_center_outlined,
+            color: Colors.redAccent,
+          ),
+          title: const Text(
+            'Become an Entrepreneur / Reseller',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: const Text(
+            'Apply to become a BuyNova reseller.',
+          ),
+          trailing: const Icon(
+            Icons.chevron_right,
+          ),
+          onTap: _openEntrepreneur,
+        ),
+      ),
+    ];
   }
 
   // =========================================================
@@ -922,16 +1076,38 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     // =================================================
-                    // ADMIN PANEL
+                    // ADMIN
                     // =================================================
 
                     if (_isAdmin) ...[
-                      _sectionHeader(
+                      _expandableSectionHeader(
                         icon:
                             Icons.admin_panel_settings_outlined,
                         title: 'ADMIN PANEL',
-                        onTap:
-                            _openAdminPanel,
+                        expanded:
+                            _adminExpanded,
+
+                        // শুধু এটুকুই পরিবর্তন:
+                        // আগে expand/collapse করত।
+                        // এখন সরাসরি Admin Panel খুলবে।
+                        onTap: _openAdminPanel,
+                      ),
+
+                      if (_adminExpanded) ...[
+                        _sectionNotification(),
+
+                        _menuItem(
+                          icon:
+                              Icons.admin_panel_settings_outlined,
+                          title:
+                              'Admin Dashboard',
+                          onTap:
+                              _openAdminPanel,
+                        ),
+                      ],
+
+                      const SizedBox(
+                        height: 8,
                       ),
                     ],
 
@@ -939,49 +1115,130 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // BUYER
                     // =================================================
 
-                    _sectionHeader(
+                    _expandableSectionHeader(
                       icon:
                           Icons.shopping_bag_outlined,
                       title: 'BUYER',
+                      expanded:
+                          _buyerExpanded,
+
+                      // সরাসরি Buyer Page
                       onTap: _openBuyer,
+                    ),
+
+                    if (_buyerExpanded) ...[
+                      ..._buyerSectionItems(),
+                    ],
+
+                    const SizedBox(
+                      height: 8,
                     ),
 
                     // =================================================
                     // EARN & REWARDS
                     // =================================================
 
-                    _sectionHeader(
+                    _expandableSectionHeader(
                       icon:
                           Icons.stars_outlined,
-                      title: 'EARN & REWARDS',
-                      onTap:
-                          _openWatchEarn,
+                      title:
+                          'EARN & REWARDS',
+                      expanded:
+                          _earnExpanded,
+
+                      // সরাসরি Watch & Earn Page
+                      onTap: _openWatchEarn,
+                    ),
+
+                    if (_earnExpanded) ...[
+                      _sectionNotification(),
+
+                      _rewardsSummaryCard(),
+
+                      _menuItem(
+                        icon:
+                            Icons.play_circle_outline,
+                        title:
+                            'Watch & Earn',
+                        iconColor:
+                            Colors.redAccent,
+                        onTap:
+                            _openWatchEarn,
+                      ),
+
+                      _menuItem(
+                        icon:
+                            Icons.video_library_outlined,
+                        title:
+                            'Seller Video Rewards',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Seller Video Rewards',
+                          );
+                        },
+                      ),
+
+                      _menuItem(
+                        icon:
+                            Icons.group_add_outlined,
+                        title:
+                            'Referral',
+                        onTap: () {
+                          _featureNotAvailable(
+                            'Referral',
+                          );
+                        },
+                      ),
+                    ],
+
+                    const SizedBox(
+                      height: 8,
                     ),
 
                     // =================================================
                     // ENTREPRENEUR / RESELLER
                     // =================================================
 
-                    _sectionHeader(
+                    _expandableSectionHeader(
                       icon:
                           Icons.business_center_outlined,
                       title:
                           'ENTREPRENEUR / RESELLER',
+                      expanded:
+                          _entrepreneurExpanded,
+
+                      // সরাসরি Entrepreneur Page
                       onTap:
                           _openEntrepreneur,
+                    ),
+
+                    if (_entrepreneurExpanded) ...[
+                      ..._entrepreneurSectionItems(),
+                    ],
+
+                    const SizedBox(
+                      height: 8,
                     ),
 
                     // =================================================
                     // SELLER
                     // =================================================
 
-                    _sectionHeader(
+                    _expandableSectionHeader(
                       icon:
                           Icons.storefront_outlined,
                       title: 'SELLER',
+                      expanded:
+                          _sellerExpanded,
+
+                      // সরাসরি Seller Page
                       onTap:
-                          _openSeller,
+                          _openSellerDashboard,
                     ),
+
+                    if (_sellerExpanded) ...[
+                      ..._sellerSectionItems(),
+                    ],
 
                     const SizedBox(
                       height: 16,
