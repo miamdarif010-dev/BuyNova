@@ -24,10 +24,12 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
       return const Stream.empty();
     }
 
+    // Only filter by sellerId.
+    // Sorting is done locally so a Firestore composite index
+    // is not required.
     return _firestore
         .collection('conversations')
         .where('sellerId', isEqualTo: sellerId)
-        .orderBy('lastMessageAt', descending: true)
         .snapshots();
   }
 
@@ -35,11 +37,12 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
     final value = data['sellerUnreadCount'];
 
     if (value is int) {
-      return value;
+      return value < 0 ? 0 : value;
     }
 
     if (value is num) {
-      return value.toInt();
+      final count = value.toInt();
+      return count < 0 ? 0 : count;
     }
 
     return 0;
@@ -63,6 +66,20 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
     }
 
     return 'Start a conversation';
+  }
+
+  DateTime? _lastMessageDate(Map<String, dynamic> data) {
+    final value = data['lastMessageAt'];
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    return null;
   }
 
   String _formatTime(dynamic value) {
@@ -94,6 +111,19 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
+  String _conversationId(
+    Map<String, dynamic> data,
+    String fallbackId,
+  ) {
+    final value = data['conversationId'];
+
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+
+    return fallbackId;
+  }
+
   void _openChat({
     required String conversationId,
     required Map<String, dynamic> data,
@@ -114,7 +144,7 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
       MaterialPageRoute(
         builder: (_) => SellerChatPage(
           conversationId: conversationId,
-          buyerId: buyerId,
+          buyerId: buyerId.trim(),
           buyerName: _buyerName(data),
         ),
       ),
@@ -173,10 +203,10 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
     final lastMessage = _lastMessage(data);
     final time = _formatTime(data['lastMessageAt']);
 
-    final conversationId =
-        data['conversationId']?.toString().trim().isNotEmpty == true
-            ? data['conversationId'].toString()
-            : documentId;
+    final conversationId = _conversationId(
+      data,
+      documentId,
+    );
 
     return Card(
       margin: const EdgeInsets.only(
@@ -282,7 +312,9 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
             ),
           ),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
         onTap: () {
           _openChat(
             conversationId: conversationId,
@@ -291,6 +323,37 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
         },
       ),
     );
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>>
+      _sortedDocuments(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
+  ) {
+    final sorted = List<
+        QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+      documents,
+    );
+
+    sorted.sort((a, b) {
+      final dateA = _lastMessageDate(a.data());
+      final dateB = _lastMessageDate(b.data());
+
+      if (dateA == null && dateB == null) {
+        return 0;
+      }
+
+      if (dateA == null) {
+        return 1;
+      }
+
+      if (dateB == null) {
+        return -1;
+      }
+
+      return dateB.compareTo(dateA);
+    });
+
+    return sorted;
   }
 
   @override
@@ -321,40 +384,73 @@ class _SellerMessagesPageState extends State<SellerMessagesPage> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Unable to load messages.\n\n${snapshot.error}',
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.redAccent,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Unable to load messages.',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please check your connection and try again.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(),
             );
           }
 
-          final documents = snapshot.data?.docs ?? [];
+          final documents = _sortedDocuments(
+            snapshot.data?.docs ?? [],
+          );
 
           if (documents.isEmpty) {
             return _emptyState();
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.only(
-              top: 16,
-              bottom: 24,
-            ),
-            itemCount: documents.length,
-            itemBuilder: (context, index) {
-              final document = documents[index];
-
-              return _conversationTile(
-                document.id,
-                document.data(),
+          return RefreshIndicator(
+            onRefresh: () async {
+              await Future<void>.delayed(
+                const Duration(milliseconds: 400),
               );
             },
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(
+                top: 16,
+                bottom: 24,
+              ),
+              itemCount: documents.length,
+              itemBuilder: (context, index) {
+                final document = documents[index];
+
+                return _conversationTile(
+                  document.id,
+                  document.data(),
+                );
+              },
+            ),
           );
         },
       ),
