@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'return_refund_request_details_page.dart';
+
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
 
@@ -38,6 +40,7 @@ class NotificationsPage extends StatelessWidget {
 
       case 'return':
       case 'refund':
+      case 'return_refund':
         return Icons.assignment_return_outlined;
 
       case 'seller':
@@ -67,6 +70,7 @@ class NotificationsPage extends StatelessWidget {
 
       case 'return':
       case 'refund':
+      case 'return_refund':
         return Colors.orange;
 
       case 'seller':
@@ -111,15 +115,16 @@ class NotificationsPage extends StatelessWidget {
     if (user == null) return;
 
     try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .collection('notifications')
-              .where('isRead', isEqualTo: false)
-              .get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('notifications')
+          .where('isRead', isEqualTo: false)
+          .get();
 
       if (snapshot.docs.isEmpty) {
+        if (!context.mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -131,16 +136,14 @@ class NotificationsPage extends StatelessWidget {
         return;
       }
 
-      final batch =
-          FirebaseFirestore.instance.batch();
+      final batch = FirebaseFirestore.instance.batch();
 
       for (final doc in snapshot.docs) {
         batch.update(
           doc.reference,
           {
             'isRead': true,
-            'readAt':
-                FieldValue.serverTimestamp(),
+            'readAt': FieldValue.serverTimestamp(),
           },
         );
       }
@@ -229,6 +232,70 @@ class NotificationsPage extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _openNotification(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) async {
+    final type =
+        (data['type'] ?? 'general').toString();
+
+    final requestType =
+        (data['requestType'] ?? '').toString();
+
+    final isReturnRefund =
+        type == 'return_refund' ||
+        type == 'return' ||
+        type == 'refund' ||
+        requestType == 'return' ||
+        requestType == 'refund';
+
+    if (isReturnRefund) {
+      final requestId =
+          (data['requestId'] ?? '').toString();
+
+      final orderId =
+          (data['orderId'] ?? '').toString();
+
+      final sellerOrderId =
+          (data['sellerOrderId'] ?? '').toString();
+
+      final sellerId =
+          (data['sellerId'] ?? '').toString();
+
+      final sellerCode =
+          (data['sellerCode'] ?? '').toString();
+
+      final productId =
+          (data['productId'] ?? '').toString();
+
+      if (!context.mounted) return;
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ReturnRefundRequestDetailsPage(
+            requestId: requestId,
+            orderId: orderId,
+            sellerOrderId: sellerOrderId,
+            sellerId: sellerId,
+            sellerCode: sellerCode,
+            productId: productId,
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    if (context.mounted) {
+      _showNotificationDetails(
+        context,
+        data,
+      );
+    }
   }
 
   @override
@@ -379,6 +446,13 @@ class NotificationsPage extends StatelessWidget {
               final iconColor =
                   _notificationColor(type);
 
+              final isReturnRefund =
+                  type == 'return_refund' ||
+                  type == 'return' ||
+                  type == 'refund' ||
+                  data['requestType'] == 'return' ||
+                  data['requestType'] == 'refund';
+
               return Card(
                 elevation: 0,
                 margin:
@@ -457,6 +531,17 @@ class NotificationsPage extends StatelessWidget {
                             ),
                           ),
                         ],
+                        if (isReturnRefund) ...[
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Tap to view request details',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -468,7 +553,7 @@ class NotificationsPage extends StatelessWidget {
                     }
 
                     if (context.mounted) {
-                      _showNotificationDetails(
+                      await _openNotification(
                         context,
                         data,
                       );
