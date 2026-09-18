@@ -14,57 +14,6 @@ class SellerReturnRefundPage extends StatelessWidget {
         .snapshots();
   }
 
-  Future<void> _updateStatus(
-    BuildContext context,
-    String requestId,
-    String status,
-  ) async {
-    try {
-      final ref = FirebaseFirestore.instance
-          .collection('return_refund_requests')
-          .doc(requestId);
-
-      final data = <String, dynamic>{
-        'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (status == 'approved') {
-        data['approvedAt'] = FieldValue.serverTimestamp();
-      }
-
-      if (status == 'rejected') {
-        data['rejectedAt'] = FieldValue.serverTimestamp();
-      }
-
-      if (status == 'completed') {
-        data['completedAt'] = FieldValue.serverTimestamp();
-      }
-
-      await ref.update(data);
-
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Request status changed to ${_statusText(status)}.',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not update request.\n$e',
-          ),
-        ),
-      );
-    }
-  }
-
   String _statusText(String status) {
     switch (status) {
       case 'approved':
@@ -95,10 +44,317 @@ class SellerReturnRefundPage extends StatelessWidget {
     }
   }
 
+  String _notificationTitle(String status, String requestType) {
+    final type = requestType == 'refund' ? 'Refund' : 'Return';
+
+    switch (status) {
+      case 'approved':
+        return '$type Request Approved';
+      case 'rejected':
+        return '$type Request Rejected';
+      case 'processing':
+        return '$type Request Processing';
+      case 'completed':
+        return '$type Request Completed';
+      default:
+        return '$type Request Updated';
+    }
+  }
+
+  String _notificationMessage({
+    required String status,
+    required String requestType,
+    required String productName,
+    String sellerMessage = '',
+  }) {
+    final type = requestType == 'refund' ? 'refund' : 'return';
+
+    String message;
+
+    switch (status) {
+      case 'approved':
+        message =
+            'Your $type request for "$productName" has been approved by the seller.';
+        break;
+
+      case 'rejected':
+        message =
+            'Your $type request for "$productName" has been rejected by the seller.';
+        break;
+
+      case 'processing':
+        message =
+            'Your $type request for "$productName" is now being processed.';
+        break;
+
+      case 'completed':
+        message =
+            'Your $type request for "$productName" has been completed.';
+        break;
+
+      default:
+        message =
+            'Your $type request for "$productName" has been updated.';
+    }
+
+    if (sellerMessage.trim().isNotEmpty) {
+      message += '\n\nSeller message: ${sellerMessage.trim()}';
+    }
+
+    return message;
+  }
+
+  Future<void> _updateStatus(
+    BuildContext context,
+    String requestId,
+    String status,
+    Map<String, dynamic> requestData,
+  ) async {
+    try {
+      final requestRef = FirebaseFirestore.instance
+          .collection('return_refund_requests')
+          .doc(requestId);
+
+      final data = <String, dynamic>{
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (status == 'approved') {
+        data['approvedAt'] = FieldValue.serverTimestamp();
+      }
+
+      if (status == 'rejected') {
+        data['rejectedAt'] = FieldValue.serverTimestamp();
+      }
+
+      if (status == 'completed') {
+        data['completedAt'] = FieldValue.serverTimestamp();
+      }
+
+      await requestRef.update(data);
+
+      await _sendBuyerNotification(
+        requestData: requestData,
+        status: status,
+      );
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Request status changed to ${_statusText(status)}.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not update request.\n$e',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _sendBuyerNotification({
+    required Map<String, dynamic> requestData,
+    required String status,
+  }) async {
+    final customerId =
+        requestData['customerId']?.toString() ?? '';
+
+    if (customerId.isEmpty) {
+      return;
+    }
+
+    final requestType =
+        requestData['requestType']?.toString() ?? 'return';
+
+    final productName =
+        requestData['productName']?.toString() ?? 'Product';
+
+    final sellerMessage =
+        requestData['sellerMessage']?.toString() ?? '';
+
+    final notificationRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(customerId)
+        .collection('notifications')
+        .doc();
+
+    await notificationRef.set({
+      'title': _notificationTitle(
+        status,
+        requestType,
+      ),
+      'message': _notificationMessage(
+        status: status,
+        requestType: requestType,
+        productName: productName,
+        sellerMessage: sellerMessage,
+      ),
+      'type': 'return_refund',
+      'requestId': requestData['requestId']?.toString() ?? '',
+      'orderId': requestData['orderId']?.toString() ?? '',
+      'sellerOrderId':
+          requestData['sellerOrderId']?.toString() ?? '',
+      'sellerId': requestData['sellerId']?.toString() ?? '',
+      'sellerCode':
+          requestData['sellerCode']?.toString() ?? '',
+      'productId':
+          requestData['productId']?.toString() ?? '',
+      'productName': productName,
+      'requestType': requestType,
+      'requestStatus': status,
+      'isRead': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _updateStatusWithMessage(
+    BuildContext context,
+    String requestId,
+    String status,
+    Map<String, dynamic> requestData,
+    String sellerMessage,
+  ) async {
+    try {
+      final requestRef = FirebaseFirestore.instance
+          .collection('return_refund_requests')
+          .doc(requestId);
+
+      final data = <String, dynamic>{
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (sellerMessage.trim().isNotEmpty) {
+        data['sellerMessage'] = sellerMessage.trim();
+        data['sellerNote'] = sellerMessage.trim();
+      }
+
+      if (status == 'approved') {
+        data['approvedAt'] = FieldValue.serverTimestamp();
+      }
+
+      if (status == 'rejected') {
+        data['rejectedAt'] = FieldValue.serverTimestamp();
+      }
+
+      if (status == 'completed') {
+        data['completedAt'] = FieldValue.serverTimestamp();
+      }
+
+      await requestRef.update(data);
+
+      final notificationData =
+          Map<String, dynamic>.from(requestData);
+
+      notificationData['requestId'] = requestId;
+      notificationData['sellerMessage'] =
+          sellerMessage.trim();
+
+      await _sendBuyerNotification(
+        requestData: notificationData,
+        status: status,
+      );
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Request ${_statusText(status).toLowerCase()} successfully.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not update request.\n$e',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showSellerMessageDialog(
+    BuildContext context,
+    String requestId,
+    String status,
+    Map<String, dynamic> requestData,
+  ) async {
+    final controller = TextEditingController();
+
+    final existingMessage =
+        requestData['sellerMessage']?.toString() ?? '';
+
+    controller.text = existingMessage;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            status == 'rejected'
+                ? 'Reject Request'
+                : 'Update Request',
+          ),
+          content: TextField(
+            controller: controller,
+            maxLines: 5,
+            maxLength: 500,
+            decoration: const InputDecoration(
+              labelText: 'Seller Message',
+              hintText: 'Write a message for the customer...',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+
+                await _updateStatusWithMessage(
+                  context,
+                  requestId,
+                  status,
+                  requestData,
+                  controller.text,
+                );
+              },
+              child: Text(
+                _statusText(status),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+  }
+
   void _showStatusMenu(
     BuildContext context,
     String requestId,
     String currentStatus,
+    Map<String, dynamic> requestData,
   ) {
     showModalBottomSheet(
       context: context,
@@ -148,11 +404,22 @@ class SellerReturnRefundPage extends StatelessWidget {
                           return;
                         }
 
-                        await _updateStatus(
-                          context,
-                          requestId,
-                          status,
-                        );
+                        if (status == 'approved' ||
+                            status == 'rejected') {
+                          await _showSellerMessageDialog(
+                            context,
+                            requestId,
+                            status,
+                            requestData,
+                          );
+                        } else {
+                          await _updateStatus(
+                            context,
+                            requestId,
+                            status,
+                            requestData,
+                          );
+                        }
                       },
                     );
                   },
@@ -256,6 +523,9 @@ class SellerReturnRefundPage extends StatelessWidget {
     final details =
         data['details']?.toString() ?? '';
 
+    final sellerMessage =
+        data['sellerMessage']?.toString() ?? '';
+
     final quantity =
         (data['quantity'] as num?)?.toInt() ?? 1;
 
@@ -302,9 +572,7 @@ class SellerReturnRefundPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _productImage(productImage),
-
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
@@ -403,6 +671,36 @@ class SellerReturnRefundPage extends StatelessWidget {
               Text(details),
             ],
 
+            if (sellerMessage.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.blue.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Seller Message',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(sellerMessage),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 18),
 
             SizedBox(
@@ -413,6 +711,7 @@ class SellerReturnRefundPage extends StatelessWidget {
                     context,
                     doc.id,
                     status,
+                    data,
                   );
                 },
                 icon: const Icon(
