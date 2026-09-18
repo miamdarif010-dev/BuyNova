@@ -3,13 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'order_tracking_page.dart';
+import 'return_refund_request_page.dart';
 
 class OrderDetailsPage extends StatefulWidget {
   final String orderId;
   final Map<String, dynamic> orderData;
 
-  final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-      sellerOrders;
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> sellerOrders;
 
   const OrderDetailsPage({
     super.key,
@@ -19,12 +19,10 @@ class OrderDetailsPage extends StatefulWidget {
   });
 
   @override
-  State<OrderDetailsPage> createState() =>
-      _OrderDetailsPageState();
+  State<OrderDetailsPage> createState() => _OrderDetailsPageState();
 }
 
-class _OrderDetailsPageState
-    extends State<OrderDetailsPage> {
+class _OrderDetailsPageState extends State<OrderDetailsPage> {
   bool _isCancelling = false;
 
   String _statusText(String status) {
@@ -97,29 +95,19 @@ class _OrderDetailsPageState
     if (value is Timestamp) {
       final date = value.toDate();
 
-      final day =
-          date.day.toString().padLeft(2, '0');
-
-      final month =
-          date.month.toString().padLeft(2, '0');
-
-      final year =
-          date.year.toString();
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year.toString();
 
       final hour = date.hour == 0
           ? 12
-          : (date.hour > 12
-              ? date.hour - 12
-              : date.hour);
+          : (date.hour > 12 ? date.hour - 12 : date.hour);
 
-      final minute =
-          date.minute.toString().padLeft(2, '0');
+      final minute = date.minute.toString().padLeft(2, '0');
 
-      final period =
-          date.hour >= 12 ? 'PM' : 'AM';
+      final period = date.hour >= 12 ? 'PM' : 'AM';
 
-      return '$day/$month/$year '
-          '$hour:$minute $period';
+      return '$day/$month/$year $hour:$minute $period';
     }
 
     return 'Date unavailable';
@@ -129,15 +117,13 @@ class _OrderDetailsPageState
     final color = _statusColor(status);
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 7,
       ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius:
-            BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         _statusText(status),
@@ -155,8 +141,7 @@ class _OrderDetailsPageState
     IconData icon,
   ) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
+      padding: const EdgeInsets.only(
         bottom: 10,
       ),
       child: Row(
@@ -185,13 +170,11 @@ class _OrderDetailsPageState
     bool bold = false,
   }) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         vertical: 7,
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (icon != null) ...[
             Icon(
@@ -217,9 +200,8 @@ class _OrderDetailsPageState
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: bold
-                    ? FontWeight.bold
-                    : FontWeight.w500,
+                fontWeight:
+                    bold ? FontWeight.bold : FontWeight.w500,
               ),
             ),
           ),
@@ -234,8 +216,7 @@ class _OrderDetailsPageState
       height: 76,
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
-        borderRadius:
-            BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
         Icons.image_outlined,
@@ -245,23 +226,19 @@ class _OrderDetailsPageState
     );
   }
 
-  Widget _productImage(
-    String imageUrl,
-  ) {
+  Widget _productImage(String imageUrl) {
     if (imageUrl.isEmpty) {
       return _imagePlaceholder();
     }
 
     return ClipRRect(
-      borderRadius:
-          BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(12),
       child: Image.network(
         imageUrl,
         width: 76,
         height: 76,
         fit: BoxFit.cover,
-        errorBuilder:
-            (_, __, ___) {
+        errorBuilder: (_, __, ___) {
           return _imagePlaceholder();
         },
       ),
@@ -283,38 +260,34 @@ class _OrderDetailsPageState
                 '')
             .toString();
 
-    final quantity =
-        _int(item['quantity'] ?? 1);
+    final quantity = _int(
+      item['quantity'] ?? 1,
+    );
 
-    final price =
-        _number(item['price']);
+    final price = _number(
+      item['price'],
+    );
 
-    final itemTotal =
-        _number(
+    final itemTotal = _number(
       item['total'],
     );
 
-    final calculatedTotal =
-        price * quantity;
+    final calculatedTotal = price * quantity;
 
     final total = itemTotal > 0
         ? itemTotal
         : calculatedTotal;
 
     return Card(
-      margin:
-          const EdgeInsets.only(
+      margin: const EdgeInsets.only(
         bottom: 10,
       ),
       elevation: 1,
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
-        padding:
-            const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -331,32 +304,26 @@ class _OrderDetailsPageState
                     maxLines: 2,
                     overflow:
                         TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '₩${price.toStringAsFixed(0)} × $quantity',
                     style: TextStyle(
-                      color:
-                          Colors.grey.shade600,
+                      color: Colors.grey.shade600,
                       fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 5),
                   Text(
                     '₩${total.toStringAsFixed(0)}',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.redAccent,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
                       fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
@@ -368,10 +335,166 @@ class _OrderDetailsPageState
     );
   }
 
-  List<Map<String, dynamic>>
-      _mainItems() {
-    final raw =
-        widget.orderData['items'];
+  Widget _sellerProductCard({
+    required Map<String, dynamic> item,
+    required String sellerId,
+    required String sellerCode,
+    required String sellerOrderId,
+    required String sellerStatus,
+  }) {
+    final name =
+        (item['productName'] ??
+                item['name'] ??
+                'Product')
+            .toString();
+
+    final productId =
+        (item['productId'] ?? '')
+            .toString();
+
+    final imageUrl =
+        (item['imageUrl'] ??
+                item['productImageUrl'] ??
+                '')
+            .toString();
+
+    final quantity = _int(
+      item['quantity'] ?? 1,
+    );
+
+    final price = _number(
+      item['price'],
+    );
+
+    final itemTotal = _number(
+      item['total'],
+    );
+
+    final total = itemTotal > 0
+        ? itemTotal
+        : price * quantity;
+
+    final canRequest =
+        sellerStatus == 'delivered' &&
+        sellerId.isNotEmpty &&
+        sellerOrderId.isNotEmpty &&
+        productId.isNotEmpty;
+
+    return Card(
+      margin: const EdgeInsets.only(
+        bottom: 10,
+      ),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                _productImage(imageUrl),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow:
+                            TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '₩${price.toStringAsFixed(0)} × $quantity',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '₩${total.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            if (canRequest) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ReturnRefundRequestPage(
+                          orderId: widget.orderId,
+                          sellerOrderId:
+                              sellerOrderId,
+                          sellerId: sellerId,
+                          sellerCode: sellerCode,
+                          product: {
+                            'productId': productId,
+                            'productName': name,
+                            'imageUrl': imageUrl,
+                            'quantity': quantity,
+                            'price': price,
+                            'total': total,
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.assignment_return_outlined,
+                    color: Colors.redAccent,
+                  ),
+                  label: const Text(
+                    'Return / Refund',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(
+                      color: Colors.redAccent,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _mainItems() {
+    final raw = widget.orderData['items'];
 
     if (raw is! List) {
       return [];
@@ -381,19 +504,18 @@ class _OrderDetailsPageState
         .whereType<Map>()
         .map(
           (item) =>
-              Map<String, dynamic>.from(
-            item,
-          ),
+              Map<String, dynamic>.from(item),
         )
         .toList();
   }
 
   Future<void> _cancelSellerOrder(
-    QueryDocumentSnapshot<
-            Map<String, dynamic>>
+    QueryDocumentSnapshot<Map<String, dynamic>>
         sellerOrderDoc,
   ) async {
-    if (_isCancelling) return;
+    if (_isCancelling) {
+      return;
+    }
 
     final user =
         FirebaseAuth.instance.currentUser;
@@ -406,8 +528,7 @@ class _OrderDetailsPageState
         sellerOrderDoc.data();
 
     final customerId =
-        (data['customerId'] ?? '')
-            .toString();
+        (data['customerId'] ?? '').toString();
 
     if (customerId != user.uid) {
       _showMessage(
@@ -418,8 +539,7 @@ class _OrderDetailsPageState
     }
 
     final status =
-        (data['orderStatus'] ?? 'placed')
-            .toString();
+        (data['orderStatus'] ?? 'placed').toString();
 
     if (!_canCancel(status)) {
       _showMessage(
@@ -447,8 +567,7 @@ class _OrderDetailsPageState
                   false,
                 );
               },
-              child:
-                  const Text('No'),
+              child: const Text('No'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -459,10 +578,8 @@ class _OrderDetailsPageState
               },
               style:
                   ElevatedButton.styleFrom(
-                backgroundColor:
-                    Colors.red,
-                foregroundColor:
-                    Colors.white,
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
               ),
               child: const Text(
                 'Yes, Cancel',
@@ -482,13 +599,11 @@ class _OrderDetailsPageState
     });
 
     try {
-      final ref =
-          FirebaseFirestore.instance
-              .collection('seller_orders')
-              .doc(sellerOrderDoc.id);
+      final ref = FirebaseFirestore.instance
+          .collection('seller_orders')
+          .doc(sellerOrderDoc.id);
 
-      final latest =
-          await ref.get();
+      final latest = await ref.get();
 
       if (!latest.exists) {
         throw Exception(
@@ -503,8 +618,7 @@ class _OrderDetailsPageState
           (latestData['customerId'] ?? '')
               .toString();
 
-      if (latestCustomerId !=
-          user.uid) {
+      if (latestCustomerId != user.uid) {
         throw Exception(
           'You cannot cancel this order.',
         );
@@ -515,26 +629,24 @@ class _OrderDetailsPageState
                   'placed')
               .toString();
 
-      if (!_canCancel(
-        latestStatus,
-      )) {
+      if (!_canCancel(latestStatus)) {
         throw Exception(
           'This order can no longer be cancelled.',
         );
       }
 
       await ref.update({
-        'orderStatus':
-            'cancelled',
-        'cancelledBy':
-            'customer',
+        'orderStatus': 'cancelled',
+        'cancelledBy': 'customer',
         'cancelledAt':
             FieldValue.serverTimestamp(),
         'updatedAt':
             FieldValue.serverTimestamp(),
       });
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       _showMessage(
         'Order cancelled successfully.',
@@ -542,7 +654,9 @@ class _OrderDetailsPageState
 
       setState(() {});
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       _showMessage(
         'Could not cancel order: $e',
@@ -561,23 +675,22 @@ class _OrderDetailsPageState
     String message, {
     bool error = false,
   }) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor:
             error ? Colors.red : Colors.green,
-        behavior:
-            SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   Widget _sellerOrderCard(
-    QueryDocumentSnapshot<
-            Map<String, dynamic>>
+    QueryDocumentSnapshot<Map<String, dynamic>>
         sellerOrderDoc,
   ) {
     final data =
@@ -616,8 +729,9 @@ class _OrderDetailsPageState
                 .whereType<Map>()
                 .map(
                   (item) =>
-                      Map<String, dynamic>
-                          .from(item),
+                      Map<String, dynamic>.from(
+                    item,
+                  ),
                 )
                 .toList()
             : <Map<String, dynamic>>[];
@@ -628,8 +742,7 @@ class _OrderDetailsPageState
         bottom: 14,
       ),
       elevation: 2,
-      shape:
-          RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius:
             BorderRadius.circular(14),
       ),
@@ -666,8 +779,7 @@ class _OrderDetailsPageState
                       if (sellerId.isNotEmpty)
                         Padding(
                           padding:
-                              const EdgeInsets
-                                  .only(
+                              const EdgeInsets.only(
                             top: 3,
                           ),
                           child: Text(
@@ -701,7 +813,14 @@ class _OrderDetailsPageState
 
             if (items.isNotEmpty)
               ...items.map(
-                _productCard,
+                (item) => _sellerProductCard(
+                  item: item,
+                  sellerId: sellerId,
+                  sellerCode: sellerCode,
+                  sellerOrderId:
+                      sellerOrderDoc.id,
+                  sellerStatus: status,
+                ),
               ),
 
             const Divider(),
@@ -716,17 +835,14 @@ class _OrderDetailsPageState
 
             if (_canCancel(status))
               SizedBox(
-                width:
-                    double.infinity,
-                child:
-                    OutlinedButton.icon(
-                  onPressed:
-                      _isCancelling
-                          ? null
-                          : () =>
-                              _cancelSellerOrder(
-                                sellerOrderDoc,
-                              ),
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isCancelling
+                      ? null
+                      : () =>
+                          _cancelSellerOrder(
+                            sellerOrderDoc,
+                          ),
                   icon: const Icon(
                     Icons.cancel_outlined,
                     color: Colors.red,
@@ -752,10 +868,8 @@ class _OrderDetailsPageState
             if (status != 'cancelled') ...[
               const SizedBox(height: 8),
               SizedBox(
-                width:
-                    double.infinity,
-                child:
-                    OutlinedButton.icon(
+                width: double.infinity,
+                child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -879,13 +993,17 @@ class _OrderDetailsPageState
           children: [
             _infoRow(
               'Name',
-              name.isEmpty ? 'Not available' : name,
+              name.isEmpty
+                  ? 'Not available'
+                  : name,
               icon:
                   Icons.person_outline,
             ),
             _infoRow(
               'Phone',
-              phone.isEmpty ? 'Not available' : phone,
+              phone.isEmpty
+                  ? 'Not available'
+                  : phone,
               icon:
                   Icons.phone_outlined,
             ),
@@ -905,14 +1023,12 @@ class _OrderDetailsPageState
 
   Widget _paymentCard() {
     final paymentMethod =
-        (widget.orderData[
-                    'paymentMethod'] ??
+        (widget.orderData['paymentMethod'] ??
                 'Not available')
             .toString();
 
     final paymentStatus =
-        (widget.orderData[
-                    'paymentStatus'] ??
+        (widget.orderData['paymentStatus'] ??
                 'pending')
             .toString();
 
@@ -948,8 +1064,7 @@ class _OrderDetailsPageState
 
   Widget _mainOrderInfoCard() {
     final status =
-        (widget.orderData[
-                    'orderStatus'] ??
+        (widget.orderData['orderStatus'] ??
                 'placed')
             .toString();
 
@@ -959,8 +1074,7 @@ class _OrderDetailsPageState
     );
 
     final userEmail =
-        (widget.orderData[
-                    'userEmail'] ??
+        (widget.orderData['userEmail'] ??
                 '')
             .toString();
 
@@ -1033,8 +1147,7 @@ class _OrderDetailsPageState
     final items = _mainItems();
 
     final mainStatus =
-        (widget.orderData[
-                    'orderStatus'] ??
+        (widget.orderData['orderStatus'] ??
                 'placed')
             .toString();
 
