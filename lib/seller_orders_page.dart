@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'seller_return_refund_page.dart';
+
 class SellerOrdersPage extends StatelessWidget {
   const SellerOrdersPage({super.key});
 
@@ -55,19 +57,14 @@ class SellerOrdersPage extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'confirmed':
         return 'Order Confirmed';
-
       case 'processing':
         return 'Order Processing';
-
       case 'shipped':
         return 'Order Shipped';
-
       case 'delivered':
         return 'Order Delivered';
-
       case 'cancelled':
         return 'Order Cancelled';
-
       default:
         return 'Order Updated';
     }
@@ -131,8 +128,7 @@ class SellerOrdersPage extends StatelessWidget {
     if (value is Timestamp) {
       final date = value.toDate();
 
-      String two(int n) =>
-          n.toString().padLeft(2, '0');
+      String two(int n) => n.toString().padLeft(2, '0');
 
       return '${date.year}-${two(date.month)}-${two(date.day)} '
           '${two(date.hour)}:${two(date.minute)}';
@@ -249,9 +245,7 @@ class SellerOrdersPage extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(
-          alpha: 0.06,
-        ),
+        color: Colors.grey.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -389,7 +383,6 @@ class SellerOrdersPage extends StatelessWidget {
     required String mainOrderId,
     required String sellerId,
     required String customerId,
-    required String customerName,
     required String newStatus,
   }) async {
     final user =
@@ -398,6 +391,8 @@ class SellerOrdersPage extends StatelessWidget {
     if (user == null) return;
 
     if (user.uid != sellerId) {
+      if (!context.mounted) return;
+
       ScaffoldMessenger.of(context)
           .showSnackBar(
         const SnackBar(
@@ -417,7 +412,7 @@ class SellerOrdersPage extends StatelessWidget {
       final batch = firestore.batch();
 
       // -------------------------------------------------------
-      // Seller order
+      // Seller Order
       // -------------------------------------------------------
 
       final sellerOrderRef = firestore
@@ -434,7 +429,7 @@ class SellerOrdersPage extends StatelessWidget {
       );
 
       // -------------------------------------------------------
-      // Main customer order
+      // Main Customer Order
       // -------------------------------------------------------
 
       if (mainOrderId.isNotEmpty) {
@@ -495,13 +490,13 @@ class SellerOrdersPage extends StatelessWidget {
         customerId: customerId,
         orderId: mainOrderId,
         sellerId: sellerId,
-        sellerName: user.displayName ??
-            'Seller',
+        sellerName:
+            user.displayName ?? 'Seller',
         newStatus: newStatus,
       );
 
       // -------------------------------------------------------
-      // Commit everything together.
+      // COMMIT
       // -------------------------------------------------------
 
       await batch.commit();
@@ -542,7 +537,6 @@ class SellerOrdersPage extends StatelessWidget {
     required String mainOrderId,
     required String sellerId,
     required String customerId,
-    required String customerName,
     required String currentStatus,
   }) {
     const statuses = [
@@ -571,10 +565,8 @@ class SellerOrdersPage extends StatelessWidget {
                 return ListTile(
                   leading: Icon(
                     selected
-                        ? Icons
-                            .radio_button_checked
-                        : Icons
-                            .radio_button_unchecked,
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                     color: selected
                         ? _statusColor(status)
                         : null,
@@ -597,8 +589,6 @@ class SellerOrdersPage extends StatelessWidget {
                           sellerId,
                       customerId:
                           customerId,
-                      customerName:
-                          customerName,
                       newStatus:
                           status,
                     );
@@ -606,6 +596,103 @@ class SellerOrdersPage extends StatelessWidget {
                 );
               },
             ).toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // RETURN / REFUND PAGE
+  // =========================================================
+
+  void _openReturnRefundPage(
+    BuildContext context,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const SellerReturnRefundPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // CHECK RETURN / REFUND REQUESTS FOR ORDER
+  // =========================================================
+
+  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+      _returnRefundRequestsStream(
+    String sellerId,
+    String orderId,
+  ) {
+    return FirebaseFirestore.instance
+        .collection('return_refund_requests')
+        .where(
+          'sellerId',
+          isEqualTo: sellerId,
+        )
+        .snapshots()
+        .map(
+      (snapshot) {
+        return snapshot.docs.where((doc) {
+          final data = doc.data();
+
+          final requestOrderId =
+              data['orderId']?.toString() ?? '';
+
+          return requestOrderId == orderId;
+        }).toList();
+      },
+    );
+  }
+
+  // =========================================================
+  // RETURN / REFUND BUTTON
+  // =========================================================
+
+  Widget _returnRefundButton(
+    BuildContext context, {
+    required String sellerId,
+    required String orderId,
+  }) {
+    if (sellerId.isEmpty || orderId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<
+        List<QueryDocumentSnapshot<
+            Map<String, dynamic>>>>(
+      stream: _returnRefundRequestsStream(
+        sellerId,
+        orderId,
+      ),
+      builder: (context, snapshot) {
+        final count =
+            snapshot.data?.length ?? 0;
+
+        if (count == 0) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(
+            top: 10,
+          ),
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              _openReturnRefundPage(
+                context,
+              );
+            },
+            icon: const Icon(
+              Icons.assignment_return_outlined,
+            ),
+            label: Text(
+              'Return / Refund Requests ($count)',
+            ),
           ),
         );
       },
@@ -645,12 +732,15 @@ class SellerOrdersPage extends StatelessWidget {
         data['orderStatus']?.toString() ??
             'placed';
 
+    final sellerId =
+        data['sellerId']?.toString() ?? '';
+
     final items = _items(data);
 
     final sellerSubtotal =
         _number(data['sellerSubtotal']);
 
-    showModalBottomSheet(
+    return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -758,6 +848,12 @@ class SellerOrdersPage extends StatelessWidget {
                           FontWeight.bold,
                     ),
                   ),
+
+                  _returnRefundButton(
+                    context,
+                    sellerId: sellerId,
+                    orderId: orderId,
+                  ),
                 ],
               ),
             ),
@@ -838,8 +934,7 @@ class SellerOrdersPage extends StatelessWidget {
               Row(
                 children: [
                   const Icon(
-                    Icons
-                        .receipt_long_outlined,
+                    Icons.receipt_long_outlined,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -949,6 +1044,12 @@ class SellerOrdersPage extends StatelessWidget {
                 ],
               ),
 
+              _returnRefundButton(
+                context,
+                sellerId: sellerId,
+                orderId: mainOrderId,
+              ),
+
               const SizedBox(height: 10),
 
               SizedBox(
@@ -967,8 +1068,6 @@ class SellerOrdersPage extends StatelessWidget {
                           sellerId,
                       customerId:
                           customerId,
-                      customerName:
-                          customerName,
                       currentStatus:
                           status,
                     );
@@ -1017,6 +1116,19 @@ class SellerOrdersPage extends StatelessWidget {
         title: const Text(
           'Seller Orders',
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Return / Refund',
+            onPressed: () {
+              _openReturnRefundPage(
+                context,
+              );
+            },
+            icon: const Icon(
+              Icons.assignment_return_outlined,
+            ),
+          ),
+        ],
       ),
       body: StreamBuilder<
           QuerySnapshot<
@@ -1081,8 +1193,7 @@ class SellerOrdersPage extends StatelessWidget {
                       MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons
-                          .receipt_long_outlined,
+                      Icons.receipt_long_outlined,
                       size: 70,
                       color: Colors.grey,
                     ),
