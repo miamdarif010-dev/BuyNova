@@ -14,6 +14,7 @@ import 'favorites_page.dart';
 import 'seller_page.dart';
 import 'notifications_page.dart';
 import 'seller_messages_page.dart';
+import 'earnings_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -94,7 +95,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       } else if (rawPoints is num) {
         points = rawPoints.toInt();
       } else if (rawPoints != null) {
-        points = int.tryParse(rawPoints.toString()) ?? 0;
+        points = int.tryParse(
+              rawPoints.toString(),
+            ) ??
+            0;
       }
 
       if (mounted) {
@@ -252,13 +256,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
+  // SELLER EARNINGS
+  // =========================================================
+
+  void _openSellerEarnings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const EarningsPage(),
+      ),
+    );
+  }
+
+  // =========================================================
   // FEATURE NOT AVAILABLE
   // =========================================================
 
   void _featureNotAvailable(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$title is coming soon.'),
+        content: Text(
+          '$title is coming soon.',
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -571,33 +590,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
       _menuItem(
         icon: Icons.shopping_cart_outlined,
         title: 'Cart',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
 
       _menuItem(
         icon: Icons.receipt_long_outlined,
         title: 'My Orders',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
 
       _menuItem(
         icon: Icons.help_outline,
         title: 'Help & Support',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
 
       _menuItem(
         icon: Icons.assignment_return_outlined,
         title: 'Return & Refund',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
     ];
   }
@@ -688,14 +699,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
           },
         ),
 
+        // =====================================================
+        // SELLER EARNINGS — CONNECTED
+        // =====================================================
+
         _menuItem(
           icon: Icons.account_balance_wallet_outlined,
           title: 'Earnings',
-          onTap: () {
-            _featureNotAvailable(
-              'Earnings',
-            );
-          },
+          onTap: _openSellerEarnings,
         ),
 
         _menuItem(
@@ -975,7 +986,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
-
                     // =================================================
                     // PROFILE CARD
                     // =================================================
@@ -987,7 +997,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             const EdgeInsets.all(18),
                         child: Column(
                           children: [
-
                             GestureDetector(
                               onTap:
                                   _openEditProfile,
@@ -1083,14 +1092,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       _expandableSectionHeader(
                         icon:
                             Icons.admin_panel_settings_outlined,
-                        title: 'ADMIN PANEL',
+                        title:
+                            'ADMIN PANEL',
                         expanded:
                             _adminExpanded,
-
-                        // শুধু এটুকুই পরিবর্তন:
-                        // আগে expand/collapse করত।
-                        // এখন সরাসরি Admin Panel খুলবে।
-                        onTap: _openAdminPanel,
+                        onTap:
+                            _openAdminPanel,
                       ),
 
                       if (_adminExpanded) ...[
@@ -1118,12 +1125,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _expandableSectionHeader(
                       icon:
                           Icons.shopping_bag_outlined,
-                      title: 'BUYER',
+                      title:
+                          'BUYER',
                       expanded:
                           _buyerExpanded,
-
-                      // সরাসরি Buyer Page
-                      onTap: _openBuyer,
+                      onTap:
+                          _openBuyer,
                     ),
 
                     if (_buyerExpanded) ...[
@@ -1145,9 +1152,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           'EARN & REWARDS',
                       expanded:
                           _earnExpanded,
-
-                      // সরাসরি Watch & Earn Page
-                      onTap: _openWatchEarn,
+                      onTap:
+                          _openWatchEarn,
                     ),
 
                     if (_earnExpanded) ...[
@@ -1206,8 +1212,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           'ENTREPRENEUR / RESELLER',
                       expanded:
                           _entrepreneurExpanded,
-
-                      // সরাসরি Entrepreneur Page
                       onTap:
                           _openEntrepreneur,
                     ),
@@ -1227,11 +1231,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _expandableSectionHeader(
                       icon:
                           Icons.storefront_outlined,
-                      title: 'SELLER',
+                      title:
+                          'SELLER',
                       expanded:
                           _sellerExpanded,
-
-                      // সরাসরি Seller Page
                       onTap:
                           _openSellerDashboard,
                     ),
@@ -1251,7 +1254,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon:
                           Icons.settings_outlined,
-                      title: 'Settings',
+                      title:
+                          'Settings',
                       indented: false,
                       onTap:
                           _openSettings,
@@ -1262,9 +1266,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // =================================================
 
                     _menuItem(
-                      icon: Icons.logout,
-                      title: 'Logout',
-                      iconColor: Colors.red,
+                      icon:
+                          Icons.logout,
+                      title:
+                          'Logout',
+                      iconColor:
+                          Colors.red,
                       indented: false,
                       onTap: () {
                         showDialog(
@@ -1281,7 +1288,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                 'Are you sure you want to logout?',
                               ),
                               actions: [
-
                                 TextButton(
                                   onPressed: () {
                                     Navigator.pop(
@@ -1293,7 +1299,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     'Cancel',
                                   ),
                                 ),
-
                                 ElevatedButton(
                                   onPressed: () {
                                     Navigator.pop(
