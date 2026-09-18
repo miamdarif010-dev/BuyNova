@@ -24,11 +24,75 @@ class _BuyerMessagesPageState extends State<BuyerMessagesPage> {
       return const Stream.empty();
     }
 
+    // Only filter by buyerId.
+    // Sorting is done locally so a Firestore composite index
+    // is not required.
     return _firestore
         .collection('conversations')
         .where('buyerId', isEqualTo: userId)
-        .orderBy('lastMessageAt', descending: true)
         .snapshots();
+  }
+
+  int _unreadCount(Map<String, dynamic> data) {
+    final value = data['buyerUnreadCount'];
+
+    if (value is int) {
+      return value < 0 ? 0 : value;
+    }
+
+    if (value is num) {
+      final count = value.toInt();
+      return count < 0 ? 0 : count;
+    }
+
+    return 0;
+  }
+
+  String _sellerName(Map<String, dynamic> data) {
+    final name = data['sellerName'];
+
+    if (name is String && name.trim().isNotEmpty) {
+      return name.trim();
+    }
+
+    return 'Seller';
+  }
+
+  String _lastMessage(Map<String, dynamic> data) {
+    final message = data['lastMessage'];
+
+    if (message is String && message.trim().isNotEmpty) {
+      return message.trim();
+    }
+
+    return 'Start a conversation';
+  }
+
+  String _conversationId(
+    Map<String, dynamic> data,
+    String fallbackId,
+  ) {
+    final value = data['conversationId'];
+
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+
+    return fallbackId;
+  }
+
+  DateTime? _lastMessageDate(Map<String, dynamic> data) {
+    final value = data['lastMessageAt'];
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    return null;
   }
 
   String _formatTime(dynamic value) {
@@ -60,50 +124,6 @@ class _BuyerMessagesPageState extends State<BuyerMessagesPage> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  int _unreadCount(Map<String, dynamic> data) {
-    final value = data['buyerUnreadCount'];
-
-    if (value is int) {
-      return value;
-    }
-
-    if (value is num) {
-      return value.toInt();
-    }
-
-    return 0;
-  }
-
-  String _sellerName(Map<String, dynamic> data) {
-    final name = data['sellerName'];
-
-    if (name is String && name.trim().isNotEmpty) {
-      return name.trim();
-    }
-
-    return 'Seller';
-  }
-
-  String _lastMessage(Map<String, dynamic> data) {
-    final message = data['lastMessage'];
-
-    if (message is String && message.trim().isNotEmpty) {
-      return message.trim();
-    }
-
-    return 'Start a conversation';
-  }
-
-  String _conversationId(Map<String, dynamic> data, String fallbackId) {
-    final value = data['conversationId'];
-
-    if (value is String && value.trim().isNotEmpty) {
-      return value.trim();
-    }
-
-    return fallbackId;
-  }
-
   void _openChat({
     required String conversationId,
     required Map<String, dynamic> data,
@@ -124,7 +144,7 @@ class _BuyerMessagesPageState extends State<BuyerMessagesPage> {
       MaterialPageRoute(
         builder: (_) => BuyerChatPage(
           conversationId: conversationId,
-          sellerId: sellerId,
+          sellerId: sellerId.trim(),
           sellerName: _sellerName(data),
         ),
       ),
@@ -182,6 +202,11 @@ class _BuyerMessagesPageState extends State<BuyerMessagesPage> {
     final sellerName = _sellerName(data);
     final lastMessage = _lastMessage(data);
     final time = _formatTime(data['lastMessageAt']);
+
+    final conversationId = _conversationId(
+      data,
+      documentId,
+    );
 
     return Card(
       margin: const EdgeInsets.only(
@@ -292,15 +317,43 @@ class _BuyerMessagesPageState extends State<BuyerMessagesPage> {
         ),
         onTap: () {
           _openChat(
-            conversationId: _conversationId(
-              data,
-              documentId,
-            ),
+            conversationId: conversationId,
             data: data,
           );
         },
       ),
     );
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>>
+      _sortedDocuments(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
+  ) {
+    final sorted = List<
+        QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+      documents,
+    );
+
+    sorted.sort((a, b) {
+      final dateA = _lastMessageDate(a.data());
+      final dateB = _lastMessageDate(b.data());
+
+      if (dateA == null && dateB == null) {
+        return 0;
+      }
+
+      if (dateA == null) {
+        return 1;
+      }
+
+      if (dateB == null) {
+        return -1;
+      }
+
+      return dateB.compareTo(dateA);
+    });
+
+    return sorted;
   }
 
   @override
@@ -347,7 +400,7 @@ class _BuyerMessagesPageState extends State<BuyerMessagesPage> {
                         fontSize: 17,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
                       'Please check your connection and try again.',
                       textAlign: TextAlign.center,
@@ -368,7 +421,9 @@ class _BuyerMessagesPageState extends State<BuyerMessagesPage> {
             );
           }
 
-          final documents = snapshot.data?.docs ?? [];
+          final documents = _sortedDocuments(
+            snapshot.data?.docs ?? [],
+          );
 
           if (documents.isEmpty) {
             return _emptyState();
