@@ -7,6 +7,7 @@ import 'cart_page.dart';
 import 'my_orders_page.dart';
 import 'buyer_support_page.dart';
 import 'notifications_page.dart';
+import 'buyer_messages_page.dart';
 
 class BuyerPage extends StatefulWidget {
   const BuyerPage({super.key});
@@ -57,19 +58,13 @@ class _BuyerPageState extends State<BuyerPage> {
           padding: const EdgeInsets.only(top: 4),
           child: Text(subtitle),
         ),
-        trailing: trailing ??
-            const Icon(
-              Icons.chevron_right,
-            ),
+        trailing: trailing ?? const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
     );
   }
 
-  void _openPage(
-    BuildContext context,
-    Widget page,
-  ) {
+  void _openPage(BuildContext context, Widget page) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -82,8 +77,7 @@ class _BuyerPageState extends State<BuyerPage> {
     final user = _auth.currentUser;
 
     if (user == null) {
-      return const Stream<
-          QuerySnapshot<Map<String, dynamic>>>.empty();
+      return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
     }
 
     return _firestore
@@ -91,6 +85,20 @@ class _BuyerPageState extends State<BuyerPage> {
         .doc(user.uid)
         .collection('notifications')
         .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _messagesStream() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
+    }
+
+    return _firestore
+        .collection('conversations')
+        .where('buyerId', isEqualTo: user.uid)
+        .orderBy('lastMessageAt', descending: true)
         .snapshots();
   }
 
@@ -105,8 +113,7 @@ class _BuyerPageState extends State<BuyerPage> {
             final data = document.data();
 
             final bool isRead =
-                data['isRead'] == true ||
-                data['read'] == true;
+                data['isRead'] == true || data['read'] == true;
 
             if (!isRead) {
               unreadCount++;
@@ -137,7 +144,6 @@ class _BuyerPageState extends State<BuyerPage> {
                     color: Colors.redAccent,
                   ),
                 ),
-
                 if (unreadCount > 0)
                   Positioned(
                     right: -6,
@@ -183,15 +189,116 @@ class _BuyerPageState extends State<BuyerPage> {
             subtitle: Text(
               unreadCount == 0
                   ? 'You have no unread notifications.'
-                  : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}.',
+                  : '$unreadCount unread notification'
+                      '${unreadCount == 1 ? '' : 's'}.',
             ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () {
               _openPage(
                 context,
                 const NotificationsPage(),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _messagesMenuItem(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _messagesStream(),
+      builder: (context, snapshot) {
+        int unreadCount = 0;
+
+        if (snapshot.hasData) {
+          for (final document in snapshot.data!.docs) {
+            final data = document.data();
+
+            final dynamic value = data['buyerUnreadCount'];
+
+            if (value is num && value > 0) {
+              unreadCount += value.toInt();
+            }
+          }
+        }
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 1,
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            leading: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.chat_bubble_outline,
+                    color: Colors.redAccent,
+                  ),
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 22,
+                        minHeight: 22,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                      ),
+                      child: Text(
+                        unreadCount > 99
+                            ? '99+'
+                            : unreadCount.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            title: const Text(
+              'Messages',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Text(
+              unreadCount == 0
+                  ? 'Chat with sellers about your orders and products.'
+                  : '$unreadCount unread message'
+                      '${unreadCount == 1 ? '' : 's'}.',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              _openPage(
+                context,
+                const BuyerMessagesPage(),
               );
             },
           ),
@@ -212,10 +319,6 @@ class _BuyerPageState extends State<BuyerPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // =========================================================
-          // WELCOME
-          // =========================================================
-
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -258,10 +361,6 @@ class _BuyerPageState extends State<BuyerPage> {
 
           const SizedBox(height: 24),
 
-          // =========================================================
-          // SHOPPING
-          // =========================================================
-
           const Text(
             'Shopping',
             style: TextStyle(
@@ -272,16 +371,13 @@ class _BuyerPageState extends State<BuyerPage> {
 
           const SizedBox(height: 12),
 
-          // =========================================================
-          // NOTIFICATIONS
-          // =========================================================
-
+          // Notifications
           _notificationMenuItem(context),
 
-          // =========================================================
-          // FAVORITES
-          // =========================================================
+          // Messages
+          _messagesMenuItem(context),
 
+          // Favorites
           _menuItem(
             context: context,
             icon: Icons.favorite_border,
@@ -295,10 +391,7 @@ class _BuyerPageState extends State<BuyerPage> {
             },
           ),
 
-          // =========================================================
-          // CART
-          // =========================================================
-
+          // Cart
           _menuItem(
             context: context,
             icon: Icons.shopping_cart_outlined,
@@ -312,10 +405,7 @@ class _BuyerPageState extends State<BuyerPage> {
             },
           ),
 
-          // =========================================================
-          // MY ORDERS
-          // =========================================================
-
+          // My Orders
           _menuItem(
             context: context,
             icon: Icons.receipt_long_outlined,
@@ -331,10 +421,6 @@ class _BuyerPageState extends State<BuyerPage> {
 
           const SizedBox(height: 14),
 
-          // =========================================================
-          // SUPPORT
-          // =========================================================
-
           const Text(
             'Support',
             style: TextStyle(
@@ -345,15 +431,13 @@ class _BuyerPageState extends State<BuyerPage> {
 
           const SizedBox(height: 12),
 
-          // =========================================================
-          // HELP & SUPPORT
-          // =========================================================
-
+          // Help & Support
           _menuItem(
             context: context,
             icon: Icons.support_agent_outlined,
             title: 'Help & Support',
-            subtitle: 'Get help with orders, payments and delivery.',
+            subtitle:
+                'Get help with orders, payments and delivery.',
             onTap: () {
               _openPage(
                 context,
@@ -364,15 +448,9 @@ class _BuyerPageState extends State<BuyerPage> {
 
           const SizedBox(height: 20),
 
-          // =========================================================
-          // FOOTER
-          // =========================================================
-
           Center(
             child: Text(
-              user == null
-                  ? 'BuyNova Buyer'
-                  : 'BuyNova Buyer',
+              user == null ? 'BuyNova Buyer' : 'BuyNova Buyer',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 13,
