@@ -249,20 +249,17 @@ class SellerOrdersPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius:
-                BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(10),
             child: imageUrl.isNotEmpty
                 ? Image.network(
                     imageUrl,
                     width: 70,
                     height: 70,
                     fit: BoxFit.cover,
-                    errorBuilder:
-                        (_, __, ___) {
+                    errorBuilder: (_, __, ___) {
                       return _imagePlaceholder();
                     },
                   )
@@ -271,14 +268,12 @@ class SellerOrdersPage extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
                   maxLines: 2,
-                  overflow:
-                      TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -322,8 +317,7 @@ class SellerOrdersPage extends StatelessWidget {
     return raw
         .whereType<Map>()
         .map(
-          (item) =>
-              Map<String, dynamic>.from(item),
+          (item) => Map<String, dynamic>.from(item),
         )
         .toList();
   }
@@ -342,8 +336,7 @@ class SellerOrdersPage extends StatelessWidget {
   }) {
     if (customerId.isEmpty) return;
 
-    final firestore =
-        FirebaseFirestore.instance;
+    final firestore = FirebaseFirestore.instance;
 
     final notificationRef = firestore
         .collection('users')
@@ -366,8 +359,7 @@ class SellerOrdersPage extends StatelessWidget {
         'customerId': customerId,
         'orderStatus': newStatus,
         'isRead': false,
-        'createdAt':
-            FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       },
     );
   }
@@ -384,17 +376,16 @@ class SellerOrdersPage extends StatelessWidget {
     required String sellerId,
     required String customerId,
     required String newStatus,
+    required String currentStatus,
   }) async {
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) return;
 
     if (user.uid != sellerId) {
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'You are not allowed to update this order.',
@@ -405,14 +396,26 @@ class SellerOrdersPage extends StatelessWidget {
       return;
     }
 
-    try {
-      final firestore =
-          FirebaseFirestore.instance;
+    if (newStatus == currentStatus) {
+      if (!context.mounted) return;
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Order is already ${_statusText(currentStatus)}.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    try {
+      final firestore = FirebaseFirestore.instance;
       final batch = firestore.batch();
 
       // -------------------------------------------------------
-      // Seller Order
+      // SELLER ORDER
       // -------------------------------------------------------
 
       final sellerOrderRef = firestore
@@ -423,13 +426,12 @@ class SellerOrdersPage extends StatelessWidget {
         sellerOrderRef,
         {
           'orderStatus': newStatus,
-          'updatedAt':
-              FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         },
       );
 
       // -------------------------------------------------------
-      // Main Customer Order
+      // MAIN CUSTOMER ORDER
       // -------------------------------------------------------
 
       if (mainOrderId.isNotEmpty) {
@@ -437,29 +439,22 @@ class SellerOrdersPage extends StatelessWidget {
             .collection('orders')
             .doc(mainOrderId);
 
-        final mainOrder =
-            await mainOrderRef.get();
+        final mainOrder = await mainOrderRef.get();
 
         if (mainOrder.exists) {
-          final data =
-              mainOrder.data();
+          final data = mainOrder.data();
 
-          final sellerIds =
-              <String>{};
+          final sellerIds = <String>{};
 
-          final rawItems =
-              data?['items'];
+          final rawItems = data?['items'];
 
           if (rawItems is List) {
-            for (final rawItem
-                in rawItems) {
+            for (final rawItem in rawItems) {
               if (rawItem is Map) {
                 final id =
-                    rawItem['sellerId']
-                        ?.toString();
+                    rawItem['sellerId']?.toString();
 
-                if (id != null &&
-                    id.isNotEmpty) {
+                if (id != null && id.isNotEmpty) {
                   sellerIds.add(id);
                 }
               }
@@ -490,8 +485,7 @@ class SellerOrdersPage extends StatelessWidget {
         customerId: customerId,
         orderId: mainOrderId,
         sellerId: sellerId,
-        sellerName:
-            user.displayName ?? 'Seller',
+        sellerName: user.displayName ?? 'Seller',
         newStatus: newStatus,
       );
 
@@ -503,8 +497,7 @@ class SellerOrdersPage extends StatelessWidget {
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Order changed to '
@@ -516,8 +509,7 @@ class SellerOrdersPage extends StatelessWidget {
     } catch (e) {
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Could not update order.\n$e',
@@ -559,8 +551,7 @@ class SellerOrdersPage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: statuses.map(
               (status) {
-                final selected =
-                    status == currentStatus;
+                final selected = status == currentStatus;
 
                 return ListTile(
                   leading: Icon(
@@ -575,22 +566,16 @@ class SellerOrdersPage extends StatelessWidget {
                     _statusText(status),
                   ),
                   onTap: () async {
-                    Navigator.pop(
-                      dialogContext,
-                    );
+                    Navigator.pop(dialogContext);
 
                     await _updateStatus(
                       context: context,
-                      sellerOrderId:
-                          sellerOrderId,
-                      mainOrderId:
-                          mainOrderId,
-                      sellerId:
-                          sellerId,
-                      customerId:
-                          customerId,
-                      newStatus:
-                          status,
+                      sellerOrderId: sellerOrderId,
+                      mainOrderId: mainOrderId,
+                      sellerId: sellerId,
+                      customerId: customerId,
+                      newStatus: status,
+                      currentStatus: currentStatus,
                     );
                   },
                 );
@@ -612,8 +597,7 @@ class SellerOrdersPage extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            const SellerReturnRefundPage(),
+        builder: (_) => const SellerReturnRefundPage(),
       ),
     );
   }
@@ -669,8 +653,7 @@ class SellerOrdersPage extends StatelessWidget {
         orderId,
       ),
       builder: (context, snapshot) {
-        final count =
-            snapshot.data?.length ?? 0;
+        final count = snapshot.data?.length ?? 0;
 
         if (count == 0) {
           return const SizedBox.shrink();
@@ -683,9 +666,7 @@ class SellerOrdersPage extends StatelessWidget {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () {
-              _openReturnRefundPage(
-                context,
-              );
+              _openReturnRefundPage(context);
             },
             icon: const Icon(
               Icons.assignment_return_outlined,
@@ -703,10 +684,10 @@ class SellerOrdersPage extends StatelessWidget {
   // ORDER DETAILS
   // =========================================================
 
-  void _showOrderDetails(
+  Future<void> _showOrderDetails(
     BuildContext context,
     Map<String, dynamic> data,
-  ) {
+  ) async {
     final orderId =
         data['orderId']?.toString() ?? '';
 
@@ -740,15 +721,14 @@ class SellerOrdersPage extends StatelessWidget {
     final sellerSubtotal =
         _number(data['sellerSubtotal']);
 
-    return showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
         return SafeArea(
           child: Padding(
-            padding:
-                const EdgeInsets.fromLTRB(
+            padding: const EdgeInsets.fromLTRB(
               20,
               10,
               20,
@@ -763,8 +743,7 @@ class SellerOrdersPage extends StatelessWidget {
                     'Order Details',
                     style: TextStyle(
                       fontSize: 22,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
 
@@ -773,8 +752,7 @@ class SellerOrdersPage extends StatelessWidget {
                   Text(
                     'Order ID: $orderId',
                     style: const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
 
@@ -825,16 +803,14 @@ class SellerOrdersPage extends StatelessWidget {
                     'Your Products',
                     style: TextStyle(
                       fontSize: 17,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
 
                   const SizedBox(height: 10),
 
                   ...items.map(
-                    (item) =>
-                        _buildItemCard(item),
+                    (item) => _buildItemCard(item),
                   ),
 
                   const SizedBox(height: 10),
@@ -844,8 +820,7 @@ class SellerOrdersPage extends StatelessWidget {
                     '₩${sellerSubtotal.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontSize: 17,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
 
@@ -869,15 +844,13 @@ class SellerOrdersPage extends StatelessWidget {
 
   Widget _buildOrderCard(
     BuildContext context,
-    QueryDocumentSnapshot<
-            Map<String, dynamic>>
+    QueryDocumentSnapshot<Map<String, dynamic>>
         document,
   ) {
     final data = document.data();
 
     final sellerOrderId =
-        data['sellerOrderId']
-                ?.toString() ??
+        data['sellerOrderId']?.toString() ??
             document.id;
 
     final mainOrderId =
@@ -910,14 +883,12 @@ class SellerOrdersPage extends StatelessWidget {
         _formatDate(data['createdAt']);
 
     return Card(
-      margin:
-          const EdgeInsets.only(
+      margin: const EdgeInsets.only(
         bottom: 14,
       ),
       elevation: 2,
       child: InkWell(
-        borderRadius:
-            BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           _showOrderDetails(
             context,
@@ -925,8 +896,7 @@ class SellerOrdersPage extends StatelessWidget {
           );
         },
         child: Padding(
-          padding:
-              const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(15),
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
@@ -940,10 +910,8 @@ class SellerOrdersPage extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'Order #$mainOrderId',
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                     ),
@@ -956,10 +924,8 @@ class SellerOrdersPage extends StatelessWidget {
 
               Text(
                 'Customer: $customerName',
-                style:
-                    const TextStyle(
-                  fontWeight:
-                      FontWeight.w600,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
 
@@ -968,8 +934,7 @@ class SellerOrdersPage extends StatelessWidget {
               Text(
                 createdAt,
                 style: TextStyle(
-                  color:
-                      Colors.grey.shade600,
+                  color: Colors.grey.shade600,
                   fontSize: 12,
                 ),
               ),
@@ -978,10 +943,8 @@ class SellerOrdersPage extends StatelessWidget {
 
               Text(
                 '${items.length} product(s)',
-                style:
-                    const TextStyle(
-                  fontWeight:
-                      FontWeight.w600,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
 
@@ -989,23 +952,20 @@ class SellerOrdersPage extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 ...items.take(2).map(
-                  (item) =>
-                      _buildItemCard(item),
+                  (item) => _buildItemCard(item),
                 ),
               ],
 
               if (items.length > 2)
                 Padding(
-                  padding:
-                      const EdgeInsets.only(
+                  padding: const EdgeInsets.only(
                     top: 4,
                   ),
                   child: Text(
                     '+ ${items.length - 2} '
                     'more product(s)',
                     style: TextStyle(
-                      color:
-                          Colors.grey.shade600,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 ),
@@ -1020,10 +980,8 @@ class SellerOrdersPage extends StatelessWidget {
                     child: Text(
                       'Seller Total: '
                       '₩${total.toStringAsFixed(0)}',
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                     ),
@@ -1031,13 +989,10 @@ class SellerOrdersPage extends StatelessWidget {
                   Text(
                     'Payment: $paymentStatus',
                     style: TextStyle(
-                      color:
-                          paymentStatus ==
-                                  'paid'
-                              ? Colors.green
-                              : Colors.orange,
-                      fontWeight:
-                          FontWeight.w600,
+                      color: paymentStatus == 'paid'
+                          ? Colors.green
+                          : Colors.orange,
+                      fontWeight: FontWeight.w600,
                       fontSize: 12,
                     ),
                   ),
@@ -1053,23 +1008,16 @@ class SellerOrdersPage extends StatelessWidget {
               const SizedBox(height: 10),
 
               SizedBox(
-                width:
-                    double.infinity,
-                child:
-                    OutlinedButton.icon(
+                width: double.infinity,
+                child: OutlinedButton.icon(
                   onPressed: () {
                     _showStatusDialog(
                       context,
-                      sellerOrderId:
-                          sellerOrderId,
-                      mainOrderId:
-                          mainOrderId,
-                      sellerId:
-                          sellerId,
-                      customerId:
-                          customerId,
-                      currentStatus:
-                          status,
+                      sellerOrderId: sellerOrderId,
+                      mainOrderId: mainOrderId,
+                      sellerId: sellerId,
+                      customerId: customerId,
+                      currentStatus: status,
                     );
                   },
                   icon: const Icon(
@@ -1144,13 +1092,11 @@ class SellerOrdersPage extends StatelessWidget {
           if (snapshot.hasError) {
             return Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
                 child: Text(
                   'Unable to load seller orders.\n\n'
                   '${snapshot.error}',
-                  textAlign:
-                      TextAlign.center,
+                  textAlign: TextAlign.center,
                 ),
               ),
             );
@@ -1159,14 +1105,12 @@ class SellerOrdersPage extends StatelessWidget {
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child:
-                  CircularProgressIndicator(),
+              child: CircularProgressIndicator(),
             );
           }
 
           final documents =
-              snapshot.data?.docs.toList() ??
-                  [];
+              snapshot.data?.docs.toList() ?? [];
 
           documents.sort((a, b) {
             final aTime =
@@ -1186,8 +1130,7 @@ class SellerOrdersPage extends StatelessWidget {
           if (documents.isEmpty) {
             return const Center(
               child: Padding(
-                padding:
-                    EdgeInsets.all(30),
+                padding: EdgeInsets.all(30),
                 child: Column(
                   mainAxisAlignment:
                       MainAxisAlignment.center,
@@ -1202,16 +1145,14 @@ class SellerOrdersPage extends StatelessWidget {
                       'No Seller Orders Yet',
                       style: TextStyle(
                         fontSize: 20,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     SizedBox(height: 8),
                     Text(
                       'Orders containing your products '
                       'will appear here.',
-                      textAlign:
-                          TextAlign.center,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.grey,
                       ),
@@ -1223,12 +1164,9 @@ class SellerOrdersPage extends StatelessWidget {
           }
 
           return ListView.builder(
-            padding:
-                const EdgeInsets.all(14),
-            itemCount:
-                documents.length,
-            itemBuilder:
-                (context, index) {
+            padding: const EdgeInsets.all(14),
+            itemCount: documents.length,
+            itemBuilder: (context, index) {
               return _buildOrderCard(
                 context,
                 documents[index],
