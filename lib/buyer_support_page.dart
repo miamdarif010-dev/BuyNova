@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'return_refund_page.dart';
+
 class BuyerSupportPage extends StatelessWidget {
   const BuyerSupportPage({super.key});
 
@@ -188,16 +190,18 @@ class BuyerSupportPage extends StatelessWidget {
             },
           ),
 
+          // RETURN & REFUND
           _supportItem(
             context: context,
             icon: Icons.assignment_return_outlined,
             title: 'Return & Refund',
-            subtitle: 'Information about returns and refunds.',
+            subtitle: 'Request a return or refund.',
             onTap: () {
-              _showMessage(
+              Navigator.push(
                 context,
-                'Return & Refund',
-                'Return and refund support will be available here.',
+                MaterialPageRoute(
+                  builder: (_) => const ReturnRefundPage(),
+                ),
               );
             },
           ),
