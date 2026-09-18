@@ -19,36 +19,35 @@ class BuyerChatPage extends StatefulWidget {
 }
 
 class _BuyerChatPageState extends State<BuyerChatPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   final TextEditingController _messageController =
       TextEditingController();
 
-  final ScrollController _scrollController =
-      ScrollController();
+  final ScrollController _scrollController = ScrollController();
 
-  bool _isSending = false;
+  bool _sending = false;
+  bool _conversationReady = false;
 
-  String? get _buyerId => _auth.currentUser?.uid;
+  String _buyerName = 'Buyer';
 
-  CollectionReference<Map<String, dynamic>> get _messagesCollection {
-    return _firestore
-        .collection('conversations')
-        .doc(widget.conversationId)
-        .collection('messages');
-  }
+  User? get _user => _auth.currentUser;
 
-  DocumentReference<Map<String, dynamic>> get _conversationReference {
-    return _firestore
-        .collection('conversations')
-        .doc(widget.conversationId);
-  }
+  String get _buyerId => _user?.uid ?? '';
+
+  DocumentReference<Map<String, dynamic>> get _conversationRef =>
+      _firestore
+          .collection('conversations')
+          .doc(widget.conversationId);
+
+  CollectionReference<Map<String, dynamic>> get _messagesRef =>
+      _conversationRef.collection('messages');
 
   @override
   void initState() {
     super.initState();
-    _createConversationIfNeeded();
+    _ensureConversation();
   }
 
   @override
@@ -58,131 +57,75 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
     super.dispose();
   }
 
-  Future<void> _createConversationIfNeeded() async {
-    final buyerId = _buyerId;
+  // =========================================================
+  // GET BUYER NAME
+  // =========================================================
 
-    if (buyerId == null) {
-      return;
-    }
-
-    final reference = _conversationReference;
-
-    final snapshot = await reference.get();
-
-    if (!snapshot.exists) {
-      await reference.set({
-        'conversationId': widget.conversationId,
-        'buyerId': buyerId,
-        'sellerId': widget.sellerId,
-        'sellerName': widget.sellerName,
-        'lastMessage': '',
-        'lastMessageAt': FieldValue.serverTimestamp(),
-        'buyerUnreadCount': 0,
-        'sellerUnreadCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      final data = snapshot.data();
-
-      if (data != null) {
-        final existingBuyerId = data['buyerId'];
-
-        if (existingBuyerId != buyerId) {
-          return;
-        }
-      }
-    }
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _messageStream() {
-    return _messagesCollection
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  Future<void> _markMessagesAsRead() async {
-    final buyerId = _buyerId;
-
-    if (buyerId == null) {
-      return;
+  Future<String> _getBuyerName() async {
+    if (_buyerId.isEmpty) {
+      return 'Buyer';
     }
 
     try {
-      final snapshot = await _messagesCollection
-          .where('receiverId', isEqualTo: buyerId)
-          .where('isRead', isEqualTo: false)
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(_buyerId)
           .get();
 
-      if (snapshot.docs.isEmpty) {
-        return;
+      if (userDoc.exists) {
+        final data = userDoc.data();
+
+        final name = data?['name'];
+
+        if (name is String && name.trim().isNotEmpty) {
+          return name.trim();
+        }
+
+        final displayName = data?['displayName'];
+
+        if (displayName is String &&
+            displayName.trim().isNotEmpty) {
+          return displayName.trim();
+        }
       }
-
-      final batch = _firestore.batch();
-
-      for (final document in snapshot.docs) {
-        batch.update(
-          document.reference,
-          {
-            'isRead': true,
-            'readAt': FieldValue.serverTimestamp(),
-          },
-        );
-      }
-
-      batch.update(
-        _conversationReference,
-        {
-          'buyerUnreadCount': 0,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-      );
-
-      await batch.commit();
     } catch (_) {
-      // Read status should not prevent the chat from opening.
+      // Continue with Firebase Auth fallback.
     }
+
+    final authName = _user?.displayName;
+
+    if (authName != null && authName.trim().isNotEmpty) {
+      return authName.trim();
+    }
+
+    return 'Buyer';
   }
 
-  Future<void> _sendMessage() async {
-    final buyerId = _buyerId;
+  // =========================================================
+  // CREATE / UPDATE CONVERSATION
+  // =========================================================
 
-    if (buyerId == null) {
+  Future<void> _ensureConversation() async {
+    if (_buyerId.isEmpty) {
       return;
     }
-
-    final message = _messageController.text.trim();
-
-    if (message.isEmpty || _isSending) {
-      return;
-    }
-
-    setState(() {
-      _isSending = true;
-    });
 
     try {
-      final conversationSnapshot =
-          await _conversationReference.get();
+      final buyerName = await _getBuyerName();
 
-      if (conversationSnapshot.exists) {
-        final conversationData =
-            conversationSnapshot.data();
+      if (mounted) {
+        setState(() {
+          _buyerName = buyerName;
+        });
+      }
 
-        if (conversationData != null) {
-          final existingBuyerId =
-              conversationData['buyerId'];
+      final conversationSnapshot = await _conversationRef.get();
 
-          if (existingBuyerId != buyerId) {
-            throw Exception(
-              'You are not allowed to use this conversation.',
-            );
-          }
-        }
-      } else {
-        await _conversationReference.set({
+      if (!conversationSnapshot.exists) {
+        await _conversationRef.set({
           'conversationId': widget.conversationId,
-          'buyerId': buyerId,
+          'buyerId': _buyerId,
+          'buyerName': buyerName,
           'sellerId': widget.sellerId,
           'sellerName': widget.sellerName,
           'lastMessage': '',
@@ -192,17 +135,138 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+      } else {
+        final existingData =
+            conversationSnapshot.data();
+
+        final existingBuyerName =
+            existingData?['buyerName'];
+
+        // Update buyerName if it is missing or changed.
+        if (existingBuyerName != buyerName) {
+          await _conversationRef.update({
+            'buyerName': buyerName,
+            'sellerName': widget.sellerName,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
       }
 
-      final messageReference =
-          _messagesCollection.doc();
+      if (mounted) {
+        setState(() {
+          _conversationReady = true;
+        });
+      }
+
+      await _markMessagesAsRead();
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _conversationReady = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to open chat: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  // =========================================================
+  // MARK RECEIVED MESSAGES AS READ
+  // =========================================================
+
+  Future<void> _markMessagesAsRead() async {
+    if (_buyerId.isEmpty) return;
+
+    try {
+      final snapshot = await _messagesRef
+          .where(
+            'receiverId',
+            isEqualTo: _buyerId,
+          )
+          .where(
+            'isRead',
+            isEqualTo: false,
+          )
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        final batch = _firestore.batch();
+
+        for (final doc in snapshot.docs) {
+          batch.update(
+            doc.reference,
+            {
+              'isRead': true,
+              'readAt': FieldValue.serverTimestamp(),
+            },
+          );
+        }
+
+        batch.update(
+          _conversationRef,
+          {
+            'buyerUnreadCount': 0,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        );
+
+        await batch.commit();
+      } else {
+        await _conversationRef.set(
+          {
+            'buyerUnreadCount': 0,
+          },
+          SetOptions(merge: true),
+        );
+      }
+    } catch (_) {
+      // Do not interrupt chat if read status update fails.
+    }
+  }
+
+  // =========================================================
+  // SEND MESSAGE
+  // =========================================================
+
+  Future<void> _sendMessage() async {
+    if (_buyerId.isEmpty) {
+      return;
+    }
+
+    final message = _messageController.text.trim();
+
+    if (message.isEmpty || _sending) {
+      return;
+    }
+
+    if (!_conversationReady) {
+      await _ensureConversation();
+
+      if (!_conversationReady) {
+        return;
+      }
+    }
+
+    setState(() {
+      _sending = true;
+    });
+
+    try {
+      final messageRef = _messagesRef.doc();
 
       final batch = _firestore.batch();
 
+      // Create message.
       batch.set(
-        messageReference,
+        messageRef,
         {
-          'senderId': buyerId,
+          'senderId': _buyerId,
           'receiverId': widget.sellerId,
           'message': message,
           'isRead': false,
@@ -210,16 +274,17 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
         },
       );
 
+      // Update conversation.
       batch.update(
-        _conversationReference,
+        _conversationRef,
         {
-          'buyerId': buyerId,
+          'buyerId': _buyerId,
+          'buyerName': _buyerName,
           'sellerId': widget.sellerId,
           'sellerName': widget.sellerName,
           'lastMessage': message,
           'lastMessageAt': FieldValue.serverTimestamp(),
-          'sellerUnreadCount':
-              FieldValue.increment(1),
+          'sellerUnreadCount': FieldValue.increment(1),
           'updatedAt': FieldValue.serverTimestamp(),
         },
       );
@@ -228,31 +293,33 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
 
       _messageController.clear();
 
-      await Future<void>.delayed(
-        const Duration(milliseconds: 100),
+      await Future.delayed(
+        const Duration(milliseconds: 150),
       );
 
       _scrollToBottom();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
+    } catch (e) {
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Message could not be sent: $error',
+            'Message could not be sent: $e',
           ),
         ),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _isSending = false;
+          _sending = false;
         });
       }
     }
   }
+
+  // =========================================================
+  // SCROLL TO BOTTOM
+  // =========================================================
 
   void _scrollToBottom() {
     if (!_scrollController.hasClients) {
@@ -260,65 +327,70 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
     }
 
     _scrollController.animateTo(
-      _scrollController.position.minScrollExtent,
+      0,
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
   }
 
-  String _formatTime(dynamic value) {
-    if (value is! Timestamp) {
+  // =========================================================
+  // FORMAT TIME
+  // =========================================================
+
+  String _formatTime(Timestamp? timestamp) {
+    if (timestamp == null) {
       return '';
     }
 
-    final date = value.toDate();
+    final date = timestamp.toDate();
 
-    final hour = date.hour == 0
-        ? 12
-        : date.hour > 12
-            ? date.hour - 12
+    final hour = date.hour > 12
+        ? date.hour - 12
+        : date.hour == 0
+            ? 12
             : date.hour;
 
     final minute =
         date.minute.toString().padLeft(2, '0');
 
-    final period = date.hour >= 12 ? 'PM' : 'AM';
+    final period =
+        date.hour >= 12 ? 'PM' : 'AM';
 
     return '$hour:$minute $period';
   }
 
+  // =========================================================
+  // MESSAGE BUBBLE
+  // =========================================================
+
   Widget _messageBubble(
     Map<String, dynamic> data,
   ) {
-    final buyerId = _buyerId;
+    final senderId = data['senderId'] as String? ?? '';
 
-    final senderId = data['senderId'];
-
-    final isMine =
-        buyerId != null && senderId == buyerId;
+    final isMine = senderId == _buyerId;
 
     final message =
-        data['message']?.toString() ?? '';
-
-    final time =
-        _formatTime(data['createdAt']);
+        data['message'] as String? ?? '';
 
     final isRead =
-        data['isRead'] == true;
+        data['isRead'] as bool? ?? false;
+
+    final timestamp =
+        data['createdAt'] as Timestamp?;
 
     return Align(
-      alignment:
-          isMine ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isMine
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(
           maxWidth:
               MediaQuery.of(context).size.width * 0.78,
         ),
-        margin: const EdgeInsets.only(
-          left: 12,
-          right: 12,
-          top: 5,
-          bottom: 5,
+        margin: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 5,
         ),
         padding: const EdgeInsets.symmetric(
           horizontal: 14,
@@ -329,52 +401,53 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
               ? Colors.redAccent
               : Colors.grey.shade200,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(
-              isMine ? 16 : 4,
-            ),
-            bottomRight: Radius.circular(
-              isMine ? 4 : 16,
-            ),
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft:
+                Radius.circular(isMine ? 18 : 4),
+            bottomRight:
+                Radius.circular(isMine ? 4 : 18),
           ),
         ),
         child: Column(
-          crossAxisAlignment:
-              isMine
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              message,
-              style: TextStyle(
-                color: isMine
-                    ? Colors.white
-                    : Colors.black87,
-                fontSize: 15,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                message,
+                style: TextStyle(
+                  color:
+                      isMine ? Colors.white : Colors.black87,
+                  fontSize: 15,
+                  height: 1.35,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
+
+            const SizedBox(height: 5),
+
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (time.isNotEmpty)
-                  Text(
-                    time,
-                    style: TextStyle(
-                      color: isMine
-                          ? Colors.white70
-                          : Colors.grey.shade600,
-                      fontSize: 10,
-                    ),
+                Text(
+                  _formatTime(timestamp),
+                  style: TextStyle(
+                    color: isMine
+                        ? Colors.white70
+                        : Colors.black54,
+                    fontSize: 10,
                   ),
+                ),
+
                 if (isMine) ...[
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4),
+
                   Icon(
                     isRead
                         ? Icons.done_all
-                        : Icons.done,
-                    size: 15,
+                        : Icons.check,
+                    size: 14,
                     color: isRead
                         ? Colors.white
                         : Colors.white70,
@@ -388,6 +461,130 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
     );
   }
 
+  // =========================================================
+  // EMPTY CHAT
+  // =========================================================
+
+  Widget _emptyChat() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 82,
+              height: 82,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(
+                  alpha: 0.10,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline,
+                size: 42,
+                color: Colors.redAccent,
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            Text(
+              'Start a conversation',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Send a message to ${widget.sellerName}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // MESSAGE LIST
+  // =========================================================
+
+  Widget _messageList() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _messagesRef
+          .orderBy(
+            'createdAt',
+            descending: true,
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Unable to load messages.\n\n'
+                '${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.connectionState ==
+                ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return _emptyChat();
+        }
+
+        // Mark received messages as read when chat is open.
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) {
+            _markMessagesAsRead();
+          },
+        );
+
+        return ListView.builder(
+          controller: _scrollController,
+          reverse: true,
+          padding: const EdgeInsets.only(
+            top: 16,
+            bottom: 16,
+          ),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final data = docs[index].data();
+
+            return _messageBubble(data);
+          },
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // MESSAGE INPUT
+  // =========================================================
+
   Widget _messageInput() {
     return SafeArea(
       top: false,
@@ -399,32 +596,36 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
           8,
         ),
         decoration: BoxDecoration(
-          color: Theme.of(context)
-              .scaffoldBackgroundColor,
-          border: Border(
-            top: BorderSide(
-              color: Colors.grey.shade300,
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: 0.06,
+              ),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
             ),
-          ),
+          ],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment:
+              CrossAxisAlignment.end,
           children: [
             Expanded(
               child: TextField(
                 controller: _messageController,
                 minLines: 1,
                 maxLines: 5,
-                textCapitalization:
-                    TextCapitalization.sentences,
+                textInputAction:
+                    TextInputAction.newline,
                 decoration: InputDecoration(
-                  hintText: 'Write a message...',
+                  hintText: 'Type a message...',
                   filled: true,
                   fillColor: Colors.grey.shade100,
                   contentPadding:
                       const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 12,
+                    vertical: 11,
                   ),
                   border: OutlineInputBorder(
                     borderRadius:
@@ -433,35 +634,49 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
                   ),
                 ),
                 onSubmitted: (_) {
-                  _sendMessage();
+                  if (!_sending) {
+                    _sendMessage();
+                  }
                 },
               ),
             ),
+
             const SizedBox(width: 8),
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: FloatingActionButton(
-                heroTag: null,
-                elevation: 1,
-                backgroundColor:
-                    Colors.redAccent,
-                onPressed:
-                    _isSending ? null : _sendMessage,
-                child: _isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.send,
-                        color: Colors.white,
-                      ),
+
+            Material(
+              color: Colors.redAccent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder:
+                    const CircleBorder(),
+                onTap: _sending
+                    ? null
+                    : _sendMessage,
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(
+                    child: _sending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<
+                                      Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 21,
+                          ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -470,149 +685,75 @@ class _BuyerChatPageState extends State<BuyerChatPage> {
     );
   }
 
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
-    final buyerId = _buyerId;
-
-    if (buyerId == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Chat'),
-          centerTitle: true,
-        ),
-        body: const Center(
-          child: Text(
-            'Please login to use chat.',
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
+      backgroundColor: Colors.white,
+
       appBar: AppBar(
-        title: Column(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+
+        titleSpacing: 0,
+
+        title: Row(
           children: [
-            Text(
-              widget.sellerName,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
+            CircleAvatar(
+              radius: 19,
+              backgroundColor:
+                  Colors.redAccent.withValues(
+                alpha: 0.10,
+              ),
+              child: const Icon(
+                Icons.storefront,
+                color: Colors.redAccent,
+                size: 21,
               ),
             ),
-            const Text(
-              'Seller',
-              style: TextStyle(
-                fontSize: 11,
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.sellerName,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  Text(
+                    'Seller',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        centerTitle: true,
       ),
+
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-              stream: _messageStream(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Text(
-                      'Unable to load messages.',
-                    ),
-                  );
-                }
-
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                final documents =
-                    snapshot.data?.docs ?? [];
-
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) {
-                  _markMessagesAsRead();
-                });
-
-                if (documents.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration:
-                                BoxDecoration(
-                              color: Colors.redAccent
-                                  .withValues(alpha: 0.10),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.chat_outlined,
-                              size: 40,
-                              color:
-                                  Colors.redAccent,
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 16,
-                          ),
-                          const Text(
-                            'Start a conversation',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 6,
-                          ),
-                          Text(
-                            'Send a message to ${widget.sellerName}.',
-                            textAlign:
-                                TextAlign.center,
-                            style: TextStyle(
-                              color: Colors
-                                  .grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller:
-                      _scrollController,
-                  reverse: true,
-                  padding:
-                      const EdgeInsets.symmetric(
-                    vertical: 12,
-                  ),
-                  itemCount: documents.length,
-                  itemBuilder:
-                      (context, index) {
-                    final data =
-                        documents[index].data();
-
-                    return _messageBubble(data);
-                  },
-                );
-              },
-            ),
+            child: _messageList(),
           ),
+
           _messageInput(),
         ],
       ),
