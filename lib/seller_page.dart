@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'add_product_page.dart';
 import 'my_products_page.dart';
 import 'seller_orders_page.dart';
+import 'seller_return_refund_page.dart';
 
 class SellerPage extends StatelessWidget {
   const SellerPage({super.key});
@@ -128,6 +129,16 @@ class SellerPage extends StatelessWidget {
     );
   }
 
+  void _openReturnRefundRequests(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const SellerReturnRefundPage(),
+      ),
+    );
+  }
+
   void _comingSoon(
     BuildContext context,
     String title,
@@ -189,13 +200,13 @@ class SellerPage extends StatelessWidget {
 
           final sellerStatus =
               userData['sellerStatus']
-                  ?.toString() ??
-              'pending';
+                      ?.toString() ??
+                  'pending';
 
           final sellerCode =
               userData['sellerCode']
-                  ?.toString() ??
-              'Not assigned';
+                      ?.toString() ??
+                  'Not assigned';
 
           return StreamBuilder<
               QuerySnapshot<Map<String, dynamic>>>(
@@ -261,7 +272,10 @@ class SellerPage extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // Seller Header
+                    // =================================================
+                    // SELLER HEADER
+                    // =================================================
+
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
@@ -306,7 +320,8 @@ class SellerPage extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 Text(
                                   'Seller ID: $sellerCode',
-                                  style: const TextStyle(
+                                  style:
+                                      const TextStyle(
                                     fontSize: 13,
                                   ),
                                 ),
@@ -332,7 +347,10 @@ class SellerPage extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    // Approval Status
+                    // =================================================
+                    // APPROVAL STATUS
+                    // =================================================
+
                     Container(
                       padding:
                           const EdgeInsets.all(16),
@@ -390,6 +408,10 @@ class SellerPage extends StatelessWidget {
 
                     const SizedBox(height: 22),
 
+                    // =================================================
+                    // OVERVIEW
+                    // =================================================
+
                     const Text(
                       'Overview',
                       style: TextStyle(
@@ -400,7 +422,6 @@ class SellerPage extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
-                    // Statistics
                     GridView.count(
                       crossAxisCount: 2,
                       crossAxisSpacing: 12,
@@ -446,6 +467,10 @@ class SellerPage extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 24),
+
+                    // =================================================
+                    // PRODUCT MANAGEMENT
+                    // =================================================
 
                     const Text(
                       'Product Management',
@@ -497,6 +522,26 @@ class SellerPage extends StatelessWidget {
                       },
                     ),
 
+                    // =================================================
+                    // RETURN & REFUND
+                    // =================================================
+
+                    _menuCard(
+                      context: context,
+                      icon: Icons
+                          .assignment_return_outlined,
+                      title:
+                          'Return & Refund Requests',
+                      subtitle:
+                          'Review customer return and refund requests.',
+                      enabled: isApproved,
+                      onTap: () {
+                        _openReturnRefundRequests(
+                          context,
+                        );
+                      },
+                    ),
+
                     _menuCard(
                       context: context,
                       icon:
@@ -530,6 +575,10 @@ class SellerPage extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 24),
+
+                    // =================================================
+                    // SELLER INFORMATION
+                    // =================================================
 
                     const Text(
                       'Seller Information',
