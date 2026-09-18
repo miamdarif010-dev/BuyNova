@@ -13,6 +13,7 @@ import 'watch_earn_page.dart';
 import 'favorites_page.dart';
 import 'seller_page.dart';
 import 'notifications_page.dart';
+import 'seller_messages_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -59,6 +60,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     super.initState();
     _loadUserData();
   }
+
+  // =========================================================
+  // LOAD USER DATA
+  // =========================================================
 
   Future<void> _loadUserData() async {
     final user = currentUser;
@@ -232,6 +237,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
   }
+
+  // =========================================================
+  // SELLER MESSAGES
+  // =========================================================
+
+  void _openSellerMessages() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SellerMessagesPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // FEATURE NOT AVAILABLE
+  // =========================================================
 
   void _featureNotAvailable(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -674,14 +696,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
           },
         ),
 
+        // =====================================================
+        // SELLER MESSAGES - REAL PAGE
+        // =====================================================
+
         _menuItem(
           icon: Icons.message_outlined,
           title: 'Messages',
-          onTap: () {
-            _featureNotAvailable(
-              'Messages',
-            );
-          },
+          onTap: _openSellerMessages,
         ),
       ];
     }
@@ -941,7 +963,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
         ),
         centerTitle: true,
       ),
-
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(),
@@ -1183,7 +1204,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     // =================================================
-                    // ENTREPRENEUR
+                    // ENTREPRENEUR / RESELLER
                     // =================================================
 
                     _expandableSectionHeader(
