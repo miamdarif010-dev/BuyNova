@@ -25,12 +25,6 @@ class UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<UserProfilePage> {
   bool _isLoading = true;
 
-  bool _adminExpanded = false;
-  bool _buyerExpanded = false;
-  bool _earnExpanded = false;
-  bool _entrepreneurExpanded = false;
-  bool _sellerExpanded = false;
-
   String _name = '';
   String _phone = '';
   String _profileImageUrl = '';
@@ -374,10 +368,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // SECTION HEADER
   // =========================================================
 
-  Widget _expandableSectionHeader({
+  Widget _sectionHeader({
     required IconData icon,
     required String title,
-    required bool expanded,
     required VoidCallback onTap,
   }) {
     return Card(
@@ -395,10 +388,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
             fontSize: 16,
           ),
         ),
-        trailing: Icon(
-          expanded
-              ? Icons.keyboard_arrow_up
-              : Icons.chevron_right,
+        trailing: const Icon(
+          Icons.chevron_right,
         ),
         onTap: onTap,
       ),
@@ -547,7 +538,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // BUYER SECTION
+  // BUYER SECTION ITEMS
   // =========================================================
 
   List<Widget> _buyerSectionItems() {
@@ -569,39 +560,31 @@ class _UserProfilePageState extends State<UserProfilePage> {
       _menuItem(
         icon: Icons.shopping_cart_outlined,
         title: 'Cart',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
 
       _menuItem(
         icon: Icons.receipt_long_outlined,
         title: 'My Orders',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
 
       _menuItem(
         icon: Icons.help_outline,
         title: 'Help & Support',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
 
       _menuItem(
         icon: Icons.assignment_return_outlined,
         title: 'Return & Refund',
-        onTap: () {
-          _openBuyer();
-        },
+        onTap: _openBuyer,
       ),
     ];
   }
 
   // =========================================================
-  // SELLER SECTION
+  // SELLER SECTION ITEMS
   // =========================================================
 
   List<Widget> _sellerSectionItems() {
@@ -695,10 +678,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
             );
           },
         ),
-
-        // =====================================================
-        // SELLER MESSAGES - REAL PAGE
-        // =====================================================
 
         _menuItem(
           icon: Icons.message_outlined,
@@ -808,7 +787,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // ENTREPRENEUR SECTION
+  // ENTREPRENEUR SECTION ITEMS
   // =========================================================
 
   List<Widget> _entrepreneurSectionItems() {
@@ -1078,35 +1057,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     // =================================================
-                    // ADMIN
+                    // ADMIN PANEL
                     // =================================================
 
                     if (_isAdmin) ...[
-                      _expandableSectionHeader(
+                      _sectionHeader(
                         icon:
                             Icons.admin_panel_settings_outlined,
                         title: 'ADMIN PANEL',
-                        expanded:
-                            _adminExpanded,
-                        onTap: () {
-                          setState(() {
-                            _adminExpanded =
-                                !_adminExpanded;
-                          });
-                        },
+                        onTap:
+                            _openAdminPanel,
                       ),
-
-                      if (_adminExpanded) ...[
-                        _sectionNotification(),
-
-                        _menuItem(
-                          icon:
-                              Icons.admin_panel_settings_outlined,
-                          title: 'Admin Dashboard',
-                          onTap:
-                              _openAdminPanel,
-                        ),
-                      ],
 
                       const SizedBox(
                         height: 8,
@@ -1117,23 +1078,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // BUYER
                     // =================================================
 
-                    _expandableSectionHeader(
+                    _sectionHeader(
                       icon:
                           Icons.shopping_bag_outlined,
                       title: 'BUYER',
-                      expanded:
-                          _buyerExpanded,
-                      onTap: () {
-                        setState(() {
-                          _buyerExpanded =
-                              !_buyerExpanded;
-                        });
-                      },
+                      onTap: _openBuyer,
                     ),
-
-                    if (_buyerExpanded) ...[
-                      ..._buyerSectionItems(),
-                    ],
 
                     const SizedBox(
                       height: 8,
@@ -1143,61 +1093,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // EARN & REWARDS
                     // =================================================
 
-                    _expandableSectionHeader(
+                    _sectionHeader(
                       icon:
                           Icons.stars_outlined,
                       title:
                           'EARN & REWARDS',
-                      expanded:
-                          _earnExpanded,
-                      onTap: () {
-                        setState(() {
-                          _earnExpanded =
-                              !_earnExpanded;
-                        });
-                      },
+                      onTap:
+                          _openWatchEarn,
                     ),
-
-                    if (_earnExpanded) ...[
-                      _sectionNotification(),
-
-                      _rewardsSummaryCard(),
-
-                      _menuItem(
-                        icon:
-                            Icons.play_circle_outline,
-                        title:
-                            'Watch & Earn',
-                        iconColor:
-                            Colors.redAccent,
-                        onTap:
-                            _openWatchEarn,
-                      ),
-
-                      _menuItem(
-                        icon:
-                            Icons.video_library_outlined,
-                        title:
-                            'Seller Video Rewards',
-                        onTap: () {
-                          _featureNotAvailable(
-                            'Seller Video Rewards',
-                          );
-                        },
-                      ),
-
-                      _menuItem(
-                        icon:
-                            Icons.group_add_outlined,
-                        title:
-                            'Referral',
-                        onTap: () {
-                          _featureNotAvailable(
-                            'Referral',
-                          );
-                        },
-                      ),
-                    ],
 
                     const SizedBox(
                       height: 8,
@@ -1207,24 +1110,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // ENTREPRENEUR / RESELLER
                     // =================================================
 
-                    _expandableSectionHeader(
+                    _sectionHeader(
                       icon:
                           Icons.business_center_outlined,
                       title:
                           'ENTREPRENEUR / RESELLER',
-                      expanded:
-                          _entrepreneurExpanded,
-                      onTap: () {
-                        setState(() {
-                          _entrepreneurExpanded =
-                              !_entrepreneurExpanded;
-                        });
-                      },
+                      onTap:
+                          _openEntrepreneur,
                     ),
-
-                    if (_entrepreneurExpanded) ...[
-                      ..._entrepreneurSectionItems(),
-                    ],
 
                     const SizedBox(
                       height: 8,
@@ -1234,23 +1127,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // SELLER
                     // =================================================
 
-                    _expandableSectionHeader(
+                    _sectionHeader(
                       icon:
                           Icons.storefront_outlined,
                       title: 'SELLER',
-                      expanded:
-                          _sellerExpanded,
-                      onTap: () {
-                        setState(() {
-                          _sellerExpanded =
-                              !_sellerExpanded;
-                        });
-                      },
+                      onTap:
+                          _openSellerDashboard,
                     ),
-
-                    if (_sellerExpanded) ...[
-                      ..._sellerSectionItems(),
-                    ],
 
                     const SizedBox(
                       height: 16,
