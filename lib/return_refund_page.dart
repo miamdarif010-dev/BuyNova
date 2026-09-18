@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'my_return_refund_requests_page.dart';
+
 class ReturnRefundPage extends StatelessWidget {
   const ReturnRefundPage({super.key});
 
@@ -139,8 +141,8 @@ class ReturnRefundPage extends StatelessWidget {
             onTap: () {
               _showInfo(
                 context,
-                'Return Request',
-                'Return requests will be connected to your orders here.',
+                'Request a Return',
+                'To request a return, open My Orders and select an eligible delivered product.',
               );
             },
           ),
@@ -153,8 +155,8 @@ class ReturnRefundPage extends StatelessWidget {
             onTap: () {
               _showInfo(
                 context,
-                'Refund Request',
-                'Refund requests will be connected to your orders here.',
+                'Request a Refund',
+                'To request a refund, open My Orders and select an eligible delivered product.',
               );
             },
           ),
@@ -165,10 +167,11 @@ class ReturnRefundPage extends StatelessWidget {
             title: 'My Return & Refund Requests',
             subtitle: 'Check the status of your requests.',
             onTap: () {
-              _showInfo(
+              Navigator.push(
                 context,
-                'My Requests',
-                'Your return and refund requests will appear here.',
+                MaterialPageRoute(
+                  builder: (_) => const MyReturnRefundRequestsPage(),
+                ),
               );
             },
           ),
@@ -194,7 +197,8 @@ class ReturnRefundPage extends StatelessWidget {
               _showInfo(
                 context,
                 'Return Policy',
-                'Return policy details will be added here.',
+                'Returns are available only for eligible delivered orders. '
+                    'Eligibility may depend on the product and seller policy.',
               );
             },
           ),
@@ -208,7 +212,8 @@ class ReturnRefundPage extends StatelessWidget {
               _showInfo(
                 context,
                 'Refund Policy',
-                'Refund policy details will be added here.',
+                'Refund requests are reviewed by the seller or BuyNova administration. '
+                    'Processing time may depend on the order and payment method.',
               );
             },
           ),
@@ -221,8 +226,9 @@ class ReturnRefundPage extends StatelessWidget {
             onTap: () {
               _showInfo(
                 context,
-                'FAQ',
-                'Return and refund frequently asked questions will be added here.',
+                'Return & Refund FAQ',
+                'You can submit a return or refund request for an eligible delivered product. '
+                    'You can then track the request status from My Return & Refund Requests.',
               );
             },
           ),
