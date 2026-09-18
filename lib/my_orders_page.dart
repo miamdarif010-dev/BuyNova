@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'order_tracking_page.dart';
+import 'order_details_page.dart';
 
 class MyOrdersPage extends StatelessWidget {
   const MyOrdersPage({super.key});
@@ -55,18 +56,29 @@ class MyOrdersPage extends StatelessWidget {
     if (value is Timestamp) {
       final date = value.toDate();
 
-      final day = date.day.toString().padLeft(2, '0');
-      final month = date.month.toString().padLeft(2, '0');
-      final year = date.year.toString();
+      final day =
+          date.day.toString().padLeft(2, '0');
+
+      final month =
+          date.month.toString().padLeft(2, '0');
+
+      final year =
+          date.year.toString();
 
       final hour = date.hour == 0
           ? 12
-          : (date.hour > 12 ? date.hour - 12 : date.hour);
+          : (date.hour > 12
+              ? date.hour - 12
+              : date.hour);
 
-      final minute = date.minute.toString().padLeft(2, '0');
-      final period = date.hour >= 12 ? 'PM' : 'AM';
+      final minute =
+          date.minute.toString().padLeft(2, '0');
 
-      return '$day/$month/$year $hour:$minute $period';
+      final period =
+          date.hour >= 12 ? 'PM' : 'AM';
+
+      return '$day/$month/$year '
+          '$hour:$minute $period';
     }
 
     return 'Date unavailable';
@@ -77,7 +89,10 @@ class MyOrdersPage extends StatelessWidget {
       return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ?? 0;
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 
   int _int(dynamic value) {
@@ -85,27 +100,34 @@ class MyOrdersPage extends StatelessWidget {
       return value.toInt();
     }
 
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 
   Widget _statusChip(String status) {
     final color = _statusColor(status);
 
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 6,
       ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
+        color:
+            color.withValues(alpha: 0.12),
+        borderRadius:
+            BorderRadius.circular(20),
       ),
       child: Text(
         _statusText(status),
         style: TextStyle(
           color: color,
           fontSize: 12,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
@@ -117,7 +139,8 @@ class MyOrdersPage extends StatelessWidget {
       height: 64,
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius:
+            BorderRadius.circular(10),
       ),
       child: Icon(
         Icons.image_outlined,
@@ -129,7 +152,9 @@ class MyOrdersPage extends StatelessWidget {
   Widget _buildProductItem(
     Map<String, dynamic> item,
   ) {
-    final name = (item['name'] ?? 'Product').toString();
+    final name =
+        (item['name'] ?? 'Product')
+            .toString();
 
     final imageUrl =
         (item['imageUrl'] ??
@@ -137,21 +162,25 @@ class MyOrdersPage extends StatelessWidget {
                 '')
             .toString();
 
-    final quantity = _int(item['quantity'] ?? 1);
+    final quantity =
+        _int(item['quantity'] ?? 1);
 
-    final price = _number(item['price']);
+    final price =
+        _number(item['price']);
 
     Widget image;
 
     if (imageUrl.isNotEmpty) {
       image = ClipRRect(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius:
+            BorderRadius.circular(10),
         child: Image.network(
           imageUrl,
           width: 64,
           height: 64,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) {
+          errorBuilder:
+              (_, __, ___) {
             return _imagePlaceholder();
           },
         ),
@@ -161,22 +190,30 @@ class MyOrdersPage extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding:
+          const EdgeInsets.only(
+        bottom: 12,
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           image,
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
                   maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.w600,
                     fontSize: 14,
                   ),
                 ),
@@ -184,16 +221,20 @@ class MyOrdersPage extends StatelessWidget {
                 Text(
                   'Quantity: $quantity',
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color:
+                        Colors.grey.shade600,
                     fontSize: 13,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '₩${(price * quantity).toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.redAccent,
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        Colors.redAccent,
                   ),
                 ),
               ],
@@ -207,19 +248,26 @@ class MyOrdersPage extends StatelessWidget {
   Future<void> _cancelSellerOrder(
     BuildContext context,
     String sellerOrderId,
-    Map<String, dynamic> sellerOrderData,
+    Map<String, dynamic>
+        sellerOrderData,
   ) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser =
+        FirebaseAuth.instance.currentUser;
 
     if (currentUser == null) {
       return;
     }
 
     final customerId =
-        (sellerOrderData['customerId'] ?? '').toString();
+        (sellerOrderData[
+                    'customerId'] ??
+                '')
+            .toString();
 
-    if (customerId != currentUser.uid) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (customerId !=
+        currentUser.uid) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
             'You cannot cancel this order.',
@@ -230,10 +278,16 @@ class MyOrdersPage extends StatelessWidget {
     }
 
     final currentStatus =
-        (sellerOrderData['orderStatus'] ?? 'placed').toString();
+        (sellerOrderData[
+                    'orderStatus'] ??
+                'placed')
+            .toString();
 
-    if (!_canCancel(currentStatus)) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (!_canCancel(
+      currentStatus,
+    )) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
             'This order cannot be cancelled because it is already ${_statusText(currentStatus)}.',
@@ -243,30 +297,44 @@ class MyOrdersPage extends StatelessWidget {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Cancel Order?'),
+          title:
+              const Text('Cancel Order?'),
           content: const Text(
             'Are you sure you want to cancel this order?',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext, false);
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
               },
-              child: const Text('No'),
+              child:
+                  const Text('No'),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(dialogContext, true);
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    Colors.red,
+                foregroundColor:
+                    Colors.white,
               ),
-              child: const Text('Yes, Cancel'),
+              child: const Text(
+                'Yes, Cancel',
+              ),
             ),
           ],
         );
@@ -278,63 +346,85 @@ class MyOrdersPage extends StatelessWidget {
     }
 
     try {
-      final sellerOrderRef = FirebaseFirestore.instance
-          .collection('seller_orders')
-          .doc(sellerOrderId);
+      final sellerOrderRef =
+          FirebaseFirestore.instance
+              .collection(
+                'seller_orders',
+              )
+              .doc(sellerOrderId);
 
       final latestSnapshot =
           await sellerOrderRef.get();
 
       if (!latestSnapshot.exists) {
-        throw Exception('Seller order not found.');
+        throw Exception(
+          'Seller order not found.',
+        );
       }
 
       final latestData =
           latestSnapshot.data() ?? {};
 
       final latestCustomerId =
-          (latestData['customerId'] ?? '').toString();
+          (latestData[
+                      'customerId'] ??
+                  '')
+              .toString();
 
-      if (latestCustomerId != currentUser.uid) {
+      if (latestCustomerId !=
+          currentUser.uid) {
         throw Exception(
           'You cannot cancel this order.',
         );
       }
 
       final latestStatus =
-          (latestData['orderStatus'] ?? 'placed').toString();
+          (latestData[
+                      'orderStatus'] ??
+                  'placed')
+              .toString();
 
-      if (!_canCancel(latestStatus)) {
+      if (!_canCancel(
+        latestStatus,
+      )) {
         throw Exception(
           'This order can no longer be cancelled.',
         );
       }
 
       await sellerOrderRef.update({
-        'orderStatus': 'cancelled',
-        'cancelledBy': 'customer',
-        'cancelledAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'orderStatus':
+            'cancelled',
+        'cancelledBy':
+            'customer',
+        'cancelledAt':
+            FieldValue.serverTimestamp(),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
       });
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
           const SnackBar(
             content: Text(
               'Order cancelled successfully.',
             ),
-            backgroundColor: Colors.green,
+            backgroundColor:
+                Colors.green,
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
           SnackBar(
             content: Text(
               'Could not cancel order: $e',
             ),
-            backgroundColor: Colors.red,
+            backgroundColor:
+                Colors.red,
           ),
         );
       }
@@ -343,36 +433,51 @@ class MyOrdersPage extends StatelessWidget {
 
   Widget _buildSellerOrderCard(
     BuildContext context,
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        doc,
   ) {
     final data = doc.data();
 
     final sellerCode =
-        (data['sellerCode'] ?? 'Seller').toString();
+        (data['sellerCode'] ??
+                'Seller')
+            .toString();
 
     final status =
-        (data['orderStatus'] ?? 'placed').toString();
+        (data['orderStatus'] ??
+                'placed')
+            .toString();
 
     final subtotal =
-        _number(data['sellerSubtotal']);
+        _number(
+      data['sellerSubtotal'],
+    );
 
-    final itemsRaw = data['items'];
+    final itemsRaw =
+        data['items'];
 
     final items = itemsRaw is List
         ? itemsRaw
+            .whereType<Map>()
             .map(
-              (item) => Map<String, dynamic>.from(
-                item as Map,
+              (item) =>
+                  Map<String, dynamic>.from(
+                item,
               ),
             )
             .toList()
         : <Map<String, dynamic>>[];
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin:
+          const EdgeInsets.only(
+        bottom: 14,
+      ),
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -381,15 +486,18 @@ class MyOrdersPage extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.storefront_outlined,
-                  color: Colors.redAccent,
+                  color:
+                      Colors.redAccent,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     sellerCode,
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                 ),
@@ -400,25 +508,33 @@ class MyOrdersPage extends StatelessWidget {
             const SizedBox(height: 14),
 
             if (items.isNotEmpty)
-              ...items.map(_buildProductItem),
+              ...items.map(
+                _buildProductItem,
+              ),
 
             const Divider(),
 
             Row(
               mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+                  MainAxisAlignment
+                      .spaceBetween,
               children: [
                 const Text(
                   'Seller Subtotal',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
+                  style:
+                      TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
                 Text(
                   '₩${subtotal.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.redAccent,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ],
@@ -428,8 +544,10 @@ class MyOrdersPage extends StatelessWidget {
 
             if (_canCancel(status))
               SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
+                width:
+                    double.infinity,
+                child:
+                    OutlinedButton.icon(
                   onPressed: () {
                     _cancelSellerOrder(
                       context,
@@ -445,11 +563,14 @@ class MyOrdersPage extends StatelessWidget {
                     'Cancel Order',
                     style: TextStyle(
                       color: Colors.red,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(
+                  style:
+                      OutlinedButton.styleFrom(
+                    side:
+                        const BorderSide(
                       color: Colors.red,
                     ),
                   ),
@@ -461,157 +582,263 @@ class MyOrdersPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMainOrderCard(
+  void _openOrderDetails(
     BuildContext context,
-    QueryDocumentSnapshot<Map<String, dynamic>> orderDoc,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        orderDoc,
+    List<QueryDocumentSnapshot<
+            Map<String, dynamic>>>
         sellerOrders,
   ) {
-    final data = orderDoc.data();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            OrderDetailsPage(
+          orderId: orderDoc.id,
+          orderData:
+              orderDoc.data(),
+          sellerOrders:
+              sellerOrders,
+        ),
+      ),
+    );
+  }
 
-    final orderId = orderDoc.id;
+  Widget _buildMainOrderCard(
+    BuildContext context,
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        orderDoc,
+    List<QueryDocumentSnapshot<
+            Map<String, dynamic>>>
+        sellerOrders,
+  ) {
+    final data =
+        orderDoc.data();
+
+    final orderId =
+        orderDoc.id;
 
     final mainStatus =
-        (data['orderStatus'] ?? 'placed').toString();
+        (data['orderStatus'] ??
+                'placed')
+            .toString();
 
     final total =
         _number(data['total']);
 
     final createdAt =
-        _formatDate(data['createdAt']);
+        _formatDate(
+      data['createdAt'],
+    );
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 22),
+      margin:
+          const EdgeInsets.only(
+        bottom: 22,
+      ),
       elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Order',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '#$orderId',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _statusChip(mainStatus),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              createdAt,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            if (total > 0)
+      clipBehavior:
+          Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          _openOrderDetails(
+            context,
+            orderDoc,
+            sellerOrders,
+          );
+        },
+        child: Padding(
+          padding:
+              const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Order Total',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Order',
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 3,
+                        ),
+                        Text(
+                          '#$orderId',
+                          style:
+                              const TextStyle(
+                            fontSize: 16,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  _statusChip(
+                    mainStatus,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                createdAt,
+                style: TextStyle(
+                  color:
+                      Colors.grey.shade600,
+                  fontSize: 12,
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              if (total > 0)
+                Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment
+                          .spaceBetween,
+                  children: [
+                    const Text(
+                      'Order Total',
+                      style:
+                          TextStyle(
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '₩${total.toStringAsFixed(0)}',
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                        fontSize: 17,
+                        color:
+                            Colors.redAccent,
+                      ),
+                    ),
+                  ],
+                ),
+
+              const SizedBox(height: 8),
+
+              const Row(
+                children: [
+                  Icon(
+                    Icons
+                        .touch_app_outlined,
+                    size: 16,
+                    color:
+                        Colors.redAccent,
+                  ),
+                  SizedBox(width: 5),
                   Text(
-                    '₩${total.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 17,
-                      color: Colors.redAccent,
+                    'Tap this order to view details',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.redAccent,
+                      fontSize: 12,
+                      fontWeight:
+                          FontWeight.w600,
                     ),
                   ),
                 ],
               ),
 
-            const SizedBox(height: 14),
+              const SizedBox(height: 14),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          OrderTrackingPage(
-                        orderId: orderId,
+              SizedBox(
+                width:
+                    double.infinity,
+                child:
+                    ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            OrderTrackingPage(
+                          orderId:
+                              orderId,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                icon: const Icon(
-                  Icons.local_shipping_outlined,
-                ),
-                label: const Text('Track Order'),
-              ),
-            ),
-
-            if (sellerOrders.isNotEmpty) ...[
-              const SizedBox(height: 18),
-
-              const Text(
-                'Seller Orders',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
+                    );
+                  },
+                  icon: const Icon(
+                    Icons
+                        .local_shipping_outlined,
+                  ),
+                  label:
+                      const Text(
+                    'Track Order',
+                  ),
                 ),
               ),
 
-              const SizedBox(height: 12),
-
-              ...sellerOrders.map(
-                (sellerOrder) =>
-                    _buildSellerOrderCard(
-                  context,
-                  sellerOrder,
+              if (sellerOrders.isNotEmpty) ...[
+                const SizedBox(
+                  height: 18,
                 ),
-              ),
+
+                const Text(
+                  'Seller Orders',
+                  style:
+                      TextStyle(
+                    fontSize: 17,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                ...sellerOrders.map(
+                  (sellerOrder) =>
+                      _buildSellerOrderCard(
+                    context,
+                    sellerOrder,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+  Widget build(
+    BuildContext context,
+  ) {
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('My Orders'),
+          title:
+              const Text('My Orders'),
           centerTitle: true,
         ),
         body: const Center(
@@ -624,11 +851,13 @@ class MyOrdersPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Orders'),
+        title:
+            const Text('My Orders'),
         centerTitle: true,
       ),
       body: StreamBuilder<
-          QuerySnapshot<Map<String, dynamic>>>(
+          QuerySnapshot<
+              Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('orders')
             .where(
@@ -636,29 +865,37 @@ class MyOrdersPage extends StatelessWidget {
               isEqualTo: user.uid,
             )
             .snapshots(),
-        builder: (context, orderSnapshot) {
-          if (orderSnapshot.connectionState ==
+        builder:
+            (context, orderSnapshot) {
+          if (orderSnapshot
+                  .connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             );
           }
 
           if (orderSnapshot.hasError) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding:
+                    const EdgeInsets.all(
+                  20,
+                ),
                 child: Text(
                   'Unable to load orders.\n\n'
                   '${orderSnapshot.error}',
-                  textAlign: TextAlign.center,
+                  textAlign:
+                      TextAlign.center,
                 ),
               ),
             );
           }
 
           final orderDocs =
-              orderSnapshot.data?.docs ?? [];
+              orderSnapshot.data?.docs ??
+                  [];
 
           if (orderDocs.isEmpty) {
             return const Center(
@@ -667,7 +904,8 @@ class MyOrdersPage extends StatelessWidget {
                     MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.shopping_bag_outlined,
+                    Icons
+                        .shopping_bag_outlined,
                     size: 70,
                     color: Colors.grey,
                   ),
@@ -676,7 +914,8 @@ class MyOrdersPage extends StatelessWidget {
                     'No Orders Yet',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                   SizedBox(height: 6),
@@ -694,36 +933,48 @@ class MyOrdersPage extends StatelessWidget {
           final sortedOrders =
               [...orderDocs];
 
-          sortedOrders.sort((a, b) {
-            final aTime =
-                a.data()['createdAt'];
+          sortedOrders.sort(
+            (a, b) {
+              final aTime =
+                  a.data()['createdAt'];
 
-            final bTime =
-                b.data()['createdAt'];
+              final bTime =
+                  b.data()['createdAt'];
 
-            if (aTime is Timestamp &&
-                bTime is Timestamp) {
-              return bTime.compareTo(aTime);
-            }
+              if (aTime is Timestamp &&
+                  bTime is Timestamp) {
+                return bTime.compareTo(
+                  aTime,
+                );
+              }
 
-            return 0;
-          });
+              return 0;
+            },
+          );
 
           return StreamBuilder<
-              QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('seller_orders')
-                .where(
-                  'customerId',
-                  isEqualTo: user.uid,
-                )
-                .snapshots(),
-            builder:
-                (context, sellerSnapshot) {
-              if (sellerSnapshot.connectionState ==
+              QuerySnapshot<
+                  Map<String, dynamic>>>(
+            stream:
+                FirebaseFirestore.instance
+                    .collection(
+                      'seller_orders',
+                    )
+                    .where(
+                      'customerId',
+                      isEqualTo: user.uid,
+                    )
+                    .snapshots(),
+            builder: (
+              context,
+              sellerSnapshot,
+            ) {
+              if (sellerSnapshot
+                      .connectionState ==
                   ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(),
+                  child:
+                      CircularProgressIndicator(),
                 );
               }
 
@@ -731,18 +982,22 @@ class MyOrdersPage extends StatelessWidget {
                 return Center(
                   child: Padding(
                     padding:
-                        const EdgeInsets.all(20),
+                        const EdgeInsets.all(
+                      20,
+                    ),
                     child: Text(
                       'Unable to load seller orders.\n\n'
                       '${sellerSnapshot.error}',
-                      textAlign: TextAlign.center,
+                      textAlign:
+                          TextAlign.center,
                     ),
                   ),
                 );
               }
 
               final sellerDocs =
-                  sellerSnapshot.data?.docs ?? [];
+                  sellerSnapshot.data?.docs ??
+                      [];
 
               final sellerOrdersByOrderId =
                   <String,
@@ -755,7 +1010,8 @@ class MyOrdersPage extends StatelessWidget {
                     sellerDoc.data();
 
                 final orderId =
-                    (data['orderId'] ?? '')
+                    (data['orderId'] ??
+                            '')
                         .toString();
 
                 if (orderId.isEmpty) {
@@ -772,7 +1028,9 @@ class MyOrdersPage extends StatelessWidget {
 
               return ListView.builder(
                 padding:
-                    const EdgeInsets.all(16),
+                    const EdgeInsets.all(
+                  16,
+                ),
                 itemCount:
                     sortedOrders.length,
                 itemBuilder:
