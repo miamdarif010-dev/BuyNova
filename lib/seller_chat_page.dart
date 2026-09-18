@@ -19,8 +19,11 @@ class SellerChatPage extends StatefulWidget {
 }
 
 class _SellerChatPageState extends State<SellerChatPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore =
+      FirebaseFirestore.instance;
+
+  final FirebaseAuth _auth =
+      FirebaseAuth.instance;
 
   final TextEditingController _messageController =
       TextEditingController();
@@ -28,24 +31,31 @@ class _SellerChatPageState extends State<SellerChatPage> {
   final ScrollController _scrollController =
       ScrollController();
 
-  bool _isSending = false;
+  bool _sending = false;
+  bool _conversationReady = false;
 
-  String? get _sellerId => _auth.currentUser?.uid;
+  String _sellerName = 'Seller';
 
-  DocumentReference<Map<String, dynamic>> get _conversationReference {
+  User? get _user => _auth.currentUser;
+
+  String get _sellerId => _user?.uid ?? '';
+
+  DocumentReference<Map<String, dynamic>>
+      get _conversationRef {
     return _firestore
         .collection('conversations')
         .doc(widget.conversationId);
   }
 
-  CollectionReference<Map<String, dynamic>> get _messagesCollection {
-    return _conversationReference.collection('messages');
+  CollectionReference<Map<String, dynamic>>
+      get _messagesRef {
+    return _conversationRef.collection('messages');
   }
 
   @override
   void initState() {
     super.initState();
-    _markMessagesAsRead();
+    _ensureConversation();
   }
 
   @override
@@ -55,38 +65,203 @@ class _SellerChatPageState extends State<SellerChatPage> {
     super.dispose();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _messageStream() {
-    return _messagesCollection
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+  // =========================================================
+  // GET SELLER NAME
+  // =========================================================
+
+  Future<String> _getSellerName() async {
+    if (_sellerId.isEmpty) {
+      return 'Seller';
+    }
+
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(_sellerId)
+          .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data();
+
+        final name = data?['name'];
+
+        if (name is String &&
+            name.trim().isNotEmpty) {
+          return name.trim();
+        }
+
+        final displayName =
+            data?['displayName'];
+
+        if (displayName is String &&
+            displayName.trim().isNotEmpty) {
+          return displayName.trim();
+        }
+      }
+    } catch (_) {
+      // Use Firebase Auth fallback.
+    }
+
+    final authName = _user?.displayName;
+
+    if (authName != null &&
+        authName.trim().isNotEmpty) {
+      return authName.trim();
+    }
+
+    return 'Seller';
   }
 
-  Future<void> _markMessagesAsRead() async {
-    final sellerId = _sellerId;
+  // =========================================================
+  // ENSURE CONVERSATION
+  // =========================================================
 
-    if (sellerId == null) {
+  Future<void> _ensureConversation() async {
+    if (_sellerId.isEmpty) {
       return;
     }
 
     try {
-      final conversation =
-          await _conversationReference.get();
+      final sellerName =
+          await _getSellerName();
 
-      if (!conversation.exists) {
-        return;
+      if (mounted) {
+        setState(() {
+          _sellerName = sellerName;
+        });
       }
 
-      final conversationData = conversation.data();
+      final conversationSnapshot =
+          await _conversationRef.get();
 
-      if (conversationData == null ||
-          conversationData['sellerId'] != sellerId) {
-        return;
+      if (!conversationSnapshot.exists) {
+        // Normally conversations are created by
+        // the buyer. This fallback keeps the page
+        // functional when a seller opens a valid
+        // conversation that does not exist yet.
+        await _conversationRef.set({
+          'conversationId':
+              widget.conversationId,
+          'buyerId': widget.buyerId,
+          'buyerName': widget.buyerName,
+          'sellerId': _sellerId,
+          'sellerName': sellerName,
+          'lastMessage': '',
+          'lastMessageAt':
+              FieldValue.serverTimestamp(),
+          'buyerUnreadCount': 0,
+          'sellerUnreadCount': 0,
+          'createdAt':
+              FieldValue.serverTimestamp(),
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        });
+      } else {
+        final data =
+            conversationSnapshot.data();
+
+        final existingBuyerId =
+            data?['buyerId'];
+
+        final existingSellerId =
+            data?['sellerId'];
+
+        // Security check.
+        if (existingBuyerId !=
+                widget.buyerId ||
+            existingSellerId !=
+                _sellerId) {
+          if (mounted) {
+            setState(() {
+              _conversationReady = false;
+            });
+
+            ScaffoldMessenger.of(context)
+                .showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'You are not a participant in this conversation.',
+                ),
+              ),
+            );
+          }
+
+          return;
+        }
+
+        final existingBuyerName =
+            data?['buyerName'];
+
+        final existingSellerName =
+            data?['sellerName'];
+
+        final Map<String, dynamic>
+            updates = {};
+
+        if (existingBuyerName !=
+                widget.buyerName &&
+            widget.buyerName
+                .trim()
+                .isNotEmpty) {
+          updates['buyerName'] =
+              widget.buyerName.trim();
+        }
+
+        if (existingSellerName !=
+            sellerName) {
+          updates['sellerName'] =
+              sellerName;
+        }
+
+        if (updates.isNotEmpty) {
+          updates['updatedAt'] =
+              FieldValue.serverTimestamp();
+
+          await _conversationRef.update(
+            updates,
+          );
+        }
       }
 
-      final snapshot = await _messagesCollection
+      if (mounted) {
+        setState(() {
+          _conversationReady = true;
+        });
+      }
+
+      await _markMessagesAsRead();
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _conversationReady = false;
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to open chat: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  // =========================================================
+  // MARK MESSAGES AS READ
+  // =========================================================
+
+  Future<void> _markMessagesAsRead() async {
+    if (_sellerId.isEmpty) {
+      return;
+    }
+
+    try {
+      final snapshot = await _messagesRef
           .where(
             'receiverId',
-            isEqualTo: sellerId,
+            isEqualTo: _sellerId,
           )
           .where(
             'isRead',
@@ -96,93 +271,102 @@ class _SellerChatPageState extends State<SellerChatPage> {
 
       final batch = _firestore.batch();
 
-      for (final document in snapshot.docs) {
+      for (final doc in snapshot.docs) {
         batch.update(
-          document.reference,
+          doc.reference,
           {
             'isRead': true,
-            'readAt': FieldValue.serverTimestamp(),
+            'readAt':
+                FieldValue.serverTimestamp(),
           },
         );
       }
 
-      batch.update(
-        _conversationReference,
+      batch.set(
+        _conversationRef,
         {
           'sellerUnreadCount': 0,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt':
+              FieldValue.serverTimestamp(),
         },
+        SetOptions(merge: true),
       );
 
       await batch.commit();
     } catch (_) {
-      // Read status failure should not block the chat.
+      // Chat remains usable even if read update fails.
     }
   }
 
-  Future<void> _sendMessage() async {
-    final sellerId = _sellerId;
+  // =========================================================
+  // SEND MESSAGE
+  // =========================================================
 
-    if (sellerId == null) {
+  Future<void> _sendMessage() async {
+    if (_sellerId.isEmpty) {
       return;
     }
 
     final message =
         _messageController.text.trim();
 
-    if (message.isEmpty || _isSending) {
+    if (message.isEmpty || _sending) {
       return;
     }
 
+    if (!_conversationReady) {
+      await _ensureConversation();
+
+      if (!_conversationReady) {
+        return;
+      }
+    }
+
     setState(() {
-      _isSending = true;
+      _sending = true;
     });
 
     try {
-      final conversation =
-          await _conversationReference.get();
+      final messageRef =
+          _messagesRef.doc();
 
-      if (!conversation.exists) {
-        throw Exception(
-          'Conversation not found.',
-        );
-      }
+      final batch =
+          _firestore.batch();
 
-      final conversationData =
-          conversation.data();
-
-      if (conversationData == null ||
-          conversationData['sellerId'] != sellerId ||
-          conversationData['buyerId'] != widget.buyerId) {
-        throw Exception(
-          'You are not allowed to use this conversation.',
-        );
-      }
-
-      final messageReference =
-          _messagesCollection.doc();
-
-      final batch = _firestore.batch();
+      // -----------------------------------------------------
+      // CREATE MESSAGE
+      // -----------------------------------------------------
 
       batch.set(
-        messageReference,
+        messageRef,
         {
-          'senderId': sellerId,
+          'senderId': _sellerId,
           'receiverId': widget.buyerId,
           'message': message,
           'isRead': false,
-          'createdAt': FieldValue.serverTimestamp(),
+          'createdAt':
+              FieldValue.serverTimestamp(),
         },
       );
 
+      // -----------------------------------------------------
+      // UPDATE CONVERSATION
+      // -----------------------------------------------------
+
       batch.update(
-        _conversationReference,
+        _conversationRef,
         {
+          'buyerId': widget.buyerId,
+          'buyerName': widget.buyerName,
+          'sellerId': _sellerId,
+          'sellerName': _sellerName,
           'lastMessage': message,
-          'lastMessageAt': FieldValue.serverTimestamp(),
+          'lastMessageAt':
+              FieldValue.serverTimestamp(),
           'buyerUnreadCount':
               FieldValue.increment(1),
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt':
+              FieldValue.serverTimestamp(),
         },
       );
 
@@ -190,31 +374,34 @@ class _SellerChatPageState extends State<SellerChatPage> {
 
       _messageController.clear();
 
-      await Future<void>.delayed(
-        const Duration(milliseconds: 100),
+      await Future.delayed(
+        const Duration(milliseconds: 150),
       );
 
       _scrollToBottom();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
+    } catch (e) {
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
-            'Message could not be sent: $error',
+            'Message could not be sent: $e',
           ),
         ),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _isSending = false;
+          _sending = false;
         });
       }
     }
   }
+
+  // =========================================================
+  // SCROLL
+  // =========================================================
 
   void _scrollToBottom() {
     if (!_scrollController.hasClients) {
@@ -222,53 +409,74 @@ class _SellerChatPageState extends State<SellerChatPage> {
     }
 
     _scrollController.animateTo(
-      _scrollController.position.minScrollExtent,
-      duration: const Duration(milliseconds: 250),
+      0,
+      duration:
+          const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
   }
 
-  String _formatTime(dynamic value) {
-    if (value is! Timestamp) {
+  // =========================================================
+  // FORMAT TIME
+  // =========================================================
+
+  String _formatTime(
+    Timestamp? timestamp,
+  ) {
+    if (timestamp == null) {
       return '';
     }
 
-    final date = value.toDate();
+    final date =
+        timestamp.toDate();
 
-    final hour = date.hour == 0
-        ? 12
-        : date.hour > 12
-            ? date.hour - 12
+    final hour = date.hour > 12
+        ? date.hour - 12
+        : date.hour == 0
+            ? 12
             : date.hour;
 
     final minute =
-        date.minute.toString().padLeft(2, '0');
+        date.minute
+            .toString()
+            .padLeft(2, '0');
 
     final period =
-        date.hour >= 12 ? 'PM' : 'AM';
+        date.hour >= 12
+            ? 'PM'
+            : 'AM';
 
     return '$hour:$minute $period';
   }
 
+  // =========================================================
+  // MESSAGE BUBBLE
+  // =========================================================
+
   Widget _messageBubble(
     Map<String, dynamic> data,
   ) {
-    final sellerId = _sellerId;
-
-    final senderId = data['senderId'];
+    final senderId =
+        data['senderId']
+            as String? ??
+            '';
 
     final isMine =
-        sellerId != null &&
-        senderId == sellerId;
+        senderId == _sellerId;
 
     final message =
-        data['message']?.toString() ?? '';
-
-    final time =
-        _formatTime(data['createdAt']);
+        data['message']
+            as String? ??
+            '';
 
     final isRead =
-        data['isRead'] == true;
+        data['isRead']
+            as bool? ??
+            false;
+
+    final timestamp =
+        data['createdAt']
+            as Timestamp?;
 
     return Align(
       alignment: isMine
@@ -277,71 +485,87 @@ class _SellerChatPageState extends State<SellerChatPage> {
       child: Container(
         constraints: BoxConstraints(
           maxWidth:
-              MediaQuery.of(context).size.width * 0.78,
+              MediaQuery.of(context)
+                      .size
+                      .width *
+                  0.78,
         ),
-        margin: const EdgeInsets.symmetric(
+        margin:
+            const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 5,
         ),
-        padding: const EdgeInsets.symmetric(
+        padding:
+            const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 10,
         ),
-        decoration: BoxDecoration(
+        decoration:
+            BoxDecoration(
           color: isMine
               ? Colors.redAccent
               : Colors.grey.shade200,
-          borderRadius: BorderRadius.only(
+          borderRadius:
+              BorderRadius.only(
             topLeft:
-                const Radius.circular(16),
+                const Radius.circular(18),
             topRight:
-                const Radius.circular(16),
+                const Radius.circular(18),
             bottomLeft:
                 Radius.circular(
-              isMine ? 16 : 4,
+              isMine ? 18 : 4,
             ),
             bottomRight:
                 Radius.circular(
-              isMine ? 4 : 16,
+              isMine ? 4 : 18,
             ),
           ),
         ),
         child: Column(
           crossAxisAlignment:
-              isMine
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+              CrossAxisAlignment.end,
           children: [
-            Text(
-              message,
-              style: TextStyle(
-                color: isMine
-                    ? Colors.white
-                    : Colors.black87,
-                fontSize: 15,
+            Align(
+              alignment:
+                  Alignment.centerLeft,
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: isMine
+                      ? Colors.white
+                      : Colors.black87,
+                  fontSize: 15,
+                  height: 1.35,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
+
+            const SizedBox(height: 5),
+
             Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize:
+                  MainAxisSize.min,
               children: [
-                if (time.isNotEmpty)
-                  Text(
-                    time,
-                    style: TextStyle(
-                      color: isMine
-                          ? Colors.white70
-                          : Colors.grey.shade600,
-                      fontSize: 10,
-                    ),
+                Text(
+                  _formatTime(timestamp),
+                  style: TextStyle(
+                    color: isMine
+                        ? Colors.white70
+                        : Colors.black54,
+                    fontSize: 10,
                   ),
+                ),
+
                 if (isMine) ...[
-                  const SizedBox(width: 5),
+                  const SizedBox(
+                    width: 4,
+                  ),
+
                   Icon(
                     isRead
                         ? Icons.done_all
-                        : Icons.done,
-                    size: 15,
+                        : Icons.check,
+                    size: 14,
                     color: isRead
                         ? Colors.white
                         : Colors.white70,
@@ -355,240 +579,12 @@ class _SellerChatPageState extends State<SellerChatPage> {
     );
   }
 
-  Widget _messageInput() {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-          10,
-          8,
-          10,
-          8,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(context)
-              .scaffoldBackgroundColor,
-          border: Border(
-            top: BorderSide(
-              color: Colors.grey.shade300,
-            ),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                controller:
-                    _messageController,
-                minLines: 1,
-                maxLines: 5,
-                textCapitalization:
-                    TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText:
-                      'Write a message...',
-                  filled: true,
-                  fillColor:
-                      Colors.grey.shade100,
-                  contentPadding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(24),
-                    borderSide:
-                        BorderSide.none,
-                  ),
-                ),
-                onSubmitted: (_) {
-                  _sendMessage();
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: FloatingActionButton(
-                heroTag: null,
-                elevation: 1,
-                backgroundColor:
-                    Colors.redAccent,
-                onPressed:
-                    _isSending
-                        ? null
-                        : _sendMessage,
-                child: _isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.send,
-                        color: Colors.white,
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // =========================================================
+  // EMPTY CHAT
+  // =========================================================
 
-  @override
-  Widget build(BuildContext context) {
-    if (_sellerId == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Chat'),
-          centerTitle: true,
-        ),
-        body: const Center(
-          child: Text(
-            'Please login to use chat.',
-          ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          children: [
-            Text(
-              widget.buyerName,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const Text(
-              'Buyer',
-              style: TextStyle(
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-              stream: _messageStream(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Text(
-                      'Unable to load messages.',
-                    ),
-                  );
-                }
-
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child:
-                        CircularProgressIndicator(),
-                  );
-                }
-
-                final documents =
-                    snapshot.data?.docs ?? [];
-
-                if (documents.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration:
-                                BoxDecoration(
-                              color: Colors
-                                  .redAccent
-                                  .withValues(
-                                alpha: 0.10,
-                              ),
-                              shape:
-                                  BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.chat_outlined,
-                              size: 40,
-                              color:
-                                  Colors.redAccent,
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 16,
-                          ),
-                          const Text(
-                            'Start a conversation',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 6,
-                          ),
-                          Text(
-                            'Send a message to ${widget.buyerName}.',
-                            textAlign:
-                                TextAlign.center,
-                            style: TextStyle(
-                              color: Colors
-                                  .grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller:
-                      _scrollController,
-                  reverse: true,
-                  padding:
-                      const EdgeInsets.symmetric(
-                    vertical: 12,
-                  ),
-                  itemCount:
-                      documents.length,
-                  itemBuilder:
-                      (context, index) {
-                    return _messageBubble(
-                      documents[index].data(),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          _messageInput(),
-        ],
-      ),
-    );
-  }
-}
+  Widget _emptyChat() {
+    return Center(
+      child: Padding(
+        padding:
+           
