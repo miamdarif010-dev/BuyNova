@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 class SellerReturnRefundPage extends StatelessWidget {
   const SellerReturnRefundPage({super.key});
 
+  // =========================================================
+  // REQUEST STREAM
+  // =========================================================
+
   Stream<QuerySnapshot<Map<String, dynamic>>> _requestStream(
     String uid,
   ) {
@@ -14,8 +18,12 @@ class SellerReturnRefundPage extends StatelessWidget {
         .snapshots();
   }
 
+  // =========================================================
+  // STATUS TEXT
+  // =========================================================
+
   String _statusText(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'approved':
         return 'Approved';
       case 'rejected':
@@ -29,8 +37,12 @@ class SellerReturnRefundPage extends StatelessWidget {
     }
   }
 
+  // =========================================================
+  // STATUS COLOR
+  // =========================================================
+
   Color _statusColor(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'approved':
         return Colors.blue;
       case 'rejected':
@@ -44,34 +56,61 @@ class SellerReturnRefundPage extends StatelessWidget {
     }
   }
 
-  String _notificationTitle(String status, String requestType) {
-    final type = requestType == 'refund' ? 'Refund' : 'Return';
+  // =========================================================
+  // REQUEST TYPE TEXT
+  // =========================================================
 
-    switch (status) {
+  String _requestTypeText(String requestType) {
+    return requestType.toLowerCase() == 'refund'
+        ? 'Refund'
+        : 'Return';
+  }
+
+  // =========================================================
+  // NOTIFICATION TITLE
+  // =========================================================
+
+  String _notificationTitle(
+    String status,
+    String requestType,
+  ) {
+    final type = _requestTypeText(requestType);
+
+    switch (status.toLowerCase()) {
       case 'approved':
         return '$type Request Approved';
+
       case 'rejected':
         return '$type Request Rejected';
+
       case 'processing':
         return '$type Request Processing';
+
       case 'completed':
         return '$type Request Completed';
+
       default:
         return '$type Request Updated';
     }
   }
 
+  // =========================================================
+  // NOTIFICATION MESSAGE
+  // =========================================================
+
   String _notificationMessage({
     required String status,
     required String requestType,
     required String productName,
-    String sellerMessage = '',
+    required String sellerMessage,
   }) {
-    final type = requestType == 'refund' ? 'refund' : 'return';
+    final type = requestType.toLowerCase() == 'refund'
+        ? 'refund'
+        : 'return';
 
     String message;
 
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'approved':
         message =
             'Your $type request for "$productName" has been approved by the seller.';
@@ -98,72 +137,22 @@ class SellerReturnRefundPage extends StatelessWidget {
     }
 
     if (sellerMessage.trim().isNotEmpty) {
-      message += '\n\nSeller message: ${sellerMessage.trim()}';
+      message +=
+          '\n\nSeller message: ${sellerMessage.trim()}';
     }
 
     return message;
   }
 
-  Future<void> _updateStatus(
-    BuildContext context,
-    String requestId,
-    String status,
-    Map<String, dynamic> requestData,
-  ) async {
-    try {
-      final requestRef = FirebaseFirestore.instance
-          .collection('return_refund_requests')
-          .doc(requestId);
-
-      final data = <String, dynamic>{
-        'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (status == 'approved') {
-        data['approvedAt'] = FieldValue.serverTimestamp();
-      }
-
-      if (status == 'rejected') {
-        data['rejectedAt'] = FieldValue.serverTimestamp();
-      }
-
-      if (status == 'completed') {
-        data['completedAt'] = FieldValue.serverTimestamp();
-      }
-
-      await requestRef.update(data);
-
-      await _sendBuyerNotification(
-        requestData: requestData,
-        status: status,
-      );
-
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Request status changed to ${_statusText(status)}.',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not update request.\n$e',
-          ),
-        ),
-      );
-    }
-  }
+  // =========================================================
+  // SEND BUYER NOTIFICATION
+  // =========================================================
 
   Future<void> _sendBuyerNotification({
     required Map<String, dynamic> requestData,
+    required String requestId,
     required String status,
+    String sellerMessage = '',
   }) async {
     final customerId =
         requestData['customerId']?.toString() ?? '';
@@ -178,8 +167,12 @@ class SellerReturnRefundPage extends StatelessWidget {
     final productName =
         requestData['productName']?.toString() ?? 'Product';
 
-    final sellerMessage =
-        requestData['sellerMessage']?.toString() ?? '';
+    final finalMessage =
+        sellerMessage.trim().isNotEmpty
+            ? sellerMessage.trim()
+            : requestData['sellerMessage']
+                    ?.toString() ??
+                '';
 
     final notificationRef = FirebaseFirestore.instance
         .collection('users')
@@ -196,14 +189,16 @@ class SellerReturnRefundPage extends StatelessWidget {
         status: status,
         requestType: requestType,
         productName: productName,
-        sellerMessage: sellerMessage,
+        sellerMessage: finalMessage,
       ),
       'type': 'return_refund',
-      'requestId': requestData['requestId']?.toString() ?? '',
-      'orderId': requestData['orderId']?.toString() ?? '',
+      'requestId': requestId,
+      'orderId':
+          requestData['orderId']?.toString() ?? '',
       'sellerOrderId':
           requestData['sellerOrderId']?.toString() ?? '',
-      'sellerId': requestData['sellerId']?.toString() ?? '',
+      'sellerId':
+          requestData['sellerId']?.toString() ?? '',
       'sellerCode':
           requestData['sellerCode']?.toString() ?? '',
       'productId':
@@ -211,65 +206,116 @@ class SellerReturnRefundPage extends StatelessWidget {
       'productName': productName,
       'requestType': requestType,
       'requestStatus': status,
+      'sellerMessage': finalMessage,
       'isRead': false,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt':
+          FieldValue.serverTimestamp(),
     });
   }
 
-  Future<void> _updateStatusWithMessage(
-    BuildContext context,
-    String requestId,
-    String status,
-    Map<String, dynamic> requestData,
-    String sellerMessage,
-  ) async {
+  // =========================================================
+  // UPDATE REQUEST
+  // =========================================================
+
+  Future<void> _updateRequest({
+    required BuildContext context,
+    required String requestId,
+    required String status,
+    required Map<String, dynamic> requestData,
+    String sellerMessage = '',
+  }) async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    final requestSellerId =
+        requestData['sellerId']?.toString() ?? '';
+
+    if (requestSellerId != user.uid) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You are not allowed to update this request.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final currentStatus =
+        requestData['status']?.toString() ?? 'pending';
+
+    if (currentStatus == status) {
+      return;
+    }
+
     try {
-      final requestRef = FirebaseFirestore.instance
+      final firestore =
+          FirebaseFirestore.instance;
+
+      final requestRef = firestore
           .collection('return_refund_requests')
           .doc(requestId);
 
-      final data = <String, dynamic>{
+      final updateData =
+          <String, dynamic>{
         'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
       };
 
       if (sellerMessage.trim().isNotEmpty) {
-        data['sellerMessage'] = sellerMessage.trim();
-        data['sellerNote'] = sellerMessage.trim();
+        updateData['sellerMessage'] =
+            sellerMessage.trim();
+
+        updateData['sellerNote'] =
+            sellerMessage.trim();
       }
 
       if (status == 'approved') {
-        data['approvedAt'] = FieldValue.serverTimestamp();
+        updateData['approvedAt'] =
+            FieldValue.serverTimestamp();
       }
 
       if (status == 'rejected') {
-        data['rejectedAt'] = FieldValue.serverTimestamp();
+        updateData['rejectedAt'] =
+            FieldValue.serverTimestamp();
       }
 
       if (status == 'completed') {
-        data['completedAt'] = FieldValue.serverTimestamp();
+        updateData['completedAt'] =
+            FieldValue.serverTimestamp();
       }
 
-      await requestRef.update(data);
-
-      final notificationData =
-          Map<String, dynamic>.from(requestData);
-
-      notificationData['requestId'] = requestId;
-      notificationData['sellerMessage'] =
-          sellerMessage.trim();
+      await requestRef.update(updateData);
 
       await _sendBuyerNotification(
-        requestData: notificationData,
+        requestData: requestData,
+        requestId: requestId,
         status: status,
+        sellerMessage: sellerMessage,
       );
 
       if (!context.mounted) return;
 
+      final type =
+          _requestTypeText(
+        requestData['requestType']
+                ?.toString() ??
+            'return',
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Request ${_statusText(status).toLowerCase()} successfully.',
+            '$type request changed to '
+            '${_statusText(status)}.',
           ),
         ),
       );
@@ -286,18 +332,33 @@ class SellerReturnRefundPage extends StatelessWidget {
     }
   }
 
+  // =========================================================
+  // SELLER MESSAGE DIALOG
+  // =========================================================
+
   Future<void> _showSellerMessageDialog(
-    BuildContext context,
-    String requestId,
-    String status,
-    Map<String, dynamic> requestData,
-  ) async {
-    final controller = TextEditingController();
+    BuildContext context, {
+    required String requestId,
+    required String status,
+    required Map<String, dynamic> requestData,
+  }) async {
+    final controller =
+        TextEditingController(
+      text:
+          requestData['sellerMessage']
+                  ?.toString() ??
+              '',
+    );
 
-    final existingMessage =
-        requestData['sellerMessage']?.toString() ?? '';
+    final type =
+        _requestTypeText(
+      requestData['requestType']
+              ?.toString() ??
+          'return',
+    );
 
-    controller.text = existingMessage;
+    final messageRequired =
+        status == 'rejected';
 
     await showDialog<void>(
       context: context,
@@ -305,37 +366,49 @@ class SellerReturnRefundPage extends StatelessWidget {
         return AlertDialog(
           title: Text(
             status == 'rejected'
-                ? 'Reject Request'
-                : 'Update Request',
+                ? 'Reject $type Request'
+                : '${_statusText(status)} $type Request',
           ),
           content: TextField(
             controller: controller,
             maxLines: 5,
             maxLength: 500,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Seller Message',
-              hintText: 'Write a message for the customer...',
-              border: OutlineInputBorder(),
+              hintText:
+                  'Write a message for the customer...',
+              border:
+                  const OutlineInputBorder(),
               alignLabelWithHint: true,
+              helperText: messageRequired
+                  ? 'Message is recommended when rejecting.'
+                  : null,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(dialogContext);
+                final message =
+                    controller.text.trim();
 
-                await _updateStatusWithMessage(
-                  context,
-                  requestId,
-                  status,
-                  requestData,
-                  controller.text,
+                Navigator.pop(
+                  dialogContext,
+                );
+
+                await _updateRequest(
+                  context: context,
+                  requestId: requestId,
+                  status: status,
+                  requestData: requestData,
+                  sellerMessage: message,
                 );
               },
               child: Text(
@@ -350,74 +423,118 @@ class SellerReturnRefundPage extends StatelessWidget {
     controller.dispose();
   }
 
+  // =========================================================
+  // STATUS MENU
+  // =========================================================
+
   void _showStatusMenu(
-    BuildContext context,
-    String requestId,
-    String currentStatus,
-    Map<String, dynamic> requestData,
-  ) {
+    BuildContext context, {
+    required String requestId,
+    required String currentStatus,
+    required Map<String, dynamic> requestData,
+  }) {
+    const statuses = [
+      'pending',
+      'approved',
+      'processing',
+      'rejected',
+      'completed',
+    ];
+
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
       builder: (sheetContext) {
-        final statuses = [
-          'pending',
-          'approved',
-          'processing',
-          'rejected',
-          'completed',
-        ];
-
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding:
+                const EdgeInsets.all(16),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize:
+                  MainAxisSize.min,
               children: [
                 const Text(
                   'Update Request Status',
                   style: TextStyle(
                     fontSize: 19,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
+
+                const SizedBox(height: 6),
+
+                Text(
+                  _requestTypeText(
+                    requestData['requestType']
+                            ?.toString() ??
+                        'return',
+                  ),
+                  style: TextStyle(
+                    color:
+                        Colors.grey.shade600,
+                  ),
+                ),
+
                 const SizedBox(height: 12),
+
                 ...statuses.map(
                   (status) {
-                    final selected = status == currentStatus;
+                    final selected =
+                        status ==
+                            currentStatus;
 
                     return ListTile(
                       leading: Icon(
                         selected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
+                            ? Icons
+                                .radio_button_checked
+                            : Icons
+                                .radio_button_unchecked,
                         color: selected
-                            ? Colors.redAccent
+                            ? _statusColor(
+                                status,
+                              )
                             : Colors.grey,
                       ),
                       title: Text(
-                        _statusText(status),
+                        _statusText(
+                          status,
+                        ),
                       ),
                       onTap: () async {
-                        Navigator.pop(sheetContext);
+                        Navigator.pop(
+                          sheetContext,
+                        );
 
-                        if (status == currentStatus) {
+                        if (status ==
+                            currentStatus) {
                           return;
                         }
 
-                        if (status == 'approved' ||
-                            status == 'rejected') {
+                        if (status ==
+                                'approved' ||
+                            status ==
+                                'rejected') {
                           await _showSellerMessageDialog(
                             context,
-                            requestId,
-                            status,
-                            requestData,
+                            requestId:
+                                requestId,
+                            status:
+                                status,
+                            requestData:
+                                requestData,
                           );
                         } else {
-                          await _updateStatus(
-                            context,
-                            requestId,
-                            status,
-                            requestData,
+                          await _updateRequest(
+                            context:
+                                context,
+                            requestId:
+                                requestId,
+                            status:
+                                status,
+                            requestData:
+                                requestData,
                           );
                         }
                       },
@@ -432,59 +549,83 @@ class SellerReturnRefundPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // STATUS BADGE
+  // =========================================================
+
   Widget _statusBadge(String status) {
-    final color = _statusColor(status);
+    final color =
+        _statusColor(status);
 
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 6,
       ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
+      decoration:
+          BoxDecoration(
+        color:
+            color.withValues(
+          alpha: 0.10,
+        ),
+        borderRadius:
+            BorderRadius.circular(20),
       ),
       child: Text(
         _statusText(status),
         style: TextStyle(
           color: color,
           fontSize: 12,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
   }
+
+  // =========================================================
+  // PRODUCT IMAGE
+  // =========================================================
 
   Widget _productImage(String url) {
     if (url.isEmpty) {
       return Container(
         width: 70,
         height: 70,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
+        decoration:
+            BoxDecoration(
+          color:
+              Colors.grey.shade200,
+          borderRadius:
+              BorderRadius.circular(12),
         ),
         child: const Icon(
-          Icons.image_not_supported_outlined,
+          Icons
+              .image_not_supported_outlined,
           color: Colors.grey,
         ),
       );
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius:
+          BorderRadius.circular(12),
       child: Image.network(
         url,
         width: 70,
         height: 70,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) {
+        errorBuilder:
+            (_, __, ___) {
           return Container(
             width: 70,
             height: 70,
-            color: Colors.grey.shade200,
+            color:
+                Colors.grey.shade200,
             child: const Icon(
-              Icons.broken_image_outlined,
+              Icons
+                  .broken_image_outlined,
               color: Colors.grey,
             ),
           );
@@ -493,86 +634,171 @@ class SellerReturnRefundPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // REQUEST CARD
+  // =========================================================
+
   Widget _requestCard(
     BuildContext context,
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        doc,
   ) {
     final data = doc.data();
 
     final requestType =
-        data['requestType']?.toString() ?? 'return';
+        data['requestType']
+                ?.toString() ??
+            'return';
 
     final status =
-        data['status']?.toString() ?? 'pending';
+        data['status']
+                ?.toString() ??
+            'pending';
 
     final productName =
-        data['productName']?.toString() ?? 'Product';
+        data['productName']
+                ?.toString() ??
+            'Product';
 
     final productImage =
-        data['productImageUrl']?.toString() ?? '';
+        data['productImageUrl']
+                ?.toString() ??
+            '';
 
     final customerName =
-        data['customerName']?.toString() ?? '';
+        data['customerName']
+                ?.toString() ??
+            '';
 
     final customerEmail =
-        data['customerEmail']?.toString() ?? '';
+        data['customerEmail']
+                ?.toString() ??
+            '';
 
     final reason =
-        data['reason']?.toString() ?? '';
+        data['reason']
+                ?.toString() ??
+            '';
 
     final details =
-        data['details']?.toString() ?? '';
+        data['details']
+                ?.toString() ??
+            '';
 
     final sellerMessage =
-        data['sellerMessage']?.toString() ?? '';
+        data['sellerMessage']
+                ?.toString() ??
+            '';
 
     final quantity =
-        (data['quantity'] as num?)?.toInt() ?? 1;
+        data['quantity'] is num
+            ? (data['quantity']
+                    as num)
+                .toInt()
+            : 1;
 
     final price =
-        (data['price'] as num?)?.toDouble() ?? 0;
+        data['price'] is num
+            ? (data['price']
+                    as num)
+                .toDouble()
+            : 0;
+
+    final total =
+        data['total'] is num
+            ? (data['total']
+                    as num)
+                .toDouble()
+            : price * quantity;
 
     final orderId =
-        data['orderId']?.toString() ?? '';
+        data['orderId']
+                ?.toString() ??
+            '';
+
+    final sellerOrderId =
+        data['sellerOrderId']
+                ?.toString() ??
+            '';
+
+    final requestId =
+        data['requestId']
+                ?.toString() ??
+            doc.id;
+
+    final type =
+        _requestTypeText(
+      requestType,
+    );
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin:
+          const EdgeInsets.only(
+        bottom: 16,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
+            // -------------------------------------------------
+            // HEADER
+            // -------------------------------------------------
+
             Row(
               children: [
                 Icon(
-                  requestType == 'refund'
-                      ? Icons.currency_exchange
-                      : Icons.assignment_return_outlined,
-                  color: Colors.redAccent,
+                  requestType
+                              .toLowerCase() ==
+                          'refund'
+                      ? Icons
+                          .currency_exchange
+                      : Icons
+                          .assignment_return_outlined,
+                  color:
+                      Colors.redAccent,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 8,
+                ),
                 Expanded(
                   child: Text(
-                    requestType == 'refund'
-                        ? 'Refund Request'
-                        : 'Return Request',
-                    style: const TextStyle(
+                    '$type Request',
+                    style:
+                        const TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                 ),
-                _statusBadge(status),
+                _statusBadge(
+                  status,
+                ),
               ],
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(
+              height: 14,
+            ),
+
+            // -------------------------------------------------
+            // PRODUCT
+            // -------------------------------------------------
 
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
-                _productImage(productImage),
-                const SizedBox(width: 12),
+                _productImage(
+                  productImage,
+                ),
+                const SizedBox(
+                  width: 12,
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
@@ -580,16 +806,35 @@ class SellerReturnRefundPage extends StatelessWidget {
                     children: [
                       Text(
                         productName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
                           fontSize: 16,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Text('Quantity: $quantity'),
-                      const SizedBox(height: 3),
+                      const SizedBox(
+                        height: 5,
+                      ),
+                      Text(
+                        'Quantity: $quantity',
+                      ),
+                      const SizedBox(
+                        height: 3,
+                      ),
                       Text(
                         'Price: ₩${price.toStringAsFixed(0)}',
+                      ),
+                      const SizedBox(
+                        height: 3,
+                      ),
+                      Text(
+                        'Total: ₩${total.toStringAsFixed(0)}',
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -597,90 +842,216 @@ class SellerReturnRefundPage extends StatelessWidget {
               ],
             ),
 
-            const Divider(height: 28),
+            const Divider(
+              height: 28,
+            ),
+
+            // -------------------------------------------------
+            // CUSTOMER
+            // -------------------------------------------------
 
             Text(
               'Customer',
               style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
+                fontSize: 13,
+                color:
+                    Colors.grey.shade600,
               ),
             ),
 
-            const SizedBox(height: 4),
+            const SizedBox(
+              height: 4,
+            ),
 
             Text(
               customerName.isEmpty
                   ? 'Customer'
                   : customerName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
             if (customerEmail.isNotEmpty) ...[
-              const SizedBox(height: 3),
-              Text(customerEmail),
+              const SizedBox(
+                height: 3,
+              ),
+              Text(
+                customerEmail,
+              ),
             ],
 
-            const SizedBox(height: 14),
+            const SizedBox(
+              height: 14,
+            ),
+
+            // -------------------------------------------------
+            // ORDER INFORMATION
+            // -------------------------------------------------
 
             Text(
               'Order ID',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey.shade600,
+                color:
+                    Colors.grey.shade600,
               ),
             ),
 
-            const SizedBox(height: 3),
+            const SizedBox(
+              height: 3,
+            ),
 
             Text(
-              orderId.isEmpty ? 'N/A' : orderId,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
+              orderId.isEmpty
+                  ? 'N/A'
+                  : orderId,
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.w600,
               ),
             ),
 
-            const SizedBox(height: 14),
+            if (sellerOrderId.isNotEmpty) ...[
+              const SizedBox(
+                height: 8,
+              ),
+              Text(
+                'Seller Order ID',
+                style: TextStyle(
+                  fontSize: 13,
+                  color:
+                      Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(
+                height: 3,
+              ),
+              Text(
+                sellerOrderId,
+                style:
+                    const TextStyle(
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+            ],
+
+            const SizedBox(
+              height: 14,
+            ),
+
+            // -------------------------------------------------
+            // REQUEST ID
+            // -------------------------------------------------
+
+            Text(
+              'Request ID',
+              style: TextStyle(
+                fontSize: 13,
+                color:
+                    Colors.grey.shade600,
+              ),
+            ),
+
+            const SizedBox(
+              height: 3,
+            ),
+
+            Text(
+              requestId,
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.w600,
+              ),
+            ),
+
+            const SizedBox(
+              height: 14,
+            ),
+
+            // -------------------------------------------------
+            // REASON
+            // -------------------------------------------------
 
             Text(
               'Reason',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey.shade600,
+                color:
+                    Colors.grey.shade600,
               ),
             ),
 
-            const SizedBox(height: 4),
-
-            Text(
-              reason.isEmpty ? 'Not provided' : reason,
+            const SizedBox(
+              height: 4,
             ),
 
+            Text(
+              reason.isEmpty
+                  ? 'Not provided'
+                  : reason,
+            ),
+
+            // -------------------------------------------------
+            // CUSTOMER DETAILS
+            // -------------------------------------------------
+
             if (details.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
               Text(
                 'Customer Details',
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade600,
+                  color:
+                      Colors.grey.shade600,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(details),
+              const SizedBox(
+                height: 4,
+              ),
+              Text(
+                details,
+              ),
             ],
 
+            // -------------------------------------------------
+            // SELLER MESSAGE
+            // -------------------------------------------------
+
             if (sellerMessage.isNotEmpty) ...[
-              const SizedBox(height: 14),
+              const SizedBox(
+                height: 14,
+              ),
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.blue.withValues(alpha: 0.15),
+                width:
+                    double.infinity,
+                padding:
+                    const EdgeInsets.all(
+                  12,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color: Colors.blue
+                      .withValues(
+                    alpha: 0.06,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
+                  border:
+                      Border.all(
+                    color: Colors.blue
+                        .withValues(
+                      alpha: 0.15,
+                    ),
                   ),
                 ),
                 child: Column(
@@ -689,35 +1060,54 @@ class SellerReturnRefundPage extends StatelessWidget {
                   children: [
                     const Text(
                       'Seller Message',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                      style:
+                          TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                        color:
+                            Colors.blue,
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(sellerMessage),
+                    const SizedBox(
+                      height: 5,
+                    ),
+                    Text(
+                      sellerMessage,
+                    ),
                   ],
                 ),
               ),
             ],
 
-            const SizedBox(height: 18),
+            const SizedBox(
+              height: 18,
+            ),
+
+            // -------------------------------------------------
+            // STATUS UPDATE
+            // -------------------------------------------------
 
             SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
+              width:
+                  double.infinity,
+              child:
+                  OutlinedButton.icon(
                 onPressed: () {
                   _showStatusMenu(
                     context,
-                    doc.id,
-                    status,
-                    data,
+                    requestId:
+                        requestId,
+                    currentStatus:
+                        status,
+                    requestData:
+                        data,
                   );
                 },
                 icon: const Icon(
                   Icons.sync,
                 ),
-                label: const Text(
+                label:
+                    const Text(
                   'Update Status',
                 ),
               ),
@@ -728,9 +1118,14 @@ class SellerReturnRefundPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return Scaffold(
@@ -755,59 +1150,86 @@ class SellerReturnRefundPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: StreamBuilder<
-          QuerySnapshot<Map<String, dynamic>>>(
-        stream: _requestStream(user.uid),
-        builder: (context, snapshot) {
+          QuerySnapshot<
+              Map<String, dynamic>>>(
+        stream:
+            _requestStream(
+          user.uid,
+        ),
+        builder:
+            (context, snapshot) {
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             );
           }
 
           if (snapshot.hasError) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding:
+                    const EdgeInsets.all(
+                  20,
+                ),
                 child: Text(
-                  'Could not load requests.\n\n${snapshot.error}',
-                  textAlign: TextAlign.center,
+                  'Could not load requests.\n\n'
+                  '${snapshot.error}',
+                  textAlign:
+                      TextAlign.center,
                 ),
               ),
             );
           }
 
           final requests =
-              snapshot.data?.docs ?? [];
+              snapshot.data?.docs ??
+                  [];
 
           if (requests.isEmpty) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding:
+                    const EdgeInsets.all(
+                  24,
+                ),
                 child: Column(
                   mainAxisAlignment:
                       MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.assignment_return_outlined,
+                      Icons
+                          .assignment_return_outlined,
                       size: 70,
-                      color: Colors.grey.shade400,
+                      color:
+                          Colors.grey.shade400,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(
+                      height: 16,
+                    ),
                     const Text(
                       'No Return or Refund Requests',
-                      style: TextStyle(
+                      style:
+                          TextStyle(
                         fontSize: 19,
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
-                      textAlign: TextAlign.center,
+                      textAlign:
+                          TextAlign.center,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(
+                      height: 8,
+                    ),
                     Text(
-                      'Customer requests for your products will appear here.',
-                      textAlign: TextAlign.center,
+                      'Customer requests for your products '
+                      'will appear here.',
+                      textAlign:
+                          TextAlign.center,
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color:
+                            Colors.grey.shade600,
                       ),
                     ),
                   ],
@@ -817,28 +1239,46 @@ class SellerReturnRefundPage extends StatelessWidget {
           }
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding:
+                const EdgeInsets.all(
+              16,
+            ),
             children: [
+              // ------------------------------------------------
+              // HEADER
+              // ------------------------------------------------
+
               Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                padding:
+                    const EdgeInsets.all(
+                  18,
+                ),
+                decoration:
+                    BoxDecoration(
+                  gradient:
+                      LinearGradient(
                     colors: [
                       Colors.redAccent,
                       Colors.red.shade700,
                     ],
                   ),
                   borderRadius:
-                      BorderRadius.circular(18),
+                      BorderRadius.circular(
+                    18,
+                  ),
                 ),
                 child: Row(
                   children: [
                     const Icon(
-                      Icons.assignment_return_outlined,
-                      color: Colors.white,
+                      Icons
+                          .assignment_return_outlined,
+                      color:
+                          Colors.white,
                       size: 40,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(
+                      width: 14,
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
@@ -846,17 +1286,24 @@ class SellerReturnRefundPage extends StatelessWidget {
                         children: [
                           const Text(
                             'Customer Requests',
-                            style: TextStyle(
-                              color: Colors.white,
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.white,
                               fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(
+                            height: 5,
+                          ),
                           Text(
                             '${requests.length} request${requests.length == 1 ? '' : 's'}',
-                            style: const TextStyle(
-                              color: Colors.white70,
+                            style:
+                                const TextStyle(
+                              color:
+                                  Colors.white70,
                             ),
                           ),
                         ],
@@ -866,7 +1313,13 @@ class SellerReturnRefundPage extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
+
+              // ------------------------------------------------
+              // REQUESTS
+              // ------------------------------------------------
 
               ...requests.map(
                 (doc) => _requestCard(
@@ -875,7 +1328,9 @@ class SellerReturnRefundPage extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
             ],
           );
         },
