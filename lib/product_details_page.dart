@@ -326,6 +326,796 @@ class _ProductDetailsPageState
   }
 
   // =========================================================
+  // REVIEWS REFERENCE
+  // =========================================================
+
+  CollectionReference<Map<String, dynamic>>
+      get _reviewsReference {
+    return FirebaseFirestore.instance
+        .collection('product_reviews');
+  }
+
+  // =========================================================
+  // CHECK IF USER PURCHASED PRODUCT
+  // =========================================================
+
+  Future<bool> _hasDeliveredProduct() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) return false;
+
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('seller_orders')
+              .where(
+                'customerId',
+                isEqualTo: user.uid,
+              )
+              .get();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+
+        final status =
+            data['orderStatus']?.toString() ?? '';
+
+        if (status != 'delivered') {
+          continue;
+        }
+
+        final items =
+            data['items'];
+
+        if (items is! List) {
+          continue;
+        }
+
+        for (final item in items) {
+          if (item is! Map) {
+            continue;
+          }
+
+          final itemProductId =
+              item['productId']?.toString() ??
+              item['id']?.toString() ??
+              '';
+
+          if (itemProductId ==
+              widget.productId) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // =========================================================
+  // FIND USER'S REVIEW
+  // =========================================================
+
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>?>
+      _findMyReview() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) return null;
+
+    try {
+      final snapshot =
+          await _reviewsReference
+              .where(
+                'productId',
+                isEqualTo: widget.productId,
+              )
+              .where(
+                'userId',
+                isEqualTo: user.uid,
+              )
+              .limit(1)
+              .get();
+
+      if (snapshot.docs.isEmpty) {
+        return null;
+      }
+
+      return snapshot.docs.first;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // =========================================================
+  // REVIEW DIALOG
+  // =========================================================
+
+  Future<void> _showReviewDialog({
+    DocumentSnapshot<Map<String, dynamic>>?
+        existingReview,
+  }) async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LoginPage(),
+        ),
+      );
+      return;
+    }
+
+    if (existingReview == null) {
+      final eligible =
+          await _hasDeliveredProduct();
+
+      if (!eligible) {
+        if (!mounted) return;
+
+        _showInfoDialog(
+          'Review Not Available',
+          'You can review this product after your order has been delivered.',
+        );
+
+        return;
+      }
+    }
+
+    int selectedRating = 5;
+
+    final existingData =
+        existingReview?.data();
+
+    if (existingData != null) {
+      final oldRating =
+          existingData['rating'];
+
+      if (oldRating is num) {
+        selectedRating =
+            oldRating.toInt().clamp(1, 5);
+      }
+    }
+
+    final controller =
+        TextEditingController(
+      text:
+          existingData?['review']?.toString() ??
+              '',
+    );
+
+    final result =
+        await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder:
+              (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                existingReview == null
+                    ? 'Write a Review'
+                    : 'Edit Your Review',
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'How would you rate this product?',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      children: List.generate(
+                        5,
+                        (index) {
+                          final star =
+                              index + 1;
+
+                          return IconButton(
+                            onPressed: () {
+                              setDialogState(() {
+                                selectedRating =
+                                    star;
+                              });
+                            },
+                            icon: Icon(
+                              star <=
+                                      selectedRating
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color:
+                                  Colors.amber,
+                              size: 34,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    TextField(
+                      controller:
+                          controller,
+                      maxLines: 4,
+                      maxLength: 500,
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Your Review',
+                        hintText:
+                            'Tell other buyers about this product...',
+                        border:
+                            OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      dialogContext,
+                      false,
+                    );
+                  },
+                  child:
+                      const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final review =
+                        controller.text
+                            .trim();
+
+                    if (review.isEmpty) {
+                      ScaffoldMessenger.of(
+                        dialogContext,
+                      ).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please write a review.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      if (existingReview ==
+                          null) {
+                        await _reviewsReference
+                            .add({
+                          'productId':
+                              widget.productId,
+                          'productName':
+                              productName,
+                          'productImageUrl':
+                              imageUrl,
+                          'userId':
+                              user.uid,
+                          'userName':
+                              user.displayName ??
+                                  'Buyer',
+                          'userEmail':
+                              user.email ?? '',
+                          'rating':
+                              selectedRating,
+                          'review':
+                              review,
+                          'createdAt':
+                              FieldValue
+                                  .serverTimestamp(),
+                          'updatedAt':
+                              FieldValue
+                                  .serverTimestamp(),
+                        });
+                      } else {
+                        await existingReview
+                            .reference
+                            .update({
+                          'rating':
+                              selectedRating,
+                          'review':
+                              review,
+                          'updatedAt':
+                              FieldValue
+                                  .serverTimestamp(),
+                        });
+                      }
+
+                      if (!dialogContext
+                          .mounted) {
+                        return;
+                      }
+
+                      Navigator.pop(
+                        dialogContext,
+                        true,
+                      );
+                    } catch (e) {
+                      if (!dialogContext
+                          .mounted) {
+                        return;
+                      }
+
+                      ScaffoldMessenger.of(
+                        dialogContext,
+                      ).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Review failed: $e',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  style:
+                      ElevatedButton.styleFrom(
+                    backgroundColor:
+                        Colors.redAccent,
+                    foregroundColor:
+                        Colors.white,
+                  ),
+                  child: Text(
+                    existingReview == null
+                        ? 'Submit'
+                        : 'Update',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (result == true && mounted) {
+      setState(() {});
+    }
+  }
+
+  // =========================================================
+  // INFO DIALOG
+  // =========================================================
+
+  void _showInfoDialog(
+    String title,
+    String message,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // REVIEW SECTION
+  // =========================================================
+
+  Widget _buildReviewsSection() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _reviewsReference
+          .where(
+            'productId',
+            isEqualTo: widget.productId,
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Unable to load reviews.',
+            ),
+          );
+        }
+
+        if (snapshot.connectionState ==
+                ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+              child:
+                  CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final reviews =
+            snapshot.data?.docs ?? [];
+
+        double averageRating = 0;
+
+        if (reviews.isNotEmpty) {
+          double total = 0;
+
+          for (final review in reviews) {
+            final rating =
+                review.data()['rating'];
+
+            if (rating is num) {
+              total += rating.toDouble();
+            }
+          }
+
+          averageRating =
+              total / reviews.length;
+        }
+
+        return Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 28),
+
+            const Text(
+              'Ratings & Reviews',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // =================================================
+            // RATING SUMMARY
+            // =================================================
+
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius:
+                    BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.grey.shade200,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Column(
+                    children: [
+                      Text(
+                        averageRating
+                            .toStringAsFixed(1),
+                        style:
+                            const TextStyle(
+                          fontSize: 34,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+
+                      Row(
+                        children:
+                            List.generate(
+                          5,
+                          (index) {
+                            return Icon(
+                              index <
+                                      averageRating
+                                          .round()
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color:
+                                  Colors.amber,
+                              size: 20,
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        '${reviews.length} review${reviews.length == 1 ? '' : 's'}',
+                        style:
+                            const TextStyle(
+                          color:
+                              Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(width: 24),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Customer Reviews',
+                          style:
+                              TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        const Text(
+                          'See what other buyers think about this product.',
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // =================================================
+            // WRITE / EDIT REVIEW
+            // =================================================
+
+            FutureBuilder<
+                QueryDocumentSnapshot<
+                    Map<String, dynamic>>?>(
+              future: _findMyReview(),
+              builder: (context, myReviewSnapshot) {
+                final myReview =
+                    myReviewSnapshot.data;
+
+                return SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      _showReviewDialog(
+                        existingReview:
+                            myReview,
+                      );
+                    },
+                    icon: Icon(
+                      myReview == null
+                          ? Icons.rate_review_outlined
+                          : Icons.edit_outlined,
+                    ),
+                    label: Text(
+                      myReview == null
+                          ? 'Write a Review'
+                          : 'Edit My Review',
+                    ),
+                    style:
+                        OutlinedButton.styleFrom(
+                      foregroundColor:
+                          Colors.redAccent,
+                      side:
+                          const BorderSide(
+                        color:
+                            Colors.redAccent,
+                      ),
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        vertical: 13,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // =================================================
+            // REVIEW LIST
+            // =================================================
+
+            if (reviews.isEmpty)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius:
+                      BorderRadius.circular(14),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.rate_review_outlined,
+                      size: 42,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No reviews yet',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Be the first buyer to review this product.',
+                      textAlign:
+                          TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...reviews.map(
+                (reviewDoc) {
+                  final data =
+                      reviewDoc.data();
+
+                  final ratingValue =
+                      data['rating'];
+
+                  final rating =
+                      ratingValue is num
+                          ? ratingValue
+                              .toInt()
+                          : 0;
+
+                  final name =
+                      data['userName']
+                              ?.toString() ??
+                          'Buyer';
+
+                  final reviewText =
+                      data['review']
+                              ?.toString() ??
+                          '';
+
+                  return Card(
+                    margin:
+                        const EdgeInsets.only(
+                      bottom: 12,
+                    ),
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.all(
+                        14,
+                      ),
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor:
+                                    Colors
+                                        .redAccent
+                                        .withValues(
+                                  alpha: 0.10,
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  color:
+                                      Colors.redAccent,
+                                ),
+                              ),
+
+                              const SizedBox(
+                                width: 10,
+                              ),
+
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment
+                                          .start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style:
+                                          const TextStyle(
+                                        fontWeight:
+                                            FontWeight
+                                                .bold,
+                                      ),
+                                    ),
+
+                                    const SizedBox(
+                                      height: 3,
+                                    ),
+
+                                    Row(
+                                      children:
+                                          List.generate(
+                                        5,
+                                        (index) {
+                                          return Icon(
+                                            index <
+                                                    rating
+                                                ? Icons
+                                                    .star
+                                                : Icons
+                                                    .star_border,
+                                            color:
+                                                Colors.amber,
+                                            size: 17,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(
+                            height: 10,
+                          ),
+
+                          Text(
+                            reviewText,
+                            style:
+                                const TextStyle(
+                              fontSize: 14,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // =========================================================
   // BUILD
   // =========================================================
 
@@ -333,7 +1123,8 @@ class _ProductDetailsPageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.redAccent,
+        backgroundColor:
+            Colors.redAccent,
         foregroundColor: Colors.white,
         title: const Text(
           'Product Details',
@@ -385,19 +1176,23 @@ class _ProductDetailsPageState
                         stackTrace,
                       ) {
                         return Container(
-                          color: Colors.grey.shade200,
-                          child: const Center(
+                          color: Colors
+                              .grey.shade200,
+                          child:
+                              const Center(
                             child: Icon(
                               Icons.image,
                               size: 80,
-                              color: Colors.grey,
+                              color:
+                                  Colors.grey,
                             ),
                           ),
                         );
                       },
                     )
                   : Container(
-                      color: Colors.grey.shade200,
+                      color:
+                          Colors.grey.shade200,
                       child: const Center(
                         child: Icon(
                           Icons.image,
@@ -413,19 +1208,22 @@ class _ProductDetailsPageState
             // =================================================
 
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding:
+                  const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
                   Row(
                     crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        CrossAxisAlignment
+                            .start,
                     children: [
                       Expanded(
                         child: Text(
                           productName,
-                          style: const TextStyle(
+                          style:
+                              const TextStyle(
                             fontSize: 24,
                             fontWeight:
                                 FontWeight.bold,
@@ -441,9 +1239,11 @@ class _ProductDetailsPageState
                         icon: Icon(
                           _isFavorite
                               ? Icons.favorite
-                              : Icons.favorite_border,
+                              : Icons
+                                  .favorite_border,
                           color: _isFavorite
-                              ? Colors.redAccent
+                              ? Colors
+                                  .redAccent
                               : Colors.grey,
                           size: 30,
                         ),
@@ -456,19 +1256,24 @@ class _ProductDetailsPageState
                   if (category.isNotEmpty)
                     Container(
                       padding:
-                          const EdgeInsets.symmetric(
+                          const EdgeInsets
+                              .symmetric(
                         horizontal: 10,
                         vertical: 5,
                       ),
-                      decoration: BoxDecoration(
-                        color:
-                            Colors.redAccent.shade100,
+                      decoration:
+                          BoxDecoration(
+                        color: Colors
+                            .redAccent
+                            .shade100,
                         borderRadius:
-                            BorderRadius.circular(20),
+                            BorderRadius
+                                .circular(20),
                       ),
                       child: Text(
                         category,
-                        style: const TextStyle(
+                        style:
+                            const TextStyle(
                           fontWeight:
                               FontWeight.w600,
                         ),
@@ -479,10 +1284,13 @@ class _ProductDetailsPageState
 
                   Text(
                     '₩${price.toStringAsFixed(0)}',
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 25,
-                      color: Colors.redAccent,
-                      fontWeight: FontWeight.bold,
+                      color:
+                          Colors.redAccent,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -490,9 +1298,11 @@ class _ProductDetailsPageState
 
                   const Text(
                     'Description',
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontSize: 19,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -500,10 +1310,12 @@ class _ProductDetailsPageState
 
                   Text(
                     description,
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 15,
                       height: 1.5,
-                      color: Colors.black87,
+                      color:
+                          Colors.black87,
                     ),
                   ),
 
@@ -515,9 +1327,11 @@ class _ProductDetailsPageState
 
                   const Text(
                     'Quantity',
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -526,20 +1340,24 @@ class _ProductDetailsPageState
                   Row(
                     children: [
                       Container(
-                        decoration: BoxDecoration(
+                        decoration:
+                            BoxDecoration(
                           border: Border.all(
-                            color:
-                                Colors.grey.shade300,
+                            color: Colors
+                                .grey
+                                .shade300,
                           ),
                           borderRadius:
-                              BorderRadius.circular(8),
+                              BorderRadius
+                                  .circular(8),
                         ),
                         child: Row(
                           children: [
                             IconButton(
                               onPressed:
                                   _decreaseQuantity,
-                              icon: const Icon(
+                              icon:
+                                  const Icon(
                                 Icons.remove,
                               ),
                             ),
@@ -549,11 +1367,14 @@ class _ProductDetailsPageState
                               child: Text(
                                 '$_quantity',
                                 textAlign:
-                                    TextAlign.center,
-                                style: const TextStyle(
+                                    TextAlign
+                                        .center,
+                                style:
+                                    const TextStyle(
                                   fontSize: 18,
                                   fontWeight:
-                                      FontWeight.bold,
+                                      FontWeight
+                                          .bold,
                                 ),
                               ),
                             ),
@@ -561,7 +1382,8 @@ class _ProductDetailsPageState
                             IconButton(
                               onPressed:
                                   _increaseQuantity,
-                              icon: const Icon(
+                              icon:
+                                  const Icon(
                                 Icons.add,
                               ),
                             ),
@@ -569,15 +1391,19 @@ class _ProductDetailsPageState
                         ),
                       ),
 
-                      const SizedBox(width: 20),
+                      const SizedBox(
+                        width: 20,
+                      ),
 
                       Text(
                         'Total: ₩${subtotal.toStringAsFixed(0)}',
-                        style: const TextStyle(
+                        style:
+                            const TextStyle(
                           fontSize: 18,
                           fontWeight:
                               FontWeight.bold,
-                          color: Colors.redAccent,
+                          color:
+                              Colors.redAccent,
                         ),
                       ),
                     ],
@@ -595,33 +1421,42 @@ class _ProductDetailsPageState
                     Card(
                       child: Padding(
                         padding:
-                            const EdgeInsets.all(14),
+                            const EdgeInsets
+                                .all(14),
                         child: Column(
                           crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                              CrossAxisAlignment
+                                  .start,
                           children: [
                             const Text(
                               'Seller Information',
-                              style: TextStyle(
+                              style:
+                                  TextStyle(
                                 fontSize: 18,
                                 fontWeight:
-                                    FontWeight.bold,
+                                    FontWeight
+                                        .bold,
                               ),
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(
+                              height: 10,
+                            ),
 
-                            if (sellerCode.isNotEmpty)
+                            if (sellerCode
+                                .isNotEmpty)
                               Text(
                                 'Seller ID: $sellerCode',
                               ),
 
-                            if (sellerId.isNotEmpty)
+                            if (sellerId
+                                .isNotEmpty)
                               Text(
                                 'Seller UID: $sellerId',
                               ),
 
-                            if (sellerEmail.isNotEmpty)
+                            if (sellerEmail
+                                .isNotEmpty)
                               Text(
                                 'Seller Email: $sellerEmail',
                               ),
@@ -629,6 +1464,12 @@ class _ProductDetailsPageState
                         ),
                       ),
                     ),
+
+                  // =================================================
+                  // RATINGS & REVIEWS
+                  // =================================================
+
+                  _buildReviewsSection(),
                 ],
               ),
             ),
@@ -642,26 +1483,21 @@ class _ProductDetailsPageState
 
       bottomNavigationBar: SafeArea(
         child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
+          padding:
+              const EdgeInsets.all(10),
+          decoration:
+              const BoxDecoration(
             color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: 0.08,
-                ),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
           ),
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                child:
+                    OutlinedButton.icon(
                   onPressed: _addToCart,
                   icon: const Icon(
-                    Icons.shopping_cart_outlined,
+                    Icons
+                        .shopping_cart_outlined,
                   ),
                   label: const Text(
                     'Add to Cart',
@@ -670,11 +1506,14 @@ class _ProductDetailsPageState
                       OutlinedButton.styleFrom(
                     foregroundColor:
                         Colors.redAccent,
-                    side: const BorderSide(
-                      color: Colors.redAccent,
+                    side:
+                        const BorderSide(
+                      color:
+                          Colors.redAccent,
                     ),
                     padding:
-                        const EdgeInsets.symmetric(
+                        const EdgeInsets
+                            .symmetric(
                       vertical: 14,
                     ),
                   ),
@@ -684,7 +1523,8 @@ class _ProductDetailsPageState
               const SizedBox(width: 10),
 
               Expanded(
-                child: ElevatedButton.icon(
+                child:
+                    ElevatedButton.icon(
                   onPressed: _buyNow,
                   icon: const Icon(
                     Icons.flash_on,
@@ -696,9 +1536,11 @@ class _ProductDetailsPageState
                       ElevatedButton.styleFrom(
                     backgroundColor:
                         Colors.redAccent,
-                    foregroundColor: Colors.white,
+                    foregroundColor:
+                        Colors.white,
                     padding:
-                        const EdgeInsets.symmetric(
+                        const EdgeInsets
+                            .symmetric(
                       vertical: 14,
                     ),
                   ),
