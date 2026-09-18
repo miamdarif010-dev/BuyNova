@@ -322,18 +322,14 @@ class EarningsPage extends StatelessWidget {
                 _statusChip(status),
               ],
             ),
-
             const SizedBox(height: 10),
-
             Text(
               'Customer: $customerName',
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
               ),
             ),
-
             const SizedBox(height: 4),
-
             Text(
               createdAt,
               style: TextStyle(
@@ -341,9 +337,7 @@ class EarningsPage extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-
             const SizedBox(height: 9),
-
             Text(
               '${items.length} product(s)',
               style: TextStyle(
@@ -351,11 +345,9 @@ class EarningsPage extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-
             const Divider(
               height: 20,
             ),
-
             Row(
               children: [
                 const Expanded(
@@ -463,14 +455,13 @@ class EarningsPage extends StatelessWidget {
           });
 
           // ===================================================
-          // CALCULATE REAL SELLER EARNINGS
+          // CALCULATE SELLER EARNINGS
           // ===================================================
 
           double totalSales = 0;
           double deliveredSales = 0;
           double pendingSales = 0;
           double cancelledSales = 0;
-          double returnRefundAmount = 0;
 
           int totalOrders = documents.length;
           int deliveredOrders = 0;
@@ -504,11 +495,9 @@ class EarningsPage extends StatelessWidget {
             }
           }
 
-          // ---------------------------------------------------
-          // RETURN / REFUND AMOUNT
-          //
-          // Read seller's return/refund requests.
-          // ---------------------------------------------------
+          // ===================================================
+          // RETURN / REFUND
+          // ===================================================
 
           return StreamBuilder<
               QuerySnapshot<
@@ -526,6 +515,8 @@ class EarningsPage extends StatelessWidget {
               context,
               requestSnapshot,
             ) {
+              double returnRefundAmount = 0;
+
               if (requestSnapshot.hasError) {
                 return _buildEarningsContent(
                   context,
@@ -617,10 +608,6 @@ class EarningsPage extends StatelessWidget {
     int cancelledOrders,
     String sellerId,
   ) {
-    // =======================================================
-    // CALCULATE DISPLAY EARNINGS
-    // =======================================================
-
     final actualEarnings =
         deliveredSales - returnRefundAmount;
 
@@ -965,13 +952,3 @@ class EarningsPage extends StatelessWidget {
     );
   }
 }
-
-এরপর
-
-কোডটা "earnings_page.dart"-এ পুরোটাই replace করে Save করো।
-
-তারপর GitHub Actions থেকে Build APK চালাও।
-
-⚠️ একটা গুরুত্বপূর্ণ বিষয়: এই Earnings page বাস্তব "seller_orders" ও "return_refund_requests" data হিসাব করে। তবে এখনো BuyNova-তে আসল টাকা Seller-এর ব্যাংক/পেমেন্ট অ্যাকাউন্টে পাঠানোর payout gateway নেই—তাই এখানে হিসাবের Earnings দেখাবে, টাকা transfer করবে না।
-
-Build সফল হলে শুধু বলো “হয়েছে”। তারপর আমরা "User Profile → Seller → Earnings" অপশনের সাথে এটাকে connect করব।
