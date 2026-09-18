@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 class SellerOrdersPage extends StatelessWidget {
   const SellerOrdersPage({super.key});
 
+  // =========================================================
+  // STATUS COLOR
+  // =========================================================
+
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'confirmed':
@@ -21,6 +25,10 @@ class SellerOrdersPage extends StatelessWidget {
         return Colors.grey;
     }
   }
+
+  // =========================================================
+  // STATUS TEXT
+  // =========================================================
 
   String _statusText(String status) {
     switch (status.toLowerCase()) {
@@ -39,6 +47,86 @@ class SellerOrdersPage extends StatelessWidget {
     }
   }
 
+  // =========================================================
+  // NOTIFICATION TITLE
+  // =========================================================
+
+  String _notificationTitle(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+        return 'Order Confirmed';
+
+      case 'processing':
+        return 'Order Processing';
+
+      case 'shipped':
+        return 'Order Shipped';
+
+      case 'delivered':
+        return 'Order Delivered';
+
+      case 'cancelled':
+        return 'Order Cancelled';
+
+      default:
+        return 'Order Updated';
+    }
+  }
+
+  // =========================================================
+  // NOTIFICATION MESSAGE
+  // =========================================================
+
+  String _notificationMessage({
+    required String status,
+    required String sellerName,
+  }) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+        return 'Your order has been confirmed by $sellerName.';
+
+      case 'processing':
+        return 'Your order is now being prepared by $sellerName.';
+
+      case 'shipped':
+        return 'Your order has been shipped by $sellerName.';
+
+      case 'delivered':
+        return 'Your order has been delivered successfully.';
+
+      case 'cancelled':
+        return 'Your order has been cancelled by $sellerName.';
+
+      default:
+        return 'Your order status has been updated to '
+            '${_statusText(status)}.';
+    }
+  }
+
+  // =========================================================
+  // NOTIFICATION TYPE
+  // =========================================================
+
+  String _notificationType(String status) {
+    switch (status.toLowerCase()) {
+      case 'shipped':
+        return 'shipped';
+
+      case 'delivered':
+        return 'delivered';
+
+      case 'cancelled':
+        return 'cancelled';
+
+      default:
+        return 'order';
+    }
+  }
+
+  // =========================================================
+  // FORMAT DATE
+  // =========================================================
+
   String _formatDate(dynamic value) {
     if (value is Timestamp) {
       final date = value.toDate();
@@ -53,6 +141,10 @@ class SellerOrdersPage extends StatelessWidget {
     return 'Date unavailable';
   }
 
+  // =========================================================
+  // NUMBER
+  // =========================================================
+
   double _number(dynamic value) {
     if (value is num) {
       return value.toDouble();
@@ -64,6 +156,10 @@ class SellerOrdersPage extends StatelessWidget {
         0;
   }
 
+  // =========================================================
+  // INT
+  // =========================================================
+
   int _int(dynamic value) {
     if (value is num) {
       return value.toInt();
@@ -74,6 +170,10 @@ class SellerOrdersPage extends StatelessWidget {
         ) ??
         0;
   }
+
+  // =========================================================
+  // STATUS CHIP
+  // =========================================================
 
   Widget _statusChip(String status) {
     final color = _statusColor(status);
@@ -98,6 +198,10 @@ class SellerOrdersPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // IMAGE PLACEHOLDER
+  // =========================================================
+
   Widget _imagePlaceholder() {
     return Container(
       width: 70,
@@ -112,6 +216,10 @@ class SellerOrdersPage extends StatelessWidget {
       ),
     );
   }
+
+  // =========================================================
+  // BUILD ITEM CARD
+  // =========================================================
 
   Widget _buildItemCard(
     Map<String, dynamic> item,
@@ -204,6 +312,10 @@ class SellerOrdersPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // ITEMS
+  // =========================================================
+
   List<Map<String, dynamic>> _items(
     Map<String, dynamic> data,
   ) {
@@ -223,7 +335,52 @@ class SellerOrdersPage extends StatelessWidget {
   }
 
   // =========================================================
+  // CREATE BUYER NOTIFICATION
+  // =========================================================
+
+  void _addBuyerNotification({
+    required WriteBatch batch,
+    required String customerId,
+    required String orderId,
+    required String sellerId,
+    required String sellerName,
+    required String newStatus,
+  }) {
+    if (customerId.isEmpty) return;
+
+    final firestore =
+        FirebaseFirestore.instance;
+
+    final notificationRef = firestore
+        .collection('users')
+        .doc(customerId)
+        .collection('notifications')
+        .doc();
+
+    batch.set(
+      notificationRef,
+      {
+        'title': _notificationTitle(newStatus),
+        'message': _notificationMessage(
+          status: newStatus,
+          sellerName: sellerName,
+        ),
+        'type': _notificationType(newStatus),
+        'orderId': orderId,
+        'sellerId': sellerId,
+        'sellerName': sellerName,
+        'customerId': customerId,
+        'orderStatus': newStatus,
+        'isRead': false,
+        'createdAt':
+            FieldValue.serverTimestamp(),
+      },
+    );
+  }
+
+  // =========================================================
   // UPDATE SELLER ORDER + MAIN ORDER
+  // + BUYER NOTIFICATION
   // =========================================================
 
   Future<void> _updateStatus({
@@ -231,6 +388,8 @@ class SellerOrdersPage extends StatelessWidget {
     required String sellerOrderId,
     required String mainOrderId,
     required String sellerId,
+    required String customerId,
+    required String customerName,
     required String newStatus,
   }) async {
     final user =
@@ -276,12 +435,6 @@ class SellerOrdersPage extends StatelessWidget {
 
       // -------------------------------------------------------
       // Main customer order
-      //
-      // For a single-seller order, keep the customer's
-      // main order status synchronized.
-      //
-      // For multi-seller orders, the seller order remains
-      // the source of truth for that seller's products.
       // -------------------------------------------------------
 
       if (mainOrderId.isNotEmpty) {
@@ -319,7 +472,7 @@ class SellerOrdersPage extends StatelessWidget {
           }
 
           // Single seller order:
-          // update main customer order.
+          // synchronize main order status.
           if (sellerIds.length <= 1) {
             batch.update(
               mainOrderRef,
@@ -333,6 +486,24 @@ class SellerOrdersPage extends StatelessWidget {
         }
       }
 
+      // -------------------------------------------------------
+      // BUYER NOTIFICATION
+      // -------------------------------------------------------
+
+      _addBuyerNotification(
+        batch: batch,
+        customerId: customerId,
+        orderId: mainOrderId,
+        sellerId: sellerId,
+        sellerName: user.displayName ??
+            'Seller',
+        newStatus: newStatus,
+      );
+
+      // -------------------------------------------------------
+      // Commit everything together.
+      // -------------------------------------------------------
+
       await batch.commit();
 
       if (!context.mounted) return;
@@ -341,7 +512,9 @@ class SellerOrdersPage extends StatelessWidget {
           .showSnackBar(
         SnackBar(
           content: Text(
-            'Order changed to ${_statusText(newStatus)}.',
+            'Order changed to '
+            '${_statusText(newStatus)}.\n'
+            'Buyer notification sent.',
           ),
         ),
       );
@@ -368,6 +541,8 @@ class SellerOrdersPage extends StatelessWidget {
     required String sellerOrderId,
     required String mainOrderId,
     required String sellerId,
+    required String customerId,
+    required String customerName,
     required String currentStatus,
   }) {
     const statuses = [
@@ -418,8 +593,14 @@ class SellerOrdersPage extends StatelessWidget {
                           sellerOrderId,
                       mainOrderId:
                           mainOrderId,
-                      sellerId: sellerId,
-                      newStatus: status,
+                      sellerId:
+                          sellerId,
+                      customerId:
+                          customerId,
+                      customerName:
+                          customerName,
+                      newStatus:
+                          status,
                     );
                   },
                 );
@@ -609,6 +790,9 @@ class SellerOrdersPage extends StatelessWidget {
     final sellerId =
         data['sellerId']?.toString() ?? '';
 
+    final customerId =
+        data['customerId']?.toString() ?? '';
+
     final customerName =
         data['customerName']?.toString() ??
             'Customer';
@@ -781,6 +965,10 @@ class SellerOrdersPage extends StatelessWidget {
                           mainOrderId,
                       sellerId:
                           sellerId,
+                      customerId:
+                          customerId,
+                      customerName:
+                          customerName,
                       currentStatus:
                           status,
                     );
