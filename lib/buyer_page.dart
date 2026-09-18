@@ -1,33 +1,14 @@
 import 'package:flutter/material.dart';
 
-import 'return_refund_page.dart';
+import 'favorites_page.dart';
+import 'cart_page.dart';
+import 'my_orders_page.dart';
+import 'buyer_support_page.dart';
 
-class BuyerSupportPage extends StatelessWidget {
-  const BuyerSupportPage({super.key});
+class BuyerPage extends StatelessWidget {
+  const BuyerPage({super.key});
 
-  void _showMessage(
-    BuildContext context,
-    String title,
-    String message,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _supportItem({
+  Widget _menuItem({
     required BuildContext context,
     required IconData icon,
     required String title,
@@ -64,8 +45,22 @@ class BuyerSupportPage extends StatelessWidget {
           padding: const EdgeInsets.only(top: 4),
           child: Text(subtitle),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
         onTap: onTap,
+      ),
+    );
+  }
+
+  void _openPage(
+    BuildContext context,
+    Widget page,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => page,
       ),
     );
   }
@@ -74,7 +69,7 @@ class BuyerSupportPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Help & Support'),
+        title: const Text('Buyer'),
         centerTitle: true,
       ),
       body: ListView(
@@ -95,13 +90,13 @@ class BuyerSupportPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  Icons.support_agent,
+                  Icons.shopping_bag_outlined,
                   color: Colors.white,
                   size: 42,
                 ),
                 SizedBox(height: 12),
                 Text(
-                  'How can we help you?',
+                  'Welcome to BuyNova',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -110,7 +105,7 @@ class BuyerSupportPage extends StatelessWidget {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Find answers or contact BuyNova Support.',
+                  'Shop products, manage your orders and get support.',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -123,7 +118,7 @@ class BuyerSupportPage extends StatelessWidget {
           const SizedBox(height: 24),
 
           const Text(
-            'Support Categories',
+            'Shopping',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -132,88 +127,44 @@ class BuyerSupportPage extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          _supportItem(
+          // FAVORITES
+          _menuItem(
             context: context,
-            icon: Icons.help_outline,
-            title: 'Frequently Asked Questions',
-            subtitle: 'Find answers to common questions.',
+            icon: Icons.favorite_border,
+            title: 'Favorites',
+            subtitle: 'View your saved products.',
             onTap: () {
-              _showMessage(
+              _openPage(
                 context,
-                'FAQ',
-                'Frequently Asked Questions will be available here.',
+                const FavoritesPage(),
               );
             },
           ),
 
-          _supportItem(
+          // CART
+          _menuItem(
             context: context,
-            icon: Icons.shopping_bag_outlined,
-            title: 'Order Help',
-            subtitle: 'Problems with your order?',
+            icon: Icons.shopping_cart_outlined,
+            title: 'Cart',
+            subtitle: 'View and manage your shopping cart.',
             onTap: () {
-              _showMessage(
+              _openPage(
                 context,
-                'Order Help',
-                'You can get help with order status, cancellation and order issues.',
+                const CartPage(),
               );
             },
           ),
 
-          _supportItem(
+          // MY ORDERS
+          _menuItem(
             context: context,
-            icon: Icons.payment_outlined,
-            title: 'Payment Help',
-            subtitle: 'Payment and transaction problems.',
+            icon: Icons.receipt_long_outlined,
+            title: 'My Orders',
+            subtitle: 'View orders and track your deliveries.',
             onTap: () {
-              _showMessage(
+              _openPage(
                 context,
-                'Payment Help',
-                'Payment support will be available here.',
-              );
-            },
-          ),
-
-          _supportItem(
-            context: context,
-            icon: Icons.local_shipping_outlined,
-            title: 'Delivery Help',
-            subtitle: 'Track or report a delivery problem.',
-            onTap: () {
-              _showMessage(
-                context,
-                'Delivery Help',
-                'Delivery support will be available here.',
-              );
-            },
-          ),
-
-          // RETURN & REFUND
-          _supportItem(
-            context: context,
-            icon: Icons.assignment_return_outlined,
-            title: 'Return & Refund',
-            subtitle: 'Request a return or refund and check your requests.',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ReturnRefundPage(),
-                ),
-              );
-            },
-          ),
-
-          _supportItem(
-            context: context,
-            icon: Icons.person_outline,
-            title: 'Account Help',
-            subtitle: 'Problems with your BuyNova account.',
-            onTap: () {
-              _showMessage(
-                context,
-                'Account Help',
-                'Account support will be available here.',
+                const MyOrdersPage(),
               );
             },
           ),
@@ -221,7 +172,7 @@ class BuyerSupportPage extends StatelessWidget {
           const SizedBox(height: 14),
 
           const Text(
-            'Contact Us',
+            'Support',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -230,30 +181,16 @@ class BuyerSupportPage extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          _supportItem(
+          // HELP & SUPPORT
+          _menuItem(
             context: context,
-            icon: Icons.chat_outlined,
-            title: 'Contact BuyNova Support',
-            subtitle: 'Chat with our support team.',
+            icon: Icons.support_agent_outlined,
+            title: 'Help & Support',
+            subtitle: 'Get help with orders, payments and delivery.',
             onTap: () {
-              _showMessage(
+              _openPage(
                 context,
-                'BuyNova Support',
-                'Live support chat will be connected here.',
-              );
-            },
-          ),
-
-          _supportItem(
-            context: context,
-            icon: Icons.email_outlined,
-            title: 'Email Support',
-            subtitle: 'Send us your question or problem.',
-            onTap: () {
-              _showMessage(
-                context,
-                'Email Support',
-                'Email support will be connected here.',
+                const BuyerSupportPage(),
               );
             },
           ),
@@ -262,7 +199,7 @@ class BuyerSupportPage extends StatelessWidget {
 
           Center(
             child: Text(
-              'BuyNova Support',
+              'BuyNova Buyer',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 13,
