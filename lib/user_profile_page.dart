@@ -24,6 +24,8 @@ class UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<UserProfilePage> {
   bool _isLoading = true;
 
+  bool _adminExpanded = false;
+  bool _buyerExpanded = false;
   bool _earnExpanded = false;
   bool _entrepreneurExpanded = false;
   bool _sellerExpanded = false;
@@ -93,7 +95,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
       if (mounted) {
         setState(() {
           _name = (data?['name'] ?? '').toString();
-
           _phone = (data?['phone'] ?? '').toString();
 
           _profileImageUrl =
@@ -174,6 +175,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const AdminPanelPage(),
+      ),
+    );
+  }
+
+  void _openBuyer() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BuyerPage(),
       ),
     );
   }
@@ -374,34 +384,33 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // SECTION NOTIFICATION ITEM
+  // SECTION NOTIFICATION
   // =========================================================
 
-  Widget _sectionNotification({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Color? iconColor,
-  }) {
+  Widget _sectionNotification() {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: 8,
+      ),
       child: ListTile(
-        leading: Icon(
-          icon,
-          color: iconColor,
+        leading: const Icon(
+          Icons.notifications_outlined,
+          color: Colors.redAccent,
         ),
-        title: Text(
-          title,
-          style: const TextStyle(
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
             fontSize: 15,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
         trailing: const Icon(
           Icons.chevron_right,
         ),
-        onTap: onTap,
+        onTap: _openNotifications,
       ),
     );
   }
@@ -415,10 +424,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
     required String title,
     required VoidCallback onTap,
     Color? iconColor,
+    bool indented = true,
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(
+        left: indented ? 12 : 0,
+        right: indented ? 12 : 0,
+        bottom: 8,
+      ),
       child: ListTile(
         leading: Icon(
           icon,
@@ -450,7 +464,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: 8,
+      ),
       child: ListTile(
         leading: Icon(
           icon,
@@ -479,7 +497,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Widget _rewardsSummaryCard() {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: 8,
+      ),
       child: ListTile(
         leading: const Icon(
           Icons.stars_outlined,
@@ -503,15 +525,75 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
+  // BUYER SECTION
+  // =========================================================
+
+  List<Widget> _buyerSectionItems() {
+    return [
+      _sectionNotification(),
+
+      _menuItem(
+        icon: Icons.shopping_bag_outlined,
+        title: 'Buyer Dashboard',
+        onTap: _openBuyer,
+      ),
+
+      _menuItem(
+        icon: Icons.favorite_border,
+        title: 'Favorites',
+        onTap: _openFavorites,
+      ),
+
+      _menuItem(
+        icon: Icons.shopping_cart_outlined,
+        title: 'Cart',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+
+      _menuItem(
+        icon: Icons.receipt_long_outlined,
+        title: 'My Orders',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+
+      _menuItem(
+        icon: Icons.help_outline,
+        title: 'Help & Support',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+
+      _menuItem(
+        icon: Icons.assignment_return_outlined,
+        title: 'Return & Refund',
+        onTap: () {
+          _openBuyer();
+        },
+      ),
+    ];
+  }
+
+  // =========================================================
   // SELLER SECTION
   // =========================================================
 
   List<Widget> _sellerSectionItems() {
     if (_isSellerApproved) {
       return [
+        _sectionNotification(),
+
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
           child: ListTile(
             leading: const Icon(
               Icons.dashboard_outlined,
@@ -583,8 +665,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         ),
 
         _menuItem(
-          icon:
-              Icons.account_balance_wallet_outlined,
+          icon: Icons.account_balance_wallet_outlined,
           title: 'Earnings',
           onTap: () {
             _featureNotAvailable(
@@ -607,9 +688,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     if (_sellerStatus == 'pending') {
       return [
+        _sectionNotification(),
+
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
           child: ListTile(
             leading: const Icon(
               Icons.pending_outlined,
@@ -631,9 +718,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     if (_sellerStatus == 'rejected') {
       return [
+        _sectionNotification(),
+
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
           child: ListTile(
             leading: const Icon(
               Icons.cancel_outlined,
@@ -660,9 +753,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
 
     return [
+      _sectionNotification(),
+
       Card(
         elevation: 0,
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: 8,
+        ),
         child: ListTile(
           leading: const Icon(
             Icons.storefront_outlined,
@@ -693,6 +792,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
   List<Widget> _entrepreneurSectionItems() {
     if (_isEntrepreneurApproved) {
       return [
+        _sectionNotification(),
+
         _menuItem(
           icon: Icons.storefront_outlined,
           title: 'My Store',
@@ -745,9 +846,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     if (_entrepreneurStatus == 'pending') {
       return [
+        _sectionNotification(),
+
         Card(
           elevation: 0,
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
           child: ListTile(
             leading: const Icon(
               Icons.pending_outlined,
@@ -768,9 +875,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
 
     return [
+      _sectionNotification(),
+
       Card(
         elevation: 0,
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: 8,
+        ),
         child: ListTile(
           leading: const Icon(
             Icons.business_center_outlined,
@@ -827,81 +940,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ),
         ),
         centerTitle: true,
-
-        // =====================================================
-        // NOTIFICATIONS BUTTON
-        // =====================================================
-
-        actions: [
-          StreamBuilder<
-              QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('notifications')
-                .where(
-                  'isRead',
-                  isEqualTo: false,
-                )
-                .snapshots(),
-            builder: (context, snapshot) {
-              final unreadCount =
-                  snapshot.data?.docs.length ?? 0;
-
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  IconButton(
-                    tooltip: 'Notifications',
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                    ),
-                    onPressed:
-                        _openNotifications,
-                  ),
-
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 7,
-                      top: 7,
-                      child: Container(
-                        constraints:
-                            const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        padding:
-                            const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 1,
-                        ),
-                        decoration:
-                            const BoxDecoration(
-                          color: Colors.redAccent,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            unreadCount > 99
-                                ? '99+'
-                                : '$unreadCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-
-          const SizedBox(width: 4),
-        ],
       ),
 
       body: _isLoading
@@ -913,8 +951,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               child: SingleChildScrollView(
                 physics:
                     const AlwaysScrollableScrollPhysics(),
-                padding:
-                    const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
@@ -985,8 +1022,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               Text(
                                 _phone,
                                 style: TextStyle(
-                                  color: Colors
-                                      .grey.shade600,
+                                  color:
+                                      Colors.grey.shade600,
                                 ),
                               ),
                             ],
@@ -1003,8 +1040,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                 onPressed:
                                     _openEditProfile,
                                 icon: const Icon(
-                                  Icons
-                                      .edit_outlined,
+                                  Icons.edit_outlined,
                                 ),
                                 label: const Text(
                                   'Edit Profile',
@@ -1025,51 +1061,36 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // =================================================
 
                     if (_isAdmin) ...[
-                      Card(
-                        elevation: 0,
-                        child: ListTile(
-                          leading: const Icon(
-                            Icons
-                                .admin_panel_settings_outlined,
-                            color:
-                                Colors.redAccent,
-                          ),
-                          title: const Text(
-                            'Admin Panel',
-                            style: TextStyle(
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: const Text(
-                            'Manage BuyNova users, products and requests.',
-                          ),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                          ),
+                      _expandableSectionHeader(
+                        icon:
+                            Icons.admin_panel_settings_outlined,
+                        title: 'ADMIN PANEL',
+                        expanded:
+                            _adminExpanded,
+                        onTap: () {
+                          setState(() {
+                            _adminExpanded =
+                                !_adminExpanded;
+                          });
+                        },
+                      ),
+
+                      if (_adminExpanded) ...[
+                        _sectionNotification(),
+
+                        _menuItem(
+                          icon:
+                              Icons.admin_panel_settings_outlined,
+                          title: 'Admin Dashboard',
                           onTap:
                               _openAdminPanel,
                         ),
-                      ),
+                      ],
 
                       const SizedBox(
                         height: 8,
                       ),
                     ],
-
-                    // =================================================
-                    // NOTIFICATIONS
-                    // =================================================
-
-                    _menuItem(
-                      icon:
-                          Icons.notifications_outlined,
-                      title: 'Notifications',
-                      iconColor:
-                          Colors.redAccent,
-                      onTap:
-                          _openNotifications,
-                    ),
 
                     // =================================================
                     // BUYER
@@ -1079,17 +1100,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       icon:
                           Icons.shopping_bag_outlined,
                       title: 'BUYER',
-                      expanded: false,
+                      expanded:
+                          _buyerExpanded,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const BuyerPage(),
-                          ),
-                        );
+                        setState(() {
+                          _buyerExpanded =
+                              !_buyerExpanded;
+                        });
                       },
                     ),
+
+                    if (_buyerExpanded) ...[
+                      ..._buyerSectionItems(),
+                    ],
 
                     const SizedBox(
                       height: 8,
@@ -1115,9 +1138,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
 
                     if (_earnExpanded) ...[
+                      _sectionNotification(),
+
                       _rewardsSummaryCard(),
 
-                      _sectionNotification(
+                      _menuItem(
                         icon:
                             Icons.play_circle_outline,
                         title:
@@ -1128,7 +1153,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             _openWatchEarn,
                       ),
 
-                      _sectionNotification(
+                      _menuItem(
                         icon:
                             Icons.video_library_outlined,
                         title:
@@ -1140,7 +1165,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         },
                       ),
 
-                      _sectionNotification(
+                      _menuItem(
                         icon:
                             Icons.group_add_outlined,
                         title:
@@ -1218,6 +1243,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       icon:
                           Icons.settings_outlined,
                       title: 'Settings',
+                      indented: false,
                       onTap:
                           _openSettings,
                     ),
@@ -1230,6 +1256,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       icon: Icons.logout,
                       title: 'Logout',
                       iconColor: Colors.red,
+                      indented: false,
                       onTap: () {
                         showDialog(
                           context: context,
