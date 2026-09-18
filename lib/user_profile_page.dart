@@ -32,8 +32,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String _sellerStatus = '';
   String _entrepreneurStatus = '';
 
-  int _pointsBalance = 0;
-
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
   bool get _isAdmin {
@@ -79,18 +77,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
       final data = doc.data();
 
-      final rawPoints = data?['pointsBalance'];
-
-      int points = 0;
-
-      if (rawPoints is int) {
-        points = rawPoints;
-      } else if (rawPoints is num) {
-        points = rawPoints.toInt();
-      } else if (rawPoints != null) {
-        points = int.tryParse(rawPoints.toString()) ?? 0;
-      }
-
       if (mounted) {
         setState(() {
           _name = (data?['name'] ?? '').toString();
@@ -104,8 +90,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
           _entrepreneurStatus =
               (data?['entrepreneurStatus'] ?? '').toString();
-
-          _pointsBalance = points;
 
           _isLoading = false;
         });
@@ -151,24 +135,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  void _openMyProducts() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MyProductsPage(),
-      ),
-    );
-  }
-
-  void _openMyVideos() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MyVideosPage(),
-      ),
-    );
-  }
-
   void _openAdminPanel() {
     Navigator.push(
       context,
@@ -196,7 +162,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  void _openSellerDashboard() {
+  void _openSeller() {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -228,6 +194,24 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const NotificationsPage(),
+      ),
+    );
+  }
+
+  void _openMyProducts() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyProductsPage(),
+      ),
+    );
+  }
+
+  void _openMyVideos() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyVideosPage(),
       ),
     );
   }
@@ -306,6 +290,30 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  Future<void> _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Logout failed: $e',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // =========================================================
   // PROFILE IMAGE
   // =========================================================
 
@@ -347,7 +355,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(
+        bottom: 8,
+      ),
       child: ListTile(
         leading: Icon(
           icon,
@@ -369,7 +379,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // NORMAL MENU ITEM
+  // MENU ITEM
   // =========================================================
 
   Widget _menuItem({
@@ -407,7 +417,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // SECTION NOTIFICATION
+  // NOTIFICATIONS
   // =========================================================
 
   Widget _sectionNotification() {
@@ -476,137 +486,98 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // LOGOUT
+  // BUYER QUICK OPTIONS
   // =========================================================
 
-  Future<void> _logout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
+  Widget _buyerOptions() {
+    return Column(
+      children: [
+        _sectionNotification(),
 
-      if (!mounted) return;
+        _menuItem(
+          icon: Icons.shopping_bag_outlined,
+          title: 'Buyer Dashboard',
+          onTap: _openBuyer,
+        ),
 
-      Navigator.pop(context);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Logout failed: $e',
-            ),
-          ),
-        );
-      }
-    }
+        _menuItem(
+          icon: Icons.favorite_border,
+          title: 'Favorites',
+          onTap: _openFavorites,
+        ),
+
+        _menuItem(
+          icon: Icons.shopping_cart_outlined,
+          title: 'Cart',
+          onTap: _openBuyer,
+        ),
+
+        _menuItem(
+          icon: Icons.receipt_long_outlined,
+          title: 'My Orders',
+          onTap: _openBuyer,
+        ),
+
+        _menuItem(
+          icon: Icons.help_outline,
+          title: 'Help & Support',
+          onTap: _openBuyer,
+        ),
+
+        _menuItem(
+          icon: Icons.assignment_return_outlined,
+          title: 'Return & Refund',
+          onTap: _openBuyer,
+        ),
+      ],
+    );
   }
 
   // =========================================================
-  // SELLER CONTENT
+  // EARN OPTIONS
   // =========================================================
 
-  Widget _sellerContent() {
-    if (_isSellerApproved) {
-      return Column(
-        children: [
-          _sectionNotification(),
+  Widget _earnOptions() {
+    return Column(
+      children: [
+        _sectionNotification(),
 
-          _menuItem(
-            icon: Icons.dashboard_outlined,
-            title: 'Seller Dashboard',
-            onTap: _openSellerDashboard,
-          ),
+        _menuItem(
+          icon: Icons.play_circle_outline,
+          title: 'Watch & Earn',
+          iconColor: Colors.redAccent,
+          onTap: _openWatchEarn,
+        ),
 
-          _menuItem(
-            icon: Icons.store_outlined,
-            title: 'Shop Profile',
-            onTap: () {
-              _featureNotAvailable('Shop Profile');
-            },
-          ),
+        _menuItem(
+          icon: Icons.video_library_outlined,
+          title: 'Seller Video Rewards',
+          onTap: () {
+            _featureNotAvailable(
+              'Seller Video Rewards',
+            );
+          },
+        ),
 
-          _menuItem(
-            icon: Icons.location_on_outlined,
-            title: 'Shop Location',
-            onTap: () {
-              _featureNotAvailable('Shop Location');
-            },
-          ),
+        _menuItem(
+          icon: Icons.group_add_outlined,
+          title: 'Referral',
+          onTap: () {
+            _featureNotAvailable(
+              'Referral',
+            );
+          },
+        ),
+      ],
+    );
+  }
 
-          _plusMenuItem(
-            icon: Icons.inventory_2_outlined,
-            title: 'My Products',
-            onTap: _openMyProducts,
-          ),
+  // =========================================================
+  // SELLER OPTIONS
+  // =========================================================
 
-          _plusMenuItem(
-            icon: Icons.video_library_outlined,
-            title: 'My Videos',
-            onTap: _openMyVideos,
-          ),
-
-          _menuItem(
-            icon: Icons.favorite_border,
-            title: 'Favorites',
-            onTap: _openFavorites,
-          ),
-
-          _menuItem(
-            icon: Icons.receipt_long_outlined,
-            title: 'Sales / Orders',
-            onTap: () {
-              _featureNotAvailable('Sales / Orders');
-            },
-          ),
-
-          _menuItem(
-            icon: Icons.account_balance_wallet_outlined,
-            title: 'Earnings',
-            onTap: () {
-              _featureNotAvailable('Earnings');
-            },
-          ),
-
-          _menuItem(
-            icon: Icons.message_outlined,
-            title: 'Messages',
-            onTap: _openSellerMessages,
-          ),
-        ],
-      );
-    }
-
-    if (_sellerStatus == 'pending') {
-      return Column(
-        children: [
-          _sectionNotification(),
-
-          Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(
-              left: 12,
-              right: 12,
-              bottom: 8,
-            ),
-            child: const ListTile(
-              leading: Icon(
-                Icons.pending_outlined,
-                color: Colors.orange,
-              ),
-              title: Text(
-                'Seller Request Pending',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              subtitle: Text(
-                'Your seller request is waiting for admin approval.',
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (_sellerStatus == 'rejected') {
+  Widget _sellerOptions() {
+    if (!_isSellerApproved) {
       return Column(
         children: [
           _sectionNotification(),
@@ -619,25 +590,46 @@ class _UserProfilePageState extends State<UserProfilePage> {
               bottom: 8,
             ),
             child: ListTile(
-              leading: const Icon(
-                Icons.cancel_outlined,
-                color: Colors.red,
+              leading: Icon(
+                _sellerStatus == 'pending'
+                    ? Icons.pending_outlined
+                    : _sellerStatus == 'rejected'
+                        ? Icons.cancel_outlined
+                        : Icons.storefront_outlined,
+                color: _sellerStatus == 'pending'
+                    ? Colors.orange
+                    : Colors.redAccent,
               ),
-              title: const Text(
-                'Seller Request Rejected',
-                style: TextStyle(
+              title: Text(
+                _sellerStatus == 'pending'
+                    ? 'Seller Request Pending'
+                    : _sellerStatus == 'rejected'
+                        ? 'Seller Request Rejected'
+                        : 'Become a Seller',
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              subtitle: const Text(
-                'You can submit a new seller request.',
+              subtitle: Text(
+                _sellerStatus == 'pending'
+                    ? 'Your seller request is waiting for admin approval.'
+                    : _sellerStatus == 'rejected'
+                        ? 'You can submit a new seller request.'
+                        : 'Apply to sell your products on BuyNova.',
               ),
-              trailing: TextButton(
-                onPressed: _becomeSeller,
-                child: const Text(
-                  'Apply Again',
-                ),
-              ),
+              trailing: _sellerStatus == 'rejected'
+                  ? TextButton(
+                      onPressed: _becomeSeller,
+                      child: const Text(
+                        'Apply Again',
+                      ),
+                    )
+                  : const Icon(
+                      Icons.chevron_right,
+                    ),
+              onTap: _sellerStatus.isEmpty
+                  ? _becomeSeller
+                  : null,
             ),
           ),
         ],
@@ -648,154 +640,134 @@ class _UserProfilePageState extends State<UserProfilePage> {
       children: [
         _sectionNotification(),
 
-        Card(
-          elevation: 0,
-          margin: const EdgeInsets.only(
-            left: 12,
-            right: 12,
-            bottom: 8,
-          ),
-          child: ListTile(
-            leading: const Icon(
-              Icons.storefront_outlined,
-              color: Colors.redAccent,
-            ),
-            title: const Text(
-              'Become a Seller',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: const Text(
-              'Apply to sell your products on BuyNova.',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
-            onTap: _becomeSeller,
-          ),
+        _menuItem(
+          icon: Icons.dashboard_outlined,
+          title: 'Seller Dashboard',
+          onTap: _openSeller,
+        ),
+
+        _menuItem(
+          icon: Icons.store_outlined,
+          title: 'Shop Profile',
+          onTap: () {
+            _featureNotAvailable(
+              'Shop Profile',
+            );
+          },
+        ),
+
+        _menuItem(
+          icon: Icons.location_on_outlined,
+          title: 'Shop Location',
+          onTap: () {
+            _featureNotAvailable(
+              'Shop Location',
+            );
+          },
+        ),
+
+        _plusMenuItem(
+          icon: Icons.inventory_2_outlined,
+          title: 'My Products',
+          onTap: _openMyProducts,
+        ),
+
+        _plusMenuItem(
+          icon: Icons.video_library_outlined,
+          title: 'My Videos',
+          onTap: _openMyVideos,
+        ),
+
+        _menuItem(
+          icon: Icons.favorite_border,
+          title: 'Favorites',
+          onTap: _openFavorites,
+        ),
+
+        _menuItem(
+          icon: Icons.receipt_long_outlined,
+          title: 'Sales / Orders',
+          onTap: () {
+            _featureNotAvailable(
+              'Sales / Orders',
+            );
+          },
+        ),
+
+        _menuItem(
+          icon: Icons.account_balance_wallet_outlined,
+          title: 'Earnings',
+          onTap: () {
+            _featureNotAvailable(
+              'Earnings',
+            );
+          },
+        ),
+
+        _menuItem(
+          icon: Icons.message_outlined,
+          title: 'Messages',
+          onTap: _openSellerMessages,
         ),
       ],
     );
   }
 
   // =========================================================
-  // ENTREPRENEUR CONTENT
+  // ENTREPRENEUR OPTIONS
   // =========================================================
 
-  Widget _entrepreneurContent() {
-    if (_isEntrepreneurApproved) {
-      return Column(
-        children: [
-          _sectionNotification(),
-
-          _menuItem(
-            icon: Icons.storefront_outlined,
-            title: 'My Store',
-            onTap: _openEntrepreneur,
-          ),
-
-          _menuItem(
-            icon: Icons.favorite_border,
-            title: 'Favorites',
-            onTap: _openFavorites,
-          ),
-
-          _menuItem(
-            icon: Icons.receipt_long_outlined,
-            title: 'Reseller Orders',
-            onTap: () {
-              _featureNotAvailable('Reseller Orders');
-            },
-          ),
-
-          _menuItem(
-            icon: Icons.monetization_on_outlined,
-            title: 'My Profit',
-            onTap: () {
-              _featureNotAvailable('My Profit');
-            },
-          ),
-
-          _plusMenuItem(
-            icon: Icons.video_library_outlined,
-            title: 'My Videos',
-            onTap: _openMyVideos,
-          ),
-
-          _menuItem(
-            icon: Icons.message_outlined,
-            title: 'Messages',
-            onTap: () {
-              _featureNotAvailable('Messages');
-            },
-          ),
-        ],
-      );
-    }
-
-    if (_entrepreneurStatus == 'pending') {
-      return Column(
-        children: [
-          _sectionNotification(),
-
-          Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(
-              left: 12,
-              right: 12,
-              bottom: 8,
-            ),
-            child: const ListTile(
-              leading: Icon(
-                Icons.pending_outlined,
-                color: Colors.orange,
-              ),
-              title: Text(
-                'Entrepreneur Request Pending',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              subtitle: Text(
-                'Your entrepreneur request is waiting for admin approval.',
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
+  Widget _entrepreneurOptions() {
     return Column(
       children: [
         _sectionNotification(),
 
-        Card(
-          elevation: 0,
-          margin: const EdgeInsets.only(
-            left: 12,
-            right: 12,
-            bottom: 8,
-          ),
-          child: ListTile(
-            leading: const Icon(
-              Icons.business_center_outlined,
-              color: Colors.redAccent,
-            ),
-            title: const Text(
-              'Become an Entrepreneur / Reseller',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: const Text(
-              'Apply to become a BuyNova reseller.',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
-            onTap: _openEntrepreneur,
-          ),
+        _menuItem(
+          icon: Icons.storefront_outlined,
+          title: 'My Store',
+          onTap: _openEntrepreneur,
+        ),
+
+        _menuItem(
+          icon: Icons.favorite_border,
+          title: 'Favorites',
+          onTap: _openFavorites,
+        ),
+
+        _menuItem(
+          icon: Icons.receipt_long_outlined,
+          title: 'Reseller Orders',
+          onTap: () {
+            _featureNotAvailable(
+              'Reseller Orders',
+            );
+          },
+        ),
+
+        _menuItem(
+          icon: Icons.monetization_on_outlined,
+          title: 'My Profit',
+          onTap: () {
+            _featureNotAvailable(
+              'My Profit',
+            );
+          },
+        ),
+
+        _plusMenuItem(
+          icon: Icons.video_library_outlined,
+          title: 'My Videos',
+          onTap: _openMyVideos,
+        ),
+
+        _menuItem(
+          icon: Icons.message_outlined,
+          title: 'Messages',
+          onTap: () {
+            _featureNotAvailable(
+              'Messages',
+            );
+          },
         ),
       ],
     );
@@ -812,7 +784,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('My Profile'),
+          title: const Text(
+            'My Profile',
+          ),
           centerTitle: true,
         ),
         body: const Center(
@@ -959,10 +933,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         onTap:
                             _openAdminPanel,
                       ),
-
-                      const SizedBox(
-                        height: 8,
-                      ),
                     ],
 
                     // =================================================
@@ -976,10 +946,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       onTap: _openBuyer,
                     ),
 
-                    const SizedBox(
-                      height: 8,
-                    ),
-
                     // =================================================
                     // EARN & REWARDS
                     // =================================================
@@ -990,10 +956,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       title: 'EARN & REWARDS',
                       onTap:
                           _openWatchEarn,
-                    ),
-
-                    const SizedBox(
-                      height: 8,
                     ),
 
                     // =================================================
@@ -1009,10 +971,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           _openEntrepreneur,
                     ),
 
-                    const SizedBox(
-                      height: 8,
-                    ),
-
                     // =================================================
                     // SELLER
                     // =================================================
@@ -1022,7 +980,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           Icons.storefront_outlined,
                       title: 'SELLER',
                       onTap:
-                          _openSellerDashboard,
+                          _openSeller,
                     ),
 
                     const SizedBox(
