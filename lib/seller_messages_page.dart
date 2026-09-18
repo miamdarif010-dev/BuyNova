@@ -1,0 +1,363 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
+import 'seller_chat_page.dart';
+
+class SellerMessagesPage extends StatefulWidget {
+  const SellerMessagesPage({super.key});
+
+  @override
+  State<SellerMessagesPage> createState() => _SellerMessagesPageState();
+}
+
+class _SellerMessagesPageState extends State<SellerMessagesPage> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  String? get _sellerId => _auth.currentUser?.uid;
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _conversationStream() {
+    final sellerId = _sellerId;
+
+    if (sellerId == null) {
+      return const Stream.empty();
+    }
+
+    return _firestore
+        .collection('conversations')
+        .where('sellerId', isEqualTo: sellerId)
+        .orderBy('lastMessageAt', descending: true)
+        .snapshots();
+  }
+
+  int _unreadCount(Map<String, dynamic> data) {
+    final value = data['sellerUnreadCount'];
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return 0;
+  }
+
+  String _buyerName(Map<String, dynamic> data) {
+    final name = data['buyerName'];
+
+    if (name is String && name.trim().isNotEmpty) {
+      return name.trim();
+    }
+
+    return 'Buyer';
+  }
+
+  String _lastMessage(Map<String, dynamic> data) {
+    final message = data['lastMessage'];
+
+    if (message is String && message.trim().isNotEmpty) {
+      return message.trim();
+    }
+
+    return 'Start a conversation';
+  }
+
+  String _formatTime(dynamic value) {
+    if (value is! Timestamp) {
+      return '';
+    }
+
+    final date = value.toDate();
+    final now = DateTime.now();
+
+    final isToday =
+        date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+
+    if (isToday) {
+      final hour = date.hour == 0
+          ? 12
+          : date.hour > 12
+              ? date.hour - 12
+              : date.hour;
+
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+
+      return '$hour:$minute $period';
+    }
+
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _openChat({
+    required String conversationId,
+    required Map<String, dynamic> data,
+  }) {
+    final buyerId = data['buyerId'];
+
+    if (buyerId is! String || buyerId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Buyer information is missing.'),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SellerChatPage(
+          conversationId: conversationId,
+          buyerId: buyerId,
+          buyerName: _buyerName(data),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline,
+                size: 44,
+                color: Colors.redAccent,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No Messages Yet',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Messages from your buyers will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _conversationTile(
+    String documentId,
+    Map<String, dynamic> data,
+  ) {
+    final unread = _unreadCount(data);
+    final buyerName = _buyerName(data);
+    final lastMessage = _lastMessage(data);
+    final time = _formatTime(data['lastMessageAt']);
+
+    final conversationId =
+        data['conversationId']?.toString().trim().isNotEmpty == true
+            ? data['conversationId'].toString()
+            : documentId;
+
+    return Card(
+      margin: const EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: 10,
+      ),
+      elevation: 1,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 8,
+        ),
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person_outline,
+                color: Colors.redAccent,
+                size: 28,
+              ),
+            ),
+            if (unread > 0)
+              Positioned(
+                right: -3,
+                top: -3,
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 20,
+                    minHeight: 20,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 2,
+                    ),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : unread.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                buyerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight:
+                      unread > 0 ? FontWeight.bold : FontWeight.w600,
+                ),
+              ),
+            ),
+            if (time.isNotEmpty)
+              Text(
+                time,
+                style: TextStyle(
+                  color: unread > 0
+                      ? Colors.redAccent
+                      : Colors.grey.shade600,
+                  fontSize: 11,
+                  fontWeight:
+                      unread > 0 ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Text(
+            lastMessage,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: unread > 0
+                  ? Colors.black87
+                  : Colors.grey.shade600,
+              fontWeight:
+                  unread > 0 ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          _openChat(
+            conversationId: conversationId,
+            data: data,
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_sellerId == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Messages'),
+          centerTitle: true,
+        ),
+        body: const Center(
+          child: Text(
+            'Please login to view your messages.',
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Messages'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _conversationStream(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Unable to load messages.\n\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          final documents = snapshot.data?.docs ?? [];
+
+          if (documents.isEmpty) {
+            return _emptyState();
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.only(
+              top: 16,
+              bottom: 24,
+            ),
+            itemCount: documents.length,
+            itemBuilder: (context, index) {
+              final document = documents[index];
+
+              return _conversationTile(
+                document.id,
+                document.data(),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
