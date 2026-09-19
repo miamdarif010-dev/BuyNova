@@ -15,8 +15,12 @@ class _WalletPageState extends State<WalletPage> {
 
   bool _isLoading = true;
 
+  // Rewards
   int _pointsBalance = 0;
   int _lifetimePoints = 0;
+
+  // Real money - Bangladesh BDT
+  double _cashBalance = 0;
 
   @override
   void initState() {
@@ -42,16 +46,14 @@ class _WalletPageState extends State<WalletPage> {
 
       final data = snapshot.data();
 
-      if (data != null) {
+      if (mounted) {
         setState(() {
-          _pointsBalance = _toInt(data['pointsBalance']);
-          _lifetimePoints = _toInt(data['lifetimePoints']);
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _pointsBalance = 0;
-          _lifetimePoints = 0;
+          _pointsBalance = _toInt(data?['pointsBalance']);
+          _lifetimePoints = _toInt(data?['lifetimePoints']);
+
+          // Bangladesh currency
+          _cashBalance = _toDouble(data?['cashBalance']);
+
           _isLoading = false;
         });
       }
@@ -76,11 +78,20 @@ class _WalletPageState extends State<WalletPage> {
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
   String _formatNumber(int number) {
     return number.toString().replaceAllMapped(
           RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
           (match) => '${match.group(1)},',
         );
+  }
+
+  String _formatMoney(double amount) {
+    return '৳${amount.toStringAsFixed(2)}';
   }
 
   String _transactionTitle(Map<String, dynamic> data) {
@@ -100,12 +111,28 @@ class _WalletPageState extends State<WalletPage> {
         return 'Seller Video Reward';
       }
 
+      if (source == 'deposit') {
+        return 'Money Added';
+      }
+
+      if (source == 'profit') {
+        return 'Profit Earned';
+      }
+
+      if (source == 'refund') {
+        return 'Refund';
+      }
+
       return 'Reward Earned';
     }
 
     if (type == 'debit') {
       if (source == 'withdrawal') {
         return 'Withdrawal';
+      }
+
+      if (source == 'purchase') {
+        return 'Purchase';
       }
 
       return 'Points Used';
@@ -119,6 +146,14 @@ class _WalletPageState extends State<WalletPage> {
     final source = data['source']?.toString() ?? '';
 
     if (type == 'debit') {
+      if (source == 'withdrawal') {
+        return Icons.account_balance_rounded;
+      }
+
+      if (source == 'purchase') {
+        return Icons.shopping_bag_rounded;
+      }
+
       return Icons.arrow_upward_rounded;
     }
 
@@ -132,6 +167,18 @@ class _WalletPageState extends State<WalletPage> {
 
     if (source == 'seller_video') {
       return Icons.video_library_rounded;
+    }
+
+    if (source == 'deposit') {
+      return Icons.add_circle_rounded;
+    }
+
+    if (source == 'profit') {
+      return Icons.trending_up_rounded;
+    }
+
+    if (source == 'refund') {
+      return Icons.currency_exchange_rounded;
     }
 
     return Icons.stars_rounded;
@@ -149,6 +196,8 @@ class _WalletPageState extends State<WalletPage> {
         return 'Rejected';
       case 'completed':
         return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
       default:
         return status;
     }
@@ -164,6 +213,7 @@ class _WalletPageState extends State<WalletPage> {
       case 'completed':
         return Colors.green;
       case 'rejected':
+      case 'cancelled':
         return Colors.red;
       default:
         return Colors.grey;
@@ -187,20 +237,144 @@ class _WalletPageState extends State<WalletPage> {
     return 'Date unavailable';
   }
 
+  Future<void> _showAddMoneyDialog() async {
+    final user = _auth.currentUser;
+
+    if (user == null) return;
+
+    final controller = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Add Money'),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: true,
+            ),
+            decoration: const InputDecoration(
+              labelText: 'Amount',
+              hintText: 'Example: 1000',
+              prefixText: '৳ ',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final amount =
+                    double.tryParse(controller.text.trim()) ?? 0;
+
+                if (amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please enter a valid amount.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                if (amount < 100) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Minimum amount is ৳100.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+
+                await _createDepositRequest(
+                  user.uid,
+                  amount,
+                );
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+  }
+
+  Future<void> _createDepositRequest(
+    String uid,
+    double amount,
+  ) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('walletTransactions')
+          .add({
+        'type': 'credit',
+        'source': 'deposit',
+        'amount': amount,
+        'currency': 'BDT',
+        'currencySymbol': '৳',
+        'status': 'pending',
+        'paymentMethod': 'not_selected',
+        'userId': uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Deposit request created. Payment gateway will be connected later.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not create deposit request: $e',
+          ),
+        ),
+      );
+    }
+  }
+
   void _showWithdrawalInfo() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              10,
+              20,
+              30,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Withdraw Rewards',
+                  'Withdraw',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -208,25 +382,31 @@ class _WalletPageState extends State<WalletPage> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Withdrawal will be available after BuyNova enables the reward withdrawal system.',
+                  'Money withdrawal will be available after BuyNova enables the secure withdrawal system.',
                   style: TextStyle(
                     fontSize: 15,
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
+                _infoRow(
+                  Icons.account_balance_wallet_rounded,
+                  'Cash Balance',
+                  _formatMoney(_cashBalance),
+                ),
+                const SizedBox(height: 10),
                 _infoRow(
                   Icons.stars_rounded,
-                  'Available Points',
+                  'Reward Points',
                   _formatNumber(_pointsBalance),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 _infoRow(
                   Icons.security_rounded,
                   'Security',
-                  'Rewards are verified before payment',
+                  'Payment verification required',
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
@@ -290,7 +470,8 @@ class _WalletPageState extends State<WalletPage> {
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -321,7 +502,7 @@ class _WalletPageState extends State<WalletPage> {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Available Points',
+            'Cash Balance',
             style: TextStyle(
               color: Colors.white70,
               fontSize: 14,
@@ -329,7 +510,7 @@ class _WalletPageState extends State<WalletPage> {
           ),
           const SizedBox(height: 5),
           Text(
-            _formatNumber(_pointsBalance),
+            _formatMoney(_cashBalance),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 38,
@@ -338,10 +519,28 @@ class _WalletPageState extends State<WalletPage> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Points',
+            'Bangladesh Taka (BDT)',
             style: TextStyle(
               color: Colors.white70,
               fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showAddMoneyDialog,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add Money'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor:
+                    Colors.black87,
+                padding:
+                    const EdgeInsets.symmetric(
+                  vertical: 14,
+                ),
+              ),
             ),
           ),
         ],
@@ -353,16 +552,20 @@ class _WalletPageState extends State<WalletPage> {
     required IconData icon,
     required String title,
     required String value,
+    required bool isMoney,
   }) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             Icon(icon, size: 25),
             const SizedBox(height: 12),
@@ -378,7 +581,13 @@ class _WalletPageState extends State<WalletPage> {
             ),
             const SizedBox(height: 4),
             Text(
-              _formatNumber(_toInt(int.tryParse(value) ?? 0)),
+              isMoney
+                  ? _formatMoney(
+                      double.tryParse(value) ?? 0,
+                    )
+                  : _formatNumber(
+                      int.tryParse(value) ?? 0,
+                    ),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -392,7 +601,8 @@ class _WalletPageState extends State<WalletPage> {
 
   Widget _quickActions() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
         const Text(
           'Wallet',
@@ -406,19 +616,17 @@ class _WalletPageState extends State<WalletPage> {
           children: [
             Expanded(
               child: _actionButton(
-                icon: Icons.account_balance_rounded,
-                title: 'Withdraw',
-                onTap: _showWithdrawalInfo,
+                icon: Icons.add_card_rounded,
+                title: 'Add Money',
+                onTap: _showAddMoneyDialog,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _actionButton(
-                icon: Icons.history_rounded,
-                title: 'History',
-                onTap: () {
-                  // History is shown below.
-                },
+                icon: Icons.account_balance_rounded,
+                title: 'Withdraw',
+                onTap: _showWithdrawalInfo,
               ),
             ),
           ],
@@ -435,9 +643,13 @@ class _WalletPageState extends State<WalletPage> {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 15),
+        padding:
+            const EdgeInsets.symmetric(
+          vertical: 15,
+        ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius:
+              BorderRadius.circular(16),
         ),
       ),
       child: Column(
@@ -454,16 +666,44 @@ class _WalletPageState extends State<WalletPage> {
     String id,
     Map<String, dynamic> data,
   ) {
-    final type = data['type']?.toString() ?? 'credit';
-    final points = _toInt(data['points']);
-    final isCredit = type == 'credit';
+    final type =
+        data['type']?.toString() ?? 'credit';
+
+    final source =
+        data['source']?.toString() ?? '';
+
+    final points =
+        _toInt(data['points']);
+
+    final amount =
+        _toDouble(data['amount']);
+
+    final isCredit =
+        type == 'credit';
+
+    final isMoneyTransaction =
+        source == 'deposit' ||
+        source == 'profit' ||
+        source == 'refund' ||
+        source == 'purchase' ||
+        source == 'withdrawal';
+
+    final displayValue =
+        isMoneyTransaction
+            ? _formatMoney(amount)
+            : _formatNumber(points);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin:
+          const EdgeInsets.only(bottom: 10),
+      padding:
+          const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest,
+        borderRadius:
+            BorderRadius.circular(18),
       ),
       child: Row(
         children: [
@@ -473,53 +713,76 @@ class _WalletPageState extends State<WalletPage> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isCredit
-                  ? Colors.green.withValues(alpha: 0.12)
-                  : Colors.red.withValues(alpha: 0.12),
+                  ? Colors.green.withValues(
+                      alpha: 0.12,
+                    )
+                  : Colors.red.withValues(
+                      alpha: 0.12,
+                    ),
             ),
             child: Icon(
               _transactionIcon(data),
-              color: isCredit ? Colors.green : Colors.red,
+              color: isCredit
+                  ? Colors.green
+                  : Colors.red,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   _transactionTitle(data),
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                     fontSize: 15,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _formatDate(data['createdAt']),
+                  _formatDate(
+                    data['createdAt'],
+                  ),
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withValues(alpha: 0.55),
+                        .withValues(
+                          alpha: 0.55,
+                        ),
                   ),
                 ),
                 const SizedBox(height: 5),
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 3,
                   ),
-                  decoration: BoxDecoration(
-                    color: _statusColor(data).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
+                  decoration:
+                      BoxDecoration(
+                    color: _statusColor(
+                      data,
+                    ).withValues(
+                      alpha: 0.12,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(
+                      8,
+                    ),
                   ),
                   child: Text(
                     _statusText(data),
                     style: TextStyle(
                       fontSize: 11,
-                      color: _statusColor(data),
-                      fontWeight: FontWeight.w600,
+                      color:
+                          _statusColor(data),
+                      fontWeight:
+                          FontWeight.w600,
                     ),
                   ),
                 ),
@@ -528,10 +791,13 @@ class _WalletPageState extends State<WalletPage> {
           ),
           const SizedBox(width: 8),
           Text(
-            '${isCredit ? '+' : '-'}${_formatNumber(points)}',
+            '${isCredit ? '+' : '-'}$displayValue',
             style: TextStyle(
-              color: isCredit ? Colors.green : Colors.red,
-              fontWeight: FontWeight.bold,
+              color: isCredit
+                  ? Colors.green
+                  : Colors.red,
+              fontWeight:
+                  FontWeight.bold,
               fontSize: 16,
             ),
           ),
@@ -545,34 +811,49 @@ class _WalletPageState extends State<WalletPage> {
 
     if (user == null) {
       return const Center(
-        child: Text('Please login first.'),
+        child: Text(
+          'Please login first.',
+        ),
       );
     }
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
           .collection('users')
           .doc(user.uid)
           .collection('walletTransactions')
-          .orderBy('createdAt', descending: true)
+          .orderBy(
+            'createdAt',
+            descending: true,
+          )
           .limit(50)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(30),
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             ),
           );
         }
 
         if (snapshot.hasError) {
           return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
+            padding:
+                const EdgeInsets.all(16),
+            decoration:
+                BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHighest,
+              borderRadius:
+                  BorderRadius.circular(
+                16,
+              ),
             ),
             child: const Text(
               'Transaction history is not available yet.',
@@ -580,15 +861,23 @@ class _WalletPageState extends State<WalletPage> {
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs =
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(18),
+            padding:
+                const EdgeInsets.all(25),
+            decoration:
+                BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHighest,
+              borderRadius:
+                  BorderRadius.circular(
+                18,
+              ),
             ),
             child: const Column(
               children: [
@@ -600,14 +889,16 @@ class _WalletPageState extends State<WalletPage> {
                 Text(
                   'No transactions yet',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'Your earning and withdrawal history will appear here.',
-                  textAlign: TextAlign.center,
+                  'Your money and rewards history will appear here.',
+                  textAlign:
+                      TextAlign.center,
                 ),
               ],
             ),
@@ -634,7 +925,8 @@ class _WalletPageState extends State<WalletPage> {
           title: const Text('Wallet'),
         ),
         body: const Center(
-          child: CircularProgressIndicator(),
+          child:
+              CircularProgressIndicator(),
         ),
       );
     }
@@ -645,7 +937,9 @@ class _WalletPageState extends State<WalletPage> {
         actions: [
           IconButton(
             onPressed: _loadWallet,
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(
+              Icons.refresh_rounded,
+            ),
             tooltip: 'Refresh',
           ),
         ],
@@ -653,8 +947,10 @@ class _WalletPageState extends State<WalletPage> {
       body: RefreshIndicator(
         onRefresh: _loadWallet,
         child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          physics:
+              const AlwaysScrollableScrollPhysics(),
+          padding:
+              const EdgeInsets.all(16),
           children: [
             _walletHeader(),
 
@@ -663,17 +959,70 @@ class _WalletPageState extends State<WalletPage> {
             Row(
               children: [
                 _summaryCard(
-                  icon: Icons.stars_rounded,
-                  title: 'Available',
-                  value: _pointsBalance.toString(),
+                  icon:
+                      Icons.account_balance_wallet_rounded,
+                  title:
+                      'Cash Balance',
+                  value:
+                      _cashBalance.toString(),
+                  isMoney: true,
                 ),
                 const SizedBox(width: 12),
                 _summaryCard(
-                  icon: Icons.trending_up_rounded,
-                  title: 'Lifetime Earned',
-                  value: _lifetimePoints.toString(),
+                  icon:
+                      Icons.stars_rounded,
+                  title:
+                      'Reward Points',
+                  value:
+                      _pointsBalance.toString(),
+                  isMoney: false,
                 ),
               ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Container(
+              padding:
+                  const EdgeInsets.all(16),
+              decoration:
+                  BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest,
+                borderRadius:
+                    BorderRadius.circular(
+                  18,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.trending_up_rounded,
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Lifetime Rewards Earned',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _formatNumber(
+                      _lifetimePoints,
+                    ),
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 22),
@@ -686,7 +1035,8 @@ class _WalletPageState extends State<WalletPage> {
               'Transaction History',
               style: TextStyle(
                 fontSize: 19,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
@@ -698,13 +1048,15 @@ class _WalletPageState extends State<WalletPage> {
 
             Center(
               child: Text(
-                'BuyNova Rewards • Secure Wallet',
+                'BuyNova • BDT Wallet & Rewards',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withValues(alpha: 0.45),
+                      .withValues(
+                        alpha: 0.45,
+                      ),
                 ),
               ),
             ),
