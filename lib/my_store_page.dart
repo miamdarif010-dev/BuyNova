@@ -204,8 +204,6 @@ class _MyStorePageState extends State<MyStorePage> {
           .toStringAsFixed(0),
     );
 
-    double? newPrice;
-
     await showDialog(
       context: context,
       builder: (dialogContext) {
@@ -244,12 +242,6 @@ class _MyStorePageState extends State<MyStorePage> {
                   border:
                       OutlineInputBorder(),
                 ),
-                onChanged: (value) {
-                  newPrice =
-                      double.tryParse(
-                    value.trim(),
-                  );
-                },
               ),
             ],
           ),
@@ -297,8 +289,6 @@ class _MyStorePageState extends State<MyStorePage> {
                   );
                   return;
                 }
-
-                newPrice = price;
 
                 try {
                   await _firestore
