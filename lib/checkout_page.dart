@@ -844,48 +844,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
-  // CREATE NORMAL ORDER ITEMS
-  // =========================================================
-
-  Future<List<Map<String, dynamic>>>
-      _createNormalOrderItems(
-    List<CheckoutItem> normalItems,
-    Map<String, Map<String, dynamic>>
-        sellerInformation,
-  ) async {
-    final List<Map<String, dynamic>>
-        itemsData = [];
-
-    for (final item in normalItems) {
-      final sellerData =
-          sellerInformation[item.productId]!;
-
-      itemsData.add({
-        'productId':
-            item.productId,
-        'productName':
-            item.productName,
-        'imageUrl':
-            item.imageUrl ?? '',
-        'price':
-            item.price,
-        'quantity':
-            item.quantity,
-        'total':
-            item.total,
-        'sellerId':
-            sellerData['sellerId'],
-        'sellerCode':
-            sellerData['sellerCode'],
-        'sellerEmail':
-            sellerData['sellerEmail'],
-      });
-    }
-
-    return itemsData;
-  }
-
-  // =========================================================
   // RESELLER SELLING TOTAL
   // =========================================================
 
@@ -1021,16 +979,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       // =====================================================
-      // NORMAL ITEMS DATA
-      // =====================================================
-
-      final normalItemsData =
-          await _createNormalOrderItems(
-        normalItems,
-        sellerInformation,
-      );
-
-      // =====================================================
       // ALL CUSTOMER ORDER ITEMS
       //
       // This keeps reseller products inside the main
@@ -1117,20 +1065,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       double normalSubtotal = 0;
 
-      int normalQuantity = 0;
-
       for (final item in normalItems) {
         normalSubtotal += item.total;
-        normalQuantity += item.quantity;
       }
 
       final resellerSubtotal =
           _resellerSellingTotal(
-        resellerItems,
-      );
-
-      final resellerSupplierTotal =
-          _resellerSupplierTotal(
         resellerItems,
       );
 
@@ -1142,19 +1082,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // DISCOUNT ALLOCATION
       // =====================================================
 
-      double normalDiscount = 0;
-
       double resellerDiscount = 0;
 
       if (discountAmount > 0 &&
           normalAndResellerSubtotal > 0) {
-        if (normalSubtotal > 0) {
-          normalDiscount =
-              discountAmount *
-                  normalSubtotal /
-                  normalAndResellerSubtotal;
-        }
-
         if (resellerSubtotal > 0) {
           resellerDiscount =
               discountAmount *
@@ -1436,8 +1367,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
             .add(item);
       }
 
-      String? firstResellerOrderId;
-
       for (final entry
           in resellerGroups.entries) {
         final groupItems =
@@ -1556,9 +1485,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   'reseller_orders',
                 )
                 .doc();
-
-        firstResellerOrderId ??=
-            resellerOrderRef.id;
 
         batch.set(
           resellerOrderRef,
