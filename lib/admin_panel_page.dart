@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'admin_coupon_page.dart';
+
 /// Only reachable if the logged-in user's email matches kAdminEmail.
 const String kAdminEmail = 'miamdarif010@gmail.com';
 
@@ -20,7 +22,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     super.initState();
 
     _tabController = TabController(
-      length: 6,
+      length: 7,
       vsync: this,
     );
   }
@@ -36,8 +38,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   // ===========================================================
 
   String _generateSellerCode(String uid) {
-    final shortId =
-        uid.length >= 6 ? uid.substring(0, 6) : uid;
+    final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
 
     return 'SELL-${shortId.toUpperCase()}';
   }
@@ -47,8 +48,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   // ===========================================================
 
   String _generateEntrepreneurCode(String uid) {
-    final shortId =
-        uid.length >= 6 ? uid.substring(0, 6) : uid;
+    final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
 
     return 'ENT-${shortId.toUpperCase()}';
   }
@@ -70,13 +70,11 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text(
               'Delete',
               style: TextStyle(
@@ -134,23 +132,18 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           .doc(uid);
 
       final userDoc = await userRef.get();
-      final existingData =
-          userDoc.data() ?? {};
+      final existingData = userDoc.data() ?? {};
 
-      final updateData =
-          <String, dynamic>{
+      final updateData = <String, dynamic>{
         'sellerStatus': status,
       };
 
       if (status == 'approved') {
         final existingSellerCode =
-            existingData['sellerCode']
-                    ?.toString() ??
-                '';
+            existingData['sellerCode']?.toString() ?? '';
 
         if (existingSellerCode.isEmpty) {
-          updateData['sellerCode'] =
-              _generateSellerCode(uid);
+          updateData['sellerCode'] = _generateSellerCode(uid);
 
           updateData['sellerApprovedAt'] =
               FieldValue.serverTimestamp();
@@ -202,19 +195,15 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           .doc(uid);
 
       final userDoc = await userRef.get();
-      final existingData =
-          userDoc.data() ?? {};
+      final existingData = userDoc.data() ?? {};
 
-      final updateData =
-          <String, dynamic>{
+      final updateData = <String, dynamic>{
         'entrepreneurStatus': status,
       };
 
       if (status == 'approved') {
         final existingCode =
-            existingData['entrepreneurCode']
-                    ?.toString() ??
-                '';
+            existingData['entrepreneurCode']?.toString() ?? '';
 
         if (existingCode.isEmpty) {
           updateData['entrepreneurCode'] =
@@ -313,6 +302,12 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ),
               text: 'Orders',
             ),
+            Tab(
+              icon: Icon(
+                Icons.local_offer_outlined,
+              ),
+              text: 'Coupons',
+            ),
           ],
         ),
       ),
@@ -325,6 +320,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           _entrepreneurRequestsTab(),
           _relationshipsTab(),
           _ordersTab(),
+          const AdminCouponPage(),
         ],
       ),
     );
@@ -344,8 +340,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           )
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
           );
@@ -364,8 +359,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -380,40 +374,31 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             final doc = docs[index];
 
             final data =
-                doc.data()
-                    as Map<String, dynamic>;
+                doc.data() as Map<String, dynamic>;
 
             final name =
-                data['name']?.toString() ??
-                    'Unnamed';
+                data['name']?.toString() ?? 'Unnamed';
 
             final price =
                 data['price'] is num
-                    ? (data['price'] as num)
-                        .toDouble()
+                    ? (data['price'] as num).toDouble()
                     : 0.0;
 
             final imageUrl =
                 data['imageUrl']?.toString();
 
             final sellerEmail =
-                data['sellerEmail']
-                        ?.toString() ??
+                data['sellerEmail']?.toString() ??
                     'Unknown seller';
 
             final sellerCode =
-                data['sellerCode']
-                        ?.toString() ??
-                    '';
+                data['sellerCode']?.toString() ?? '';
 
             final category =
-                data['category']
-                        ?.toString() ??
-                    'General';
+                data['category']?.toString() ?? 'General';
 
             return Card(
-              margin:
-                  const EdgeInsets.symmetric(
+              margin: const EdgeInsets.symmetric(
                 vertical: 4,
               ),
               child: ListTile(
@@ -423,33 +408,28 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   backgroundImage:
                       imageUrl != null &&
                               imageUrl.isNotEmpty
-                          ? NetworkImage(
-                              imageUrl,
-                            )
+                          ? NetworkImage(imageUrl)
                           : null,
                   child:
                       imageUrl == null ||
                               imageUrl.isEmpty
                           ? const Icon(
                               Icons.image,
-                              color:
-                                  Colors.grey,
+                              color: Colors.grey,
                             )
                           : null,
                 ),
                 title: Text(
                   name,
                   maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
                   '₩${price.toStringAsFixed(0)} • $category\n'
                   '${sellerCode.isNotEmpty ? '$sellerCode • ' : ''}'
                   '$sellerEmail',
                   maxLines: 3,
-                  overflow:
-                      TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 isThreeLine: true,
                 trailing: IconButton(
@@ -457,8 +437,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     Icons.delete_outline,
                     color: Colors.red,
                   ),
-                  onPressed: () =>
-                      _deleteProduct(
+                  onPressed: () => _deleteProduct(
                     doc.id,
                     name,
                   ),
@@ -481,8 +460,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           .collection('users')
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
           );
@@ -501,8 +479,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -517,45 +494,35 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             final doc = docs[index];
 
             final data =
-                doc.data()
-                    as Map<String, dynamic>;
+                doc.data() as Map<String, dynamic>;
 
             final name =
                 data['name']?.toString() ??
                     'Unnamed User';
 
             final email =
-                data['email']?.toString() ??
-                    '';
+                data['email']?.toString() ?? '';
 
             final sellerStatus =
-                data['sellerStatus']
-                        ?.toString() ??
+                data['sellerStatus']?.toString() ??
                     'none';
 
             final entrepreneurStatus =
-                data['entrepreneurStatus']
-                        ?.toString() ??
+                data['entrepreneurStatus']?.toString() ??
                     'none';
 
             final sellerCode =
-                data['sellerCode']
-                        ?.toString() ??
-                    '';
+                data['sellerCode']?.toString() ?? '';
 
             final entrepreneurCode =
-                data['entrepreneurCode']
-                        ?.toString() ??
-                    '';
+                data['entrepreneurCode']?.toString() ?? '';
 
             return Card(
-              margin:
-                  const EdgeInsets.symmetric(
+              margin: const EdgeInsets.symmetric(
                 vertical: 5,
               ),
               child: Padding(
-                padding:
-                    const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
@@ -575,8 +542,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
                                 name,
@@ -584,8 +550,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                                     const TextStyle(
                                   fontSize: 16,
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(
@@ -593,12 +558,10 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                               ),
                               Text(
                                 email,
-                                style:
-                                    TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors
-                                      .grey
-                                      .shade600,
+                                  color:
+                                      Colors.grey.shade600,
                                 ),
                               ),
                             ],
@@ -613,16 +576,13 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       _idBox(
                         icon:
                             Icons.storefront,
-                        title:
-                            'Seller ID',
-                        value:
-                            sellerCode,
+                        title: 'Seller ID',
+                        value: sellerCode,
                       ),
-                    if (entrepreneurCode
-                        .isNotEmpty)
+                    if (entrepreneurCode.isNotEmpty)
                       _idBox(
-                        icon: Icons
-                            .business_center,
+                        icon:
+                            Icons.business_center,
                         title:
                             'Entrepreneur ID',
                         value:
@@ -670,10 +630,10 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   }) {
     return Container(
       width: double.infinity,
-      margin:
-          const EdgeInsets.only(bottom: 6),
-      padding:
-          const EdgeInsets.symmetric(
+      margin: const EdgeInsets.only(
+        bottom: 6,
+      ),
+      padding: const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 8,
       ),
@@ -688,7 +648,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             icon,
             size: 19,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(
+            width: 8,
+          ),
           Text(
             '$title: ',
             style: const TextStyle(
@@ -743,8 +705,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
       ),
       backgroundColor: color,
       padding: EdgeInsets.zero,
-      visualDensity:
-          VisualDensity.compact,
+      visualDensity: VisualDensity.compact,
     );
   }
 
@@ -782,8 +743,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -800,28 +760,24 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             final doc = docs[index];
 
             final data =
-                doc.data()
-                    as Map<String, dynamic>;
+                doc.data() as Map<String, dynamic>;
 
             final name =
                 data['name']?.toString() ??
                     'Unnamed User';
 
             final email =
-                data['email']?.toString() ??
-                    '';
+                data['email']?.toString() ?? '';
 
             return Card(
-              margin:
-                  const EdgeInsets.symmetric(
+              margin: const EdgeInsets.symmetric(
                 vertical: 4,
               ),
               child: ListTile(
                 leading:
                     const CircleAvatar(
                   child: Icon(
-                    Icons
-                        .storefront_outlined,
+                    Icons.storefront_outlined,
                   ),
                 ),
                 title: Text(name),
@@ -903,8 +859,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -913,12 +868,13 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons
-                      .business_center_outlined,
+                  Icons.business_center_outlined,
                   size: 55,
                   color: Colors.grey,
                 ),
-                SizedBox(height: 12),
+                SizedBox(
+                  height: 12,
+                ),
                 Text(
                   'No pending entrepreneur requests',
                   style:
@@ -936,33 +892,27 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             final doc = docs[index];
 
             final data =
-                doc.data()
-                    as Map<String, dynamic>;
+                doc.data() as Map<String, dynamic>;
 
             final name =
                 data['name']?.toString() ??
                     'Unnamed User';
 
             final email =
-                data['email']?.toString() ??
-                    '';
+                data['email']?.toString() ?? '';
 
             final phone =
-                data['phone']?.toString() ??
-                    '';
+                data['phone']?.toString() ?? '';
 
             return Card(
-              margin:
-                  const EdgeInsets.symmetric(
+              margin: const EdgeInsets.symmetric(
                 vertical: 5,
               ),
               child: Padding(
-                padding:
-                    const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(8),
                 child: ListTile(
                   contentPadding:
-                      const EdgeInsets
-                          .symmetric(
+                      const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 4,
                   ),
@@ -970,16 +920,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       const CircleAvatar(
                     radius: 27,
                     child: Icon(
-                      Icons
-                          .business_center_outlined,
+                      Icons.business_center_outlined,
                     ),
                   ),
                   title: Text(
                     name,
                     style:
                         const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   subtitle: Padding(
@@ -989,21 +937,18 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     ),
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           email,
                           maxLines: 1,
                           overflow:
-                              TextOverflow
-                                  .ellipsis,
+                              TextOverflow.ellipsis,
                         ),
                         if (phone.isNotEmpty)
                           Padding(
                             padding:
-                                const EdgeInsets
-                                    .only(
+                                const EdgeInsets.only(
                               top: 3,
                             ),
                             child:
@@ -1019,8 +964,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                             color:
                                 Colors.orange,
                             fontWeight:
-                                FontWeight
-                                    .w600,
+                                FontWeight.w600,
                           ),
                         ),
                       ],
@@ -1033,8 +977,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       IconButton(
                         icon: const Icon(
                           Icons.check_circle,
-                          color:
-                              Colors.green,
+                          color: Colors.green,
                         ),
                         tooltip:
                             'Approve Entrepreneur',
@@ -1048,8 +991,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       IconButton(
                         icon: const Icon(
                           Icons.cancel,
-                          color:
-                              Colors.red,
+                          color: Colors.red,
                         ),
                         tooltip:
                             'Reject Entrepreneur',
@@ -1101,8 +1043,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -1115,7 +1056,9 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   size: 55,
                   color: Colors.grey,
                 ),
-                SizedBox(height: 12),
+                SizedBox(
+                  height: 12,
+                ),
                 Text(
                   'No Seller ↔ Entrepreneur relationships yet',
                   textAlign: TextAlign.center,
@@ -1132,27 +1075,22 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             final doc = docs[index];
 
             final data =
-                doc.data()
-                    as Map<String, dynamic>;
+                doc.data() as Map<String, dynamic>;
 
             final sellerCode =
-                data['sellerCode']
-                        ?.toString() ??
+                data['sellerCode']?.toString() ??
                     'Unknown';
 
             final sellerEmail =
-                data['sellerEmail']
-                        ?.toString() ??
+                data['sellerEmail']?.toString() ??
                     'Unknown';
 
             final entrepreneurCode =
-                data['entrepreneurCode']
-                        ?.toString() ??
+                data['entrepreneurCode']?.toString() ??
                     'Unknown';
 
             final entrepreneurEmail =
-                data['entrepreneurEmail']
-                        ?.toString() ??
+                data['entrepreneurEmail']?.toString() ??
                     'Unknown';
 
             final productName =
@@ -1161,44 +1099,36 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
             final supplierPrice =
                 data['supplierPrice'] is num
-                    ? (data['supplierPrice']
-                            as num)
+                    ? (data['supplierPrice'] as num)
                         .toDouble()
                     : 0.0;
 
             final sellingPrice =
                 data['sellingPrice'] is num
-                    ? (data['sellingPrice']
-                            as num)
+                    ? (data['sellingPrice'] as num)
                         .toDouble()
                     : 0.0;
 
             final profit =
                 data['profit'] is num
-                    ? (data['profit'] as num)
-                        .toDouble()
-                    : sellingPrice -
-                        supplierPrice;
+                    ? (data['profit'] as num).toDouble()
+                    : sellingPrice - supplierPrice;
 
             return Card(
-              margin:
-                  const EdgeInsets.symmetric(
+              margin: const EdgeInsets.symmetric(
                 vertical: 5,
               ),
               child: Padding(
-                padding:
-                    const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
+                      CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         const Icon(
                           Icons.link,
-                          color:
-                              Colors.blue,
+                          color: Colors.blue,
                         ),
                         const SizedBox(
                           width: 8,
@@ -1210,8 +1140,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                                 const TextStyle(
                               fontSize: 16,
                               fontWeight:
-                                  FontWeight
-                                      .bold,
+                                  FontWeight.bold,
                             ),
                           ),
                         ),
@@ -1220,8 +1149,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     const Divider(),
                     Row(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         const Icon(
                           Icons.storefront,
@@ -1233,18 +1161,15 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                                CrossAxisAlignment.start,
                             children: [
                               const Text(
                                 'SELLER',
                                 style:
                                     TextStyle(
-                                  fontSize:
-                                      11,
+                                  fontSize: 11,
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                               Text(
@@ -1252,16 +1177,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                                 style:
                                     const TextStyle(
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                               Text(
                                 sellerEmail,
                                 maxLines: 1,
                                 overflow:
-                                    TextOverflow
-                                        .ellipsis,
+                                    TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -1273,8 +1196,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     ),
                     const Center(
                       child: Icon(
-                        Icons
-                            .arrow_downward,
+                        Icons.arrow_downward,
                         size: 25,
                       ),
                     ),
@@ -1283,12 +1205,10 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     ),
                     Row(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         const Icon(
-                          Icons
-                              .business_center,
+                          Icons.business_center,
                           size: 20,
                         ),
                         const SizedBox(
@@ -1297,18 +1217,15 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                                CrossAxisAlignment.start,
                             children: [
                               const Text(
                                 'ENTREPRENEUR / RESELLER',
                                 style:
                                     TextStyle(
-                                  fontSize:
-                                      11,
+                                  fontSize: 11,
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                               Text(
@@ -1316,16 +1233,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                                 style:
                                     const TextStyle(
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                               Text(
                                 entrepreneurEmail,
                                 maxLines: 1,
                                 overflow:
-                                    TextOverflow
-                                        .ellipsis,
+                                    TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -1335,8 +1250,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     const Divider(),
                     Row(
                       mainAxisAlignment:
-                          MainAxisAlignment
-                              .spaceBetween,
+                          MainAxisAlignment.spaceBetween,
                       children: [
                         _priceInfo(
                           'Supplier',
@@ -1400,14 +1314,11 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String name,
     String status,
   ) async {
-    final isApprove =
-        status == 'approved';
+    final isApprove = status == 'approved';
 
-    final result =
-        await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) =>
-          AlertDialog(
+      builder: (context) => AlertDialog(
         title: Text(
           isApprove
               ? 'Approve Entrepreneur'
@@ -1421,32 +1332,19 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         actions: [
           TextButton(
             onPressed: () =>
-                Navigator.pop(
-              context,
-              false,
-            ),
-            child:
-                const Text('Cancel'),
+                Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(
+            style: ElevatedButton.styleFrom(
               backgroundColor:
-                  isApprove
-                      ? Colors.green
-                      : Colors.red,
-              foregroundColor:
-                  Colors.white,
+                  isApprove ? Colors.green : Colors.red,
+              foregroundColor: Colors.white,
             ),
             onPressed: () =>
-                Navigator.pop(
-              context,
-              true,
-            ),
+                Navigator.pop(context, true),
             child: Text(
-              isApprove
-                  ? 'Approve'
-                  : 'Reject',
+              isApprove ? 'Approve' : 'Reject',
             ),
           ),
         ],
@@ -1486,15 +1384,13 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               child: Text(
                 'Error loading orders:\n'
                 '${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
+                textAlign: TextAlign.center,
               ),
             ),
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -1503,12 +1399,13 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons
-                      .shopping_bag_outlined,
+                  Icons.shopping_bag_outlined,
                   size: 60,
                   color: Colors.grey,
                 ),
-                SizedBox(height: 12),
+                SizedBox(
+                  height: 12,
+                ),
                 Text(
                   'No orders yet',
                   style: TextStyle(
@@ -1526,25 +1423,19 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
         sortedDocs.sort((a, b) {
           final aData =
-              a.data()
-                  as Map<String, dynamic>;
+              a.data() as Map<String, dynamic>;
 
           final bData =
-              b.data()
-                  as Map<String, dynamic>;
+              b.data() as Map<String, dynamic>;
 
           final aTime =
-              aData['createdAt']
-                      is Timestamp
-                  ? aData['createdAt']
-                      as Timestamp
+              aData['createdAt'] is Timestamp
+                  ? aData['createdAt'] as Timestamp
                   : Timestamp(0, 0);
 
           final bTime =
-              bData['createdAt']
-                      is Timestamp
-                  ? bData['createdAt']
-                      as Timestamp
+              bData['createdAt'] is Timestamp
+                  ? bData['createdAt'] as Timestamp
                   : Timestamp(0, 0);
 
           return bTime.compareTo(aTime);
@@ -1552,16 +1443,12 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
         return ListView.builder(
           padding: const EdgeInsets.all(8),
-          itemCount:
-              sortedDocs.length,
-          itemBuilder:
-              (context, index) {
-            final doc =
-                sortedDocs[index];
+          itemCount: sortedDocs.length,
+          itemBuilder: (context, index) {
+            final doc = sortedDocs[index];
 
             final data =
-                doc.data()
-                    as Map<String, dynamic>;
+                doc.data() as Map<String, dynamic>;
 
             return _orderCard(
               doc.id,
@@ -1593,56 +1480,42 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
     final total =
         data['total'] is num
-            ? (data['total'] as num)
-                .toDouble()
+            ? (data['total'] as num).toDouble()
             : 0.0;
 
     final subtotal =
         data['subtotal'] is num
-            ? (data['subtotal'] as num)
-                .toDouble()
+            ? (data['subtotal'] as num).toDouble()
             : 0.0;
 
     final deliveryFee =
         data['deliveryFee'] is num
-            ? (data['deliveryFee'] as num)
-                .toDouble()
+            ? (data['deliveryFee'] as num).toDouble()
             : 0.0;
 
     final paymentMethod =
-        data['paymentMethod']
-                ?.toString() ??
+        data['paymentMethod']?.toString() ??
             'Unknown';
 
     final paymentStatus =
-        data['paymentStatus']
-                ?.toString() ??
+        data['paymentStatus']?.toString() ??
             'pending';
 
     final orderStatus =
-        data['orderStatus']
-                ?.toString() ??
+        data['orderStatus']?.toString() ??
             'placed';
 
     final createdAt =
         data['createdAt'] is Timestamp
-            ? data['createdAt']
-                as Timestamp
+            ? data['createdAt'] as Timestamp
             : null;
 
     final dateText =
         createdAt != null
-            ? _formatDate(
-                createdAt.toDate(),
-              )
+            ? _formatDate(createdAt.toDate())
             : 'Waiting...';
 
-    // ---------------------------------------------------------
-    // NEW MULTI-PRODUCT ORDER
-    // ---------------------------------------------------------
-
-    final List<Map<String, dynamic>>
-        orderItems = [];
+    final List<Map<String, dynamic>> orderItems = [];
 
     final rawItems = data['items'];
 
@@ -1650,32 +1523,21 @@ class _AdminPanelPageState extends State<AdminPanelPage>
       for (final item in rawItems) {
         if (item is Map) {
           orderItems.add(
-            Map<String, dynamic>.from(
-              item,
-            ),
+            Map<String, dynamic>.from(item),
           );
         }
       }
     }
 
-    // ---------------------------------------------------------
-    // OLD SINGLE-PRODUCT ORDER SUPPORT
-    // ---------------------------------------------------------
-
     if (orderItems.isEmpty &&
         data['productName'] != null) {
       orderItems.add({
-        'productId':
-            data['productId'] ?? '',
+        'productId': data['productId'] ?? '',
         'productName':
-            data['productName'] ??
-                'Product',
-        'imageUrl':
-            data['imageUrl'] ?? '',
-        'price':
-            data['productPrice'] ?? 0,
-        'quantity':
-            data['quantity'] ?? 1,
+            data['productName'] ?? 'Product',
+        'imageUrl': data['imageUrl'] ?? '',
+        'price': data['productPrice'] ?? 0,
+        'quantity': data['quantity'] ?? 1,
         'total':
             data['subtotal'] ??
                 data['total'] ??
@@ -1685,26 +1547,21 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
     final itemCount =
         data['itemCount'] is num
-            ? (data['itemCount'] as num)
-                .toInt()
+            ? (data['itemCount'] as num).toInt()
             : orderItems.length;
 
     final totalQuantity =
         data['totalQuantity'] is num
-            ? (data['totalQuantity'] as num)
-                .toInt()
+            ? (data['totalQuantity'] as num).toInt()
             : orderItems.fold<int>(
                 0,
                 (sum, item) =>
                     sum +
-                    _toInt(
-                      item['quantity'],
-                    ),
+                    _toInt(item['quantity']),
               );
 
     return Card(
-      margin:
-          const EdgeInsets.symmetric(
+      margin: const EdgeInsets.symmetric(
         vertical: 6,
       ),
       elevation: 2,
@@ -1713,16 +1570,12 @@ class _AdminPanelPageState extends State<AdminPanelPage>
             BorderRadius.circular(16),
       ),
       child: Padding(
-        padding:
-            const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            // =================================================
             // ORDER HEADER
-            // =================================================
-
             Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
@@ -1746,10 +1599,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                       ),
                       Text(
                         orderId.length > 10
-                            ? orderId.substring(
-                                0,
-                                10,
-                              )
+                            ? orderId.substring(0, 10)
                             : orderId,
                         style:
                             const TextStyle(
@@ -1769,10 +1619,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
             const Divider(height: 22),
 
-            // =================================================
             // CUSTOMER
-            // =================================================
-
             Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
@@ -1787,8 +1634,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                        CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'CUSTOMER',
@@ -1822,17 +1668,13 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 10,
             ),
 
-            // =================================================
             // ADDRESS
-            // =================================================
-
             Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
                 const Icon(
-                  Icons
-                      .location_on_outlined,
+                  Icons.location_on_outlined,
                   size: 21,
                 ),
                 const SizedBox(
@@ -1841,8 +1683,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                        CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'DELIVERY ADDRESS',
@@ -1871,10 +1712,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 14,
             ),
 
-            // =================================================
             // ITEM COUNT
-            // =================================================
-
             Container(
               width: double.infinity,
               padding:
@@ -1883,9 +1721,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                 color:
                     Colors.blue.shade50,
                 borderRadius:
-                    BorderRadius.circular(
-                  10,
-                ),
+                    BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
@@ -1909,10 +1745,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ),
             ),
 
-            // =================================================
             // ALL ORDER ITEMS
-            // =================================================
-
             const SizedBox(
               height: 4,
             ),
@@ -1925,10 +1758,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 12,
             ),
 
-            // =================================================
             // PRICE SUMMARY
-            // =================================================
-
             Container(
               width: double.infinity,
               padding:
@@ -1937,9 +1767,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                 color:
                     Colors.grey.shade100,
                 borderRadius:
-                    BorderRadius.circular(
-                  10,
-                ),
+                    BorderRadius.circular(10),
               ),
               child: Column(
                 children: [
@@ -1967,8 +1795,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         style:
                             TextStyle(
                           fontWeight:
-                              FontWeight
-                                  .bold,
+                              FontWeight.bold,
                           fontSize: 16,
                         ),
                       ),
@@ -1977,8 +1804,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         style:
                             const TextStyle(
                           fontWeight:
-                              FontWeight
-                                  .bold,
+                              FontWeight.bold,
                           fontSize: 18,
                         ),
                       ),
@@ -1992,15 +1818,11 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 10,
             ),
 
-            // =================================================
             // PAYMENT
-            // =================================================
-
             Row(
               children: [
                 const Icon(
-                  Icons
-                      .payments_outlined,
+                  Icons.payments_outlined,
                   size: 20,
                   color: Colors.grey,
                 ),
@@ -2041,8 +1863,8 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   dateText,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors
-                        .grey.shade600,
+                    color:
+                        Colors.grey.shade600,
                   ),
                 ),
               ],
@@ -2052,17 +1874,13 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 12,
             ),
 
-            // =================================================
             // CHANGE ORDER STATUS
-            // =================================================
-
             SizedBox(
               width: double.infinity,
               child:
                   OutlinedButton.icon(
                 icon: const Icon(
-                  Icons
-                      .local_shipping_outlined,
+                  Icons.local_shipping_outlined,
                 ),
                 label: const Text(
                   'Change Order Status',
@@ -2079,10 +1897,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 5,
             ),
 
-            // =================================================
             // CHANGE PAYMENT STATUS
-            // =================================================
-
             SizedBox(
               width: double.infinity,
               child:
@@ -2114,14 +1929,11 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     Map<String, dynamic> item,
   ) {
     final name =
-        item['productName']
-                ?.toString() ??
+        item['productName']?.toString() ??
             'Product';
 
     final imageUrl =
-        item['imageUrl']
-                ?.toString() ??
-            '';
+        item['imageUrl']?.toString() ?? '';
 
     final price =
         _toDouble(item['price']);
@@ -2156,18 +1968,12 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               color:
                   Colors.grey.shade100,
               borderRadius:
-                  BorderRadius.circular(
-                10,
-              ),
+                  BorderRadius.circular(10),
             ),
-            child: imageUrl
-                    .trim()
-                    .isNotEmpty
+            child: imageUrl.trim().isNotEmpty
                 ? ClipRRect(
                     borderRadius:
-                        BorderRadius.circular(
-                      10,
-                    ),
+                        BorderRadius.circular(10),
                     child: Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
@@ -2180,17 +1986,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                         return const Icon(
                           Icons
                               .image_not_supported_outlined,
-                          color:
-                              Colors.grey,
+                          color: Colors.grey,
                         );
                       },
                     ),
                   )
                 : const Icon(
-                    Icons
-                        .shopping_bag_outlined,
-                    color:
-                        Colors.grey,
+                    Icons.shopping_bag_outlined,
+                    color: Colors.grey,
                   ),
           ),
 
@@ -2215,16 +2018,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                     fontSize: 14,
                   ),
                 ),
-
                 const SizedBox(
                   height: 4,
                 ),
-
                 Text(
                   '₩${price.toStringAsFixed(0)} × $quantity',
                   style: TextStyle(
-                    color: Colors
-                        .grey.shade700,
+                    color:
+                        Colors.grey.shade700,
                     fontSize: 12,
                   ),
                 ),
@@ -2260,8 +2061,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
   ) {
     return Row(
       mainAxisAlignment:
-          MainAxisAlignment
-              .spaceBetween,
+          MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
@@ -2405,8 +2205,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String orderId,
     String currentStatus,
   ) async {
-    String selectedStatus =
-        currentStatus;
+    String selectedStatus = currentStatus;
 
     final result =
         await showDialog<String>(
@@ -2423,8 +2222,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                 'Change Order Status',
               ),
               content:
-                  DropdownButtonFormField<
-                      String>(
+                  DropdownButtonFormField<String>(
                 initialValue:
                     selectedStatus,
                 decoration:
@@ -2437,39 +2235,33 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                 items: const [
                   DropdownMenuItem(
                     value: 'placed',
-                    child: Text(
-                      'Order Placed',
-                    ),
+                    child:
+                        Text('Order Placed'),
                   ),
                   DropdownMenuItem(
                     value: 'confirmed',
-                    child: Text(
-                      'Confirmed',
-                    ),
+                    child:
+                        Text('Confirmed'),
                   ),
                   DropdownMenuItem(
                     value: 'processing',
-                    child: Text(
-                      'Processing',
-                    ),
+                    child:
+                        Text('Processing'),
                   ),
                   DropdownMenuItem(
                     value: 'shipped',
-                    child: Text(
-                      'Shipped',
-                    ),
+                    child:
+                        Text('Shipped'),
                   ),
                   DropdownMenuItem(
                     value: 'delivered',
-                    child: Text(
-                      'Delivered',
-                    ),
+                    child:
+                        Text('Delivered'),
                   ),
                   DropdownMenuItem(
                     value: 'cancelled',
-                    child: Text(
-                      'Cancelled',
-                    ),
+                    child:
+                        Text('Cancelled'),
                   ),
                 ],
                 onChanged: (value) {
@@ -2478,17 +2270,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   }
 
                   setDialogState(() {
-                    selectedStatus =
-                        value;
+                    selectedStatus = value;
                   });
                 },
               ),
               actions: [
                 TextButton(
                   onPressed: () =>
-                      Navigator.pop(
-                    context,
-                  ),
+                      Navigator.pop(context),
                   child:
                       const Text('Cancel'),
                 ),
@@ -2556,8 +2345,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     String orderId,
     String currentStatus,
   ) async {
-    String selectedStatus =
-        currentStatus;
+    String selectedStatus = currentStatus;
 
     final result =
         await showDialog<String>(
@@ -2574,8 +2362,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                 'Change Payment Status',
               ),
               content:
-                  DropdownButtonFormField<
-                      String>(
+                  DropdownButtonFormField<String>(
                 initialValue:
                     selectedStatus,
                 decoration:
@@ -2613,17 +2400,14 @@ class _AdminPanelPageState extends State<AdminPanelPage>
                   }
 
                   setDialogState(() {
-                    selectedStatus =
-                        value;
+                    selectedStatus = value;
                   });
                 },
               ),
               actions: [
                 TextButton(
                   onPressed: () =>
-                      Navigator.pop(
-                    context,
-                  ),
+                      Navigator.pop(context),
                   child:
                       const Text('Cancel'),
                 ),
@@ -2717,31 +2501,19 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     DateTime date,
   ) {
     final day =
-        date.day.toString().padLeft(
-              2,
-              '0',
-            );
+        date.day.toString().padLeft(2, '0');
 
     final month =
-        date.month.toString().padLeft(
-              2,
-              '0',
-            );
+        date.month.toString().padLeft(2, '0');
 
     final year =
         date.year.toString();
 
     final hour =
-        date.hour.toString().padLeft(
-              2,
-              '0',
-            );
+        date.hour.toString().padLeft(2, '0');
 
     final minute =
-        date.minute.toString().padLeft(
-              2,
-              '0',
-            );
+        date.minute.toString().padLeft(2, '0');
 
     return '$day/$month/$year $hour:$minute';
   }
