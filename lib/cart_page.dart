@@ -12,15 +12,56 @@ class CartItem {
   final String? imageUrl;
   int quantity;
 
+  // =========================================================
+  // RESELLER / ENTREPRENEUR DATA
+  // =========================================================
+
+  final bool isResellerProduct;
+  final String? entrepreneurUid;
+  final String? sellerId;
+  final String? supplierProductId;
+  final double? supplierPrice;
+  final double? resellerProfit;
+
   CartItem({
     required this.id,
     required this.name,
     required this.price,
     this.imageUrl,
     this.quantity = 1,
+
+    this.isResellerProduct = false,
+    this.entrepreneurUid,
+    this.sellerId,
+    this.supplierProductId,
+    this.supplierPrice,
+    this.resellerProfit,
   });
 
   double get total => price * quantity;
+
+  // =========================================================
+  // SUPPLIER TOTAL
+  // =========================================================
+
+  double get supplierTotal =>
+      (supplierPrice ?? 0) * quantity;
+
+  // =========================================================
+  // PROFIT TOTAL
+  // =========================================================
+
+  double get profitTotal {
+    if (resellerProfit != null) {
+      return resellerProfit! * quantity;
+    }
+
+    if (supplierPrice != null) {
+      return (price - supplierPrice!) * quantity;
+    }
+
+    return 0;
+  }
 }
 
 // =============================================================
@@ -28,6 +69,7 @@ class CartItem {
 // =============================================================
 
 class CartService {
+  // BuyNova Bangladesh currency
   static const double deliveryFeeAmount = 3000;
 
   static CollectionReference<Map<String, dynamic>>
@@ -47,29 +89,64 @@ class CartService {
     required String name,
     required double price,
     String? imageUrl,
+
+    // =========================================================
+    // OPTIONAL RESELLER DATA
+    // =========================================================
+
+    bool isResellerProduct = false,
+    String? entrepreneurUid,
+    String? sellerId,
+    String? supplierProductId,
+    double? supplierPrice,
+    double? resellerProfit,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      throw Exception('User is not logged in.');
+      throw Exception(
+        'User is not logged in.',
+      );
     }
 
-    final cartRef = _cartReference(user.uid);
-    final itemRef = cartRef.doc(id);
+    final cartRef =
+        _cartReference(user.uid);
 
-    final existing = await itemRef.get();
+    final itemRef =
+        cartRef.doc(id);
+
+    final existing =
+        await itemRef.get();
 
     if (existing.exists) {
-      final data = existing.data() ?? {};
+      final data =
+          existing.data() ?? {};
 
       final oldQuantity =
-          (data['quantity'] as num?)?.toInt() ?? 1;
+          (data['quantity'] as num?)
+                  ?.toInt() ??
+              1;
 
       await itemRef.update({
         'name': name,
         'price': price,
         'imageUrl': imageUrl ?? '',
         'quantity': oldQuantity + 1,
+
+        // Keep/update reseller information
+        'isResellerProduct':
+            isResellerProduct,
+        'entrepreneurUid':
+            entrepreneurUid ?? '',
+        'sellerId':
+            sellerId ?? '',
+        'supplierProductId':
+            supplierProductId ?? id,
+        'supplierPrice':
+            supplierPrice,
+        'resellerProfit':
+            resellerProfit,
       });
     } else {
       await itemRef.set({
@@ -78,7 +155,25 @@ class CartService {
         'price': price,
         'imageUrl': imageUrl ?? '',
         'quantity': 1,
-        'addedAt': FieldValue.serverTimestamp(),
+        'addedAt':
+            FieldValue.serverTimestamp(),
+
+        // =====================================================
+        // RESELLER INFORMATION
+        // =====================================================
+
+        'isResellerProduct':
+            isResellerProduct,
+        'entrepreneurUid':
+            entrepreneurUid ?? '',
+        'sellerId':
+            sellerId ?? '',
+        'supplierProductId':
+            supplierProductId ?? id,
+        'supplierPrice':
+            supplierPrice,
+        'resellerProfit':
+            resellerProfit,
       });
     }
   }
@@ -87,11 +182,16 @@ class CartService {
   // REMOVE ITEM
   // ===========================================================
 
-  static Future<void> removeItem(String id) async {
-    final user = FirebaseAuth.instance.currentUser;
+  static Future<void> removeItem(
+    String id,
+  ) async {
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      throw Exception('User is not logged in.');
+      throw Exception(
+        'User is not logged in.',
+      );
     }
 
     await _cartReference(user.uid)
@@ -107,14 +207,18 @@ class CartService {
     String id,
     int quantity,
   ) async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      throw Exception('User is not logged in.');
+      throw Exception(
+        'User is not logged in.',
+      );
     }
 
     final itemRef =
-        _cartReference(user.uid).doc(id);
+        _cartReference(user.uid)
+            .doc(id);
 
     if (quantity <= 0) {
       await itemRef.delete();
@@ -131,16 +235,22 @@ class CartService {
   // ===========================================================
 
   static Future<void> clearCart() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      throw Exception('User is not logged in.');
+      throw Exception(
+        'User is not logged in.',
+      );
     }
 
     final snapshot =
-        await _cartReference(user.uid).get();
+        await _cartReference(user.uid)
+            .get();
 
-    if (snapshot.docs.isEmpty) return;
+    if (snapshot.docs.isEmpty) {
+      return;
+    }
 
     final batch =
         FirebaseFirestore.instance.batch();
@@ -158,13 +268,17 @@ class CartService {
 // =============================================================
 
 class CartPage extends StatefulWidget {
-  const CartPage({super.key});
+  const CartPage({
+    super.key,
+  });
 
   @override
-  State<CartPage> createState() => _CartPageState();
+  State<CartPage> createState() =>
+      _CartPageState();
 }
 
-class _CartPageState extends State<CartPage> {
+class _CartPageState
+    extends State<CartPage> {
   // ===========================================================
   // CHANGE QUANTITY
   // ===========================================================
@@ -195,9 +309,13 @@ class _CartPageState extends State<CartPage> {
   // REMOVE
   // ===========================================================
 
-  Future<void> _removeItem(String id) async {
+  Future<void> _removeItem(
+    String id,
+  ) async {
     try {
-      await CartService.removeItem(id);
+      await CartService.removeItem(
+        id,
+      );
 
       if (!mounted) return;
 
@@ -242,23 +360,56 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
+    // =========================================================
+    // CONVERT CART ITEMS TO CHECKOUT ITEMS
+    // =========================================================
+
     final checkoutItems =
         cartItems.map((item) {
       return CheckoutItem(
-        productId: item.id,
-        productName: item.name,
-        price: item.price,
-        imageUrl: item.imageUrl,
-        quantity: item.quantity,
+        productId:
+            item.id,
+        productName:
+            item.name,
+        price:
+            item.price,
+        imageUrl:
+            item.imageUrl,
+        quantity:
+            item.quantity,
+
+        // =====================================================
+        // RESELLER DATA
+        // =====================================================
+
+        isResellerProduct:
+            item.isResellerProduct,
+
+        entrepreneurUid:
+            item.entrepreneurUid,
+
+        sellerId:
+            item.sellerId,
+
+        supplierProductId:
+            item.supplierProductId,
+
+        supplierPrice:
+            item.supplierPrice,
+
+        resellerProfit:
+            item.resellerProfit,
       );
     }).toList();
 
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CheckoutPage(
+        builder: (context) =>
+            CheckoutPage(
           items: checkoutItems,
-          clearCartOnSuccess: true,
+          clearCartOnSuccess:
+              true,
         ),
       ),
     );
@@ -268,12 +419,16 @@ class _CartPageState extends State<CartPage> {
   // MESSAGE
   // ===========================================================
 
-  void _showMessage(String message) {
+  void _showMessage(
+    String message,
+  ) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
-        content: Text(message),
+        content:
+            Text(message),
         behavior:
             SnackBarBehavior.floating,
       ),
@@ -292,8 +447,10 @@ class _CartPageState extends State<CartPage> {
       return Container(
         width: 90,
         height: 90,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
+        decoration:
+            BoxDecoration(
+          color:
+              Colors.grey.shade200,
           borderRadius:
               BorderRadius.circular(12),
         ),
@@ -314,12 +471,18 @@ class _CartPageState extends State<CartPage> {
         height: 90,
         fit: BoxFit.cover,
         errorBuilder:
-            (context, error, stackTrace) {
+            (
+          context,
+          error,
+          stackTrace,
+        ) {
           return Container(
             width: 90,
             height: 90,
-            color: Colors.grey.shade200,
-            child: const Icon(
+            color:
+                Colors.grey.shade200,
+            child:
+                const Icon(
               Icons.image_outlined,
               size: 40,
               color: Colors.grey,
@@ -339,7 +502,9 @@ class _CartPageState extends State<CartPage> {
   ) {
     return Card(
       margin:
-          const EdgeInsets.only(bottom: 12),
+          const EdgeInsets.only(
+        bottom: 12,
+      ),
       elevation: 1,
       shape:
           RoundedRectangleBorder(
@@ -357,30 +522,92 @@ class _CartPageState extends State<CartPage> {
               item.imageUrl,
             ),
 
-            const SizedBox(width: 12),
+            const SizedBox(
+              width: 12,
+            ),
 
             Expanded(
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item.name,
-                    maxLines: 2,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                  // =================================================
+                  // PRODUCT NAME + RESELLER LABEL
+                  // =================================================
+
+                  Row(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          maxLines: 2,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style:
+                              const TextStyle(
+                            fontSize: 16,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                      if (item
+                          .isResellerProduct)
+                        Container(
+                          margin:
+                              const EdgeInsets.only(
+                            left: 6,
+                          ),
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal: 7,
+                            vertical: 4,
+                          ),
+                          decoration:
+                              BoxDecoration(
+                            color: Colors
+                                .blue
+                                .withValues(
+                              alpha: 0.08,
+                            ),
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              20,
+                            ),
+                          ),
+                          child:
+                              const Text(
+                            'Reseller',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.blue,
+                              fontSize:
+                                  10,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(
+                    height: 6,
+                  ),
+
+                  // =================================================
+                  // PRICE
+                  // =================================================
 
                   Text(
-                    '₩${item.price.toStringAsFixed(0)}',
+                    '৳${item.price.toStringAsFixed(0)}',
                     style:
                         const TextStyle(
                       color:
@@ -391,14 +618,21 @@ class _CartPageState extends State<CartPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(
+                    height: 8,
+                  ),
+
+                  // =================================================
+                  // QUANTITY
+                  // =================================================
 
                   Row(
                     children: [
                       Container(
                         decoration:
                             BoxDecoration(
-                          border: Border.all(
+                          border:
+                              Border.all(
                             color: Colors
                                 .grey
                                 .shade300,
@@ -450,8 +684,9 @@ class _CartPageState extends State<CartPage> {
                             ),
 
                             IconButton(
-                              onPressed: () =>
-                                  _changeQuantity(
+                              onPressed:
+                                  () =>
+                                      _changeQuantity(
                                 item.id,
                                 item.quantity,
                                 1,
@@ -472,13 +707,15 @@ class _CartPageState extends State<CartPage> {
                       const Spacer(),
 
                       IconButton(
-                        onPressed: () =>
-                            _removeItem(
+                        onPressed:
+                            () =>
+                                _removeItem(
                           item.id,
                         ),
                         icon:
                             const Icon(
-                          Icons.delete_outline,
+                          Icons
+                              .delete_outline,
                           color:
                               Colors.redAccent,
                         ),
@@ -486,16 +723,48 @@ class _CartPageState extends State<CartPage> {
                     ],
                   ),
 
-                  const SizedBox(height: 5),
+                  const SizedBox(
+                    height: 5,
+                  ),
+
+                  // =================================================
+                  // ITEM TOTAL
+                  // =================================================
 
                   Text(
-                    'Item Total: ₩${item.total.toStringAsFixed(0)}',
+                    'Item Total: ৳${item.total.toStringAsFixed(0)}',
                     style:
                         const TextStyle(
                       fontWeight:
                           FontWeight.w600,
                     ),
                   ),
+
+                  // =================================================
+                  // RESELLER PROFIT
+                  // =================================================
+
+                  if (item
+                      .isResellerProduct)
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(
+                        top: 4,
+                      ),
+                      child: Text(
+                        'Estimated Profit: '
+                        '৳${item.profitTotal.toStringAsFixed(0)}',
+                        style:
+                            const TextStyle(
+                          color:
+                              Colors.green,
+                          fontSize:
+                              13,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -540,7 +809,9 @@ class _CartPageState extends State<CartPage> {
               ],
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(
+              height: 8,
+            ),
 
             Row(
               children: [
@@ -550,12 +821,14 @@ class _CartPageState extends State<CartPage> {
                   ),
                 ),
                 Text(
-                  '₩${subtotal.toStringAsFixed(0)}',
+                  '৳${subtotal.toStringAsFixed(0)}',
                 ),
               ],
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(
+              height: 8,
+            ),
 
             Row(
               children: [
@@ -565,7 +838,7 @@ class _CartPageState extends State<CartPage> {
                   ),
                 ),
                 Text(
-                  '₩${deliveryFee.toStringAsFixed(0)}',
+                  '৳${deliveryFee.toStringAsFixed(0)}',
                 ),
               ],
             ),
@@ -588,7 +861,7 @@ class _CartPageState extends State<CartPage> {
                   ),
                 ),
                 Text(
-                  '₩${total.toStringAsFixed(0)}',
+                  '৳${total.toStringAsFixed(0)}',
                   style:
                       const TextStyle(
                     fontSize: 20,
@@ -611,7 +884,9 @@ class _CartPageState extends State<CartPage> {
   // ===========================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final user =
         FirebaseAuth.instance.currentUser;
 
@@ -637,13 +912,16 @@ class _CartPageState extends State<CartPage> {
         body: Center(
           child: Padding(
             padding:
-                const EdgeInsets.all(24),
+                const EdgeInsets.all(
+              24,
+            ),
             child: Column(
               mainAxisAlignment:
                   MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.shopping_cart_outlined,
+                  Icons
+                      .shopping_cart_outlined,
                   size: 80,
                   color:
                       Colors.grey.shade400,
@@ -721,15 +999,22 @@ class _CartPageState extends State<CartPage> {
       body: StreamBuilder<
           QuerySnapshot<
               Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('cart')
-            .snapshots(),
+        stream:
+            FirebaseFirestore
+                .instance
+                .collection(
+                  'users',
+                )
+                .doc(user.uid)
+                .collection(
+                  'cart',
+                )
+                .snapshots(),
 
         builder:
             (context, snapshot) {
-          if (snapshot.connectionState ==
+          if (snapshot
+                  .connectionState ==
               ConnectionState.waiting) {
             return const Center(
               child:
@@ -741,7 +1026,8 @@ class _CartPageState extends State<CartPage> {
             return Center(
               child: Padding(
                 padding:
-                    const EdgeInsets.all(
+                    const EdgeInsets
+                        .all(
                   20,
                 ),
                 child: Text(
@@ -769,12 +1055,20 @@ class _CartPageState extends State<CartPage> {
             final data =
                 doc.data();
 
+            // =================================================
+            // NAME
+            // =================================================
+
             final name =
                 data['name']
                         ?.toString() ??
                     data['productName']
                         ?.toString() ??
                     'Unnamed Product';
+
+            // =================================================
+            // PRICE
+            // =================================================
 
             final priceValue =
                 data['price'] ??
@@ -783,13 +1077,16 @@ class _CartPageState extends State<CartPage> {
 
             final double price =
                 priceValue is num
-                    ? priceValue
-                        .toDouble()
+                    ? priceValue.toDouble()
                     : double.tryParse(
                           priceValue
                               .toString(),
                         ) ??
                         0;
+
+            // =================================================
+            // QUANTITY
+            // =================================================
 
             final quantity =
                 (data['quantity']
@@ -797,9 +1094,46 @@ class _CartPageState extends State<CartPage> {
                         ?.toInt() ??
                     1;
 
+            // =================================================
+            // IMAGE
+            // =================================================
+
             final image =
                 data['imageUrl']
                     ?.toString();
+
+            // =================================================
+            // RESELLER DATA
+            // =================================================
+
+            final isResellerProduct =
+                data['isResellerProduct'] ==
+                    true;
+
+            final entrepreneurUid =
+                _nullableString(
+              data['entrepreneurUid'],
+            );
+
+            final sellerId =
+                _nullableString(
+              data['sellerId'],
+            );
+
+            final supplierProductId =
+                _nullableString(
+              data['supplierProductId'],
+            );
+
+            final supplierPrice =
+                _nullableDouble(
+              data['supplierPrice'],
+            );
+
+            final resellerProfit =
+                _nullableDouble(
+              data['resellerProfit'],
+            );
 
             cartItems.add(
               CartItem(
@@ -815,16 +1149,45 @@ class _CartPageState extends State<CartPage> {
                     quantity < 1
                         ? 1
                         : quantity,
+
+                // =================================================
+                // RESTORE RESELLER DATA
+                // =================================================
+
+                isResellerProduct:
+                    isResellerProduct,
+
+                entrepreneurUid:
+                    entrepreneurUid,
+
+                sellerId:
+                    sellerId,
+
+                supplierProductId:
+                    supplierProductId,
+
+                supplierPrice:
+                    supplierPrice,
+
+                resellerProfit:
+                    resellerProfit,
               ),
             );
           }
 
+          // =================================================
+          // CALCULATE TOTALS
+          // =================================================
+
           double subtotal = 0;
+
           int totalQuantity = 0;
 
           for (final item
               in cartItems) {
-            subtotal += item.total;
+            subtotal +=
+                item.total;
+
             totalQuantity +=
                 item.quantity;
           }
@@ -834,7 +1197,12 @@ class _CartPageState extends State<CartPage> {
                   .deliveryFeeAmount;
 
           final total =
-              subtotal + deliveryFee;
+              subtotal +
+                  deliveryFee;
+
+          // =================================================
+          // PAGE
+          // =================================================
 
           return Column(
             children: [
@@ -886,21 +1254,32 @@ class _CartPageState extends State<CartPage> {
                 ),
               ),
 
+              // =================================================
+              // CHECKOUT BUTTON
+              // =================================================
+
               SafeArea(
                 child: Container(
                   padding:
                       const EdgeInsets
-                          .all(12),
+                          .all(
+                    12,
+                  ),
                   decoration:
                       const BoxDecoration(
-                    color: Colors.white,
+                    color:
+                        Colors.white,
                     boxShadow: [
                       BoxShadow(
                         color:
                             Colors.black12,
-                        blurRadius: 8,
+                        blurRadius:
+                            8,
                         offset:
-                            Offset(0, -2),
+                            Offset(
+                          0,
+                          -2,
+                        ),
                       ),
                     ],
                   ),
@@ -910,8 +1289,9 @@ class _CartPageState extends State<CartPage> {
                     height: 54,
                     child:
                         ElevatedButton(
-                      onPressed: () =>
-                          _checkout(
+                      onPressed:
+                          () =>
+                              _checkout(
                         cartItems,
                       ),
                       style:
@@ -932,7 +1312,7 @@ class _CartPageState extends State<CartPage> {
                         ),
                       ),
                       child: Text(
-                        'Checkout • ₩${total.toStringAsFixed(0)}',
+                        'Checkout • ৳${total.toStringAsFixed(0)}',
                         style:
                             const TextStyle(
                           fontSize: 16,
@@ -953,6 +1333,46 @@ class _CartPageState extends State<CartPage> {
   }
 
   // ===========================================================
+  // NULLABLE STRING
+  // ===========================================================
+
+  String? _nullableString(
+    dynamic value,
+  ) {
+    final text =
+        value?.toString().trim() ?? '';
+
+    if (text.isEmpty) {
+      return null;
+    }
+
+    return text;
+  }
+
+  // ===========================================================
+  // NULLABLE DOUBLE
+  // ===========================================================
+
+  double? _nullableDouble(
+    dynamic value,
+  ) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    final parsed =
+        double.tryParse(
+      value.toString(),
+    );
+
+    return parsed;
+  }
+
+  // ===========================================================
   // EMPTY CART
   // ===========================================================
 
@@ -960,7 +1380,9 @@ class _CartPageState extends State<CartPage> {
     return Center(
       child: Padding(
         padding:
-            const EdgeInsets.all(24),
+            const EdgeInsets.all(
+          24,
+        ),
         child: Column(
           mainAxisAlignment:
               MainAxisAlignment.center,
