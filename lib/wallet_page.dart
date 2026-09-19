@@ -15,17 +15,11 @@ class _WalletPageState extends State<WalletPage> {
 
   bool _isLoading = true;
 
-  // =========================================================
-  // REWARDS
-  // =========================================================
-
+  // Rewards
   int _pointsBalance = 0;
   int _lifetimePoints = 0;
 
-  // =========================================================
-  // REAL MONEY - BANGLADESH BDT
-  // =========================================================
-
+  // Real money - Bangladesh BDT
   double _cashBalance = 0;
 
   @override
@@ -269,30 +263,64 @@ class _WalletPageState extends State<WalletPage> {
     }
   }
 
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'pending':
+        return Icons.hourglass_top_rounded;
+
+      case 'approved':
+        return Icons.check_circle_rounded;
+
+      case 'rejected':
+        return Icons.cancel_rounded;
+
+      case 'completed':
+        return Icons.verified_rounded;
+
+      case 'cancelled':
+        return Icons.block_rounded;
+
+      default:
+        return Icons.info_rounded;
+    }
+  }
+
+  String _statusMessage(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Your request is waiting for admin approval.';
+
+      case 'approved':
+        return 'Your deposit has been approved and added to your wallet.';
+
+      case 'rejected':
+        return 'This transaction was rejected by admin.';
+
+      case 'completed':
+        return 'This transaction has been completed successfully.';
+
+      case 'cancelled':
+        return 'This transaction has been cancelled.';
+
+      default:
+        return 'Transaction status: $status';
+    }
+  }
+
   // =========================================================
   // DATE
   // =========================================================
 
-  String _formatDate(
-    dynamic timestamp,
-  ) {
+  String _formatDate(dynamic timestamp) {
     if (timestamp is Timestamp) {
       final date = timestamp.toDate();
 
-      final day =
-          date.day.toString().padLeft(2, '0');
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year.toString();
 
-      final month =
-          date.month.toString().padLeft(2, '0');
-
-      final year =
-          date.year.toString();
-
-      final hour =
-          date.hour.toString().padLeft(2, '0');
-
-      final minute =
-          date.minute.toString().padLeft(2, '0');
+      final hour = date.hour.toString().padLeft(2, '0');
+      final minute = date.minute.toString().padLeft(2, '0');
 
       return '$day/$month/$year • $hour:$minute';
     }
@@ -301,7 +329,128 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   // =========================================================
-  // ADD MONEY DIALOG
+  // PAYMENT METHOD NAME
+  // =========================================================
+
+  String _paymentMethodText(dynamic value) {
+    final method = value?.toString() ?? '';
+
+    switch (method) {
+      case 'bkash':
+        return 'bKash';
+
+      case 'nagad':
+        return 'Nagad';
+
+      case 'rocket':
+        return 'Rocket';
+
+      case 'bank':
+        return 'Bank Transfer';
+
+      case 'card':
+        return 'Card';
+
+      case 'not_selected':
+      case '':
+        return 'Not selected';
+
+      default:
+        return method;
+    }
+  }
+
+  // =========================================================
+  // PAYMENT METHOD OPTION
+  // =========================================================
+
+  Widget _paymentMethodOption({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required String value,
+    required String groupValue,
+    required ValueChanged<String> onChanged,
+  }) {
+    final isSelected = value == groupValue;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        onChanged(value);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context)
+                    .colorScheme
+                    .outline
+                    .withValues(alpha: 0.35),
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          color: isSelected
+              ? Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.06)
+              : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 28,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.60),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Radio<String>(
+              value: value,
+              groupValue: groupValue,
+              onChanged: (newValue) {
+                if (newValue != null) {
+                  onChanged(newValue);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // ADD MONEY
   // =========================================================
 
   Future<void> _showAddMoneyDialog() async {
@@ -311,82 +460,208 @@ class _WalletPageState extends State<WalletPage> {
 
     final controller = TextEditingController();
 
+    String selectedPaymentMethod = 'bkash';
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Add Money',
-          ),
-          content: TextField(
-            controller: controller,
-            keyboardType:
-                const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
-            decoration:
-                const InputDecoration(
-              labelText: 'Amount',
-              hintText: 'Example: 1000',
-              prefixText: '৳ ',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                'Cancel',
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Add Money',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final amount =
-                    double.tryParse(
-                          controller.text.trim(),
-                        ) ??
-                        0;
-
-                if (amount <= 0) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Please enter a valid amount.',
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: controller,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Amount',
+                        hintText: 'Example: 1000',
+                        prefixText: '৳ ',
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                  );
-                  return;
-                }
 
-                if (amount < 100) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Minimum amount is ৳100.',
+                    const SizedBox(height: 20),
+
+                    const Text(
+                      'Payment Method',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  );
-                  return;
-                }
 
-                Navigator.pop(dialogContext);
+                    const SizedBox(height: 10),
 
-                await _createDepositRequest(
-                  user.uid,
-                  amount,
-                );
-              },
-              child: const Text(
-                'Continue',
+                    _paymentMethodOption(
+                      title: 'bKash',
+                      subtitle: 'Pay using bKash',
+                      icon: Icons.phone_android_rounded,
+                      value: 'bkash',
+                      groupValue:
+                          selectedPaymentMethod,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPaymentMethod = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    _paymentMethodOption(
+                      title: 'Nagad',
+                      subtitle: 'Pay using Nagad',
+                      icon:
+                          Icons.account_balance_wallet_rounded,
+                      value: 'nagad',
+                      groupValue:
+                          selectedPaymentMethod,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPaymentMethod = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    _paymentMethodOption(
+                      title: 'Rocket',
+                      subtitle: 'Pay using Rocket',
+                      icon:
+                          Icons.currency_exchange_rounded,
+                      value: 'rocket',
+                      groupValue:
+                          selectedPaymentMethod,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPaymentMethod = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    _paymentMethodOption(
+                      title: 'Bank Transfer',
+                      subtitle:
+                          'Pay through bank transfer',
+                      icon:
+                          Icons.account_balance_rounded,
+                      value: 'bank',
+                      groupValue:
+                          selectedPaymentMethod,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPaymentMethod = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Container(
+                      width: double.infinity,
+                      padding:
+                          const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.08),
+                        borderRadius:
+                            BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Minimum deposit amount is ৳100. Your wallet balance will increase only after admin approval.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final amount =
+                        double.tryParse(
+                              controller.text.trim(),
+                            ) ??
+                            0;
+
+                    if (amount <= 0) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please enter a valid amount.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (amount < 100) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Minimum amount is ৳100.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext);
+
+                    await _createDepositRequest(
+                      user.uid,
+                      amount,
+                      selectedPaymentMethod,
+                    );
+                  },
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -401,6 +676,7 @@ class _WalletPageState extends State<WalletPage> {
   Future<void> _createDepositRequest(
     String uid,
     double amount,
+    String paymentMethod,
   ) async {
     try {
       await _firestore
@@ -414,19 +690,19 @@ class _WalletPageState extends State<WalletPage> {
         'currency': 'BDT',
         'currencySymbol': '৳',
         'status': 'pending',
-        'paymentMethod': 'not_selected',
+        'paymentMethod': paymentMethod,
         'userId': uid,
-        'createdAt':
-            FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Deposit request created. Please wait for admin approval.',
+            '${_formatMoney(amount)} deposit request created using ${_paymentMethodText(paymentMethod)}. Please wait for admin approval.',
           ),
+          duration: const Duration(seconds: 4),
         ),
       );
     } catch (e) {
@@ -453,16 +729,14 @@ class _WalletPageState extends State<WalletPage> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding:
-                const EdgeInsets.fromLTRB(
+            padding: const EdgeInsets.fromLTRB(
               20,
               10,
               20,
               30,
             ),
             child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
@@ -470,13 +744,12 @@ class _WalletPageState extends State<WalletPage> {
                   'Withdraw',
                   style: TextStyle(
                     fontSize: 22,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(
-                  height: 12,
-                ),
+
+                const SizedBox(height: 12),
+
                 const Text(
                   'Money withdrawal will be available after BuyNova enables the secure withdrawal system.',
                   style: TextStyle(
@@ -484,47 +757,38 @@ class _WalletPageState extends State<WalletPage> {
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(
-                  height: 18,
-                ),
+
+                const SizedBox(height: 18),
+
                 _infoRow(
-                  Icons
-                      .account_balance_wallet_rounded,
+                  Icons.account_balance_wallet_rounded,
                   'Cash Balance',
-                  _formatMoney(
-                    _cashBalance,
-                  ),
+                  _formatMoney(_cashBalance),
                 ),
-                const SizedBox(
-                  height: 10,
-                ),
+
+                const SizedBox(height: 10),
+
                 _infoRow(
                   Icons.stars_rounded,
                   'Reward Points',
-                  _formatNumber(
-                    _pointsBalance,
-                  ),
+                  _formatNumber(_pointsBalance),
                 ),
-                const SizedBox(
-                  height: 10,
-                ),
+
+                const SizedBox(height: 10),
+
                 _infoRow(
                   Icons.security_rounded,
                   'Security',
                   'Payment verification required',
                 ),
-                const SizedBox(
-                  height: 22,
-                ),
+
+                const SizedBox(height: 22),
+
                 SizedBox(
-                  width:
-                      double.infinity,
-                  child:
-                      FilledButton(
+                  width: double.infinity,
+                  child: FilledButton(
                     onPressed: () {
-                      Navigator.pop(
-                        context,
-                      );
+                      Navigator.pop(context);
                     },
                     child: const Text(
                       'Coming Soon',
@@ -554,28 +818,21 @@ class _WalletPageState extends State<WalletPage> {
           icon,
           size: 22,
         ),
-        const SizedBox(
-          width: 10,
-        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             title,
-            style:
-                const TextStyle(
-              fontWeight:
-                  FontWeight.w500,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
         Flexible(
           child: Text(
             value,
-            textAlign:
-                TextAlign.end,
-            style:
-                const TextStyle(
-              fontWeight:
-                  FontWeight.bold,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),
@@ -589,28 +846,17 @@ class _WalletPageState extends State<WalletPage> {
 
   Widget _walletHeader() {
     return Container(
-      width:
-          double.infinity,
-      padding:
-          const EdgeInsets.all(22),
-      decoration:
-          BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(24),
-        gradient:
-            LinearGradient(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
           colors: [
-            Theme.of(context)
-                .colorScheme
-                .primary,
-            Theme.of(context)
-                .colorScheme
-                .primaryContainer,
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.primaryContainer,
           ],
-          begin:
-              Alignment.topLeft,
-          end:
-              Alignment.bottomRight,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
       child: Column(
@@ -620,111 +866,83 @@ class _WalletPageState extends State<WalletPage> {
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.all(10),
-                decoration:
-                    BoxDecoration(
-                  color: Colors.white
-                      .withValues(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(
                     alpha: 0.18,
                   ),
-                  shape:
-                      BoxShape.circle,
+                  shape: BoxShape.circle,
                 ),
-                child:
-                    const Icon(
-                  Icons
-                      .account_balance_wallet_rounded,
-                  color:
-                      Colors.white,
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.white,
                   size: 28,
                 ),
               ),
-              const SizedBox(
-                width: 12,
-              ),
+
+              const SizedBox(width: 12),
+
               const Expanded(
                 child: Text(
                   'BuyNova Wallet',
-                  style:
-                      TextStyle(
-                    color:
-                        Colors.white,
+                  style: TextStyle(
+                    color: Colors.white,
                     fontSize: 20,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(
-            height: 24,
-          ),
+
+          const SizedBox(height: 24),
+
           const Text(
             'Cash Balance',
-            style:
-                TextStyle(
-              color:
-                  Colors.white70,
+            style: TextStyle(
+              color: Colors.white70,
               fontSize: 14,
             ),
           ),
-          const SizedBox(
-            height: 5,
-          ),
+
+          const SizedBox(height: 5),
+
           Text(
-            _formatMoney(
-              _cashBalance,
-            ),
-            style:
-                const TextStyle(
-              color:
-                  Colors.white,
+            _formatMoney(_cashBalance),
+            style: const TextStyle(
+              color: Colors.white,
               fontSize: 38,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(
-            height: 4,
-          ),
+
+          const SizedBox(height: 4),
+
           const Text(
             'Bangladesh Taka (BDT)',
-            style:
-                TextStyle(
-              color:
-                  Colors.white70,
+            style: TextStyle(
+              color: Colors.white70,
               fontSize: 14,
             ),
           ),
-          const SizedBox(
-            height: 20,
-          ),
+
+          const SizedBox(height: 20),
+
           SizedBox(
-            width:
-                double.infinity,
-            child:
-                ElevatedButton.icon(
-              onPressed:
-                  _showAddMoneyDialog,
-              icon:
-                  const Icon(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showAddMoneyDialog,
+              icon: const Icon(
                 Icons.add_rounded,
               ),
-              label:
-                  const Text(
+              label: const Text(
                 'Add Money',
               ),
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    Colors.white,
-                foregroundColor:
-                    Colors.black87,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black87,
                 padding:
-                    const EdgeInsets
-                        .symmetric(
+                    const EdgeInsets.symmetric(
                   vertical: 14,
                 ),
               ),
@@ -747,15 +965,12 @@ class _WalletPageState extends State<WalletPage> {
   }) {
     return Expanded(
       child: Container(
-        padding:
-            const EdgeInsets.all(16),
-        decoration:
-            BoxDecoration(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
           color: Theme.of(context)
               .colorScheme
               .surfaceContainerHighest,
-          borderRadius:
-              BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
           crossAxisAlignment:
@@ -765,9 +980,9 @@ class _WalletPageState extends State<WalletPage> {
               icon,
               size: 25,
             ),
-            const SizedBox(
-              height: 12,
-            ),
+
+            const SizedBox(height: 12),
+
             Text(
               title,
               style: TextStyle(
@@ -780,9 +995,9 @@ class _WalletPageState extends State<WalletPage> {
                 fontSize: 13,
               ),
             ),
-            const SizedBox(
-              height: 4,
-            ),
+
+            const SizedBox(height: 4),
+
             Text(
               isMoney
                   ? _formatMoney(
@@ -797,11 +1012,9 @@ class _WalletPageState extends State<WalletPage> {
                           ) ??
                           0,
                     ),
-              style:
-                  const TextStyle(
+              style: const TextStyle(
                 fontSize: 20,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -821,39 +1034,31 @@ class _WalletPageState extends State<WalletPage> {
       children: [
         const Text(
           'Wallet',
-          style:
-              TextStyle(
+          style: TextStyle(
             fontSize: 19,
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(
-          height: 12,
-        ),
+
+        const SizedBox(height: 12),
+
         Row(
           children: [
             Expanded(
               child: _actionButton(
-                icon:
-                    Icons.add_card_rounded,
-                title:
-                    'Add Money',
-                onTap:
-                    _showAddMoneyDialog,
+                icon: Icons.add_card_rounded,
+                title: 'Add Money',
+                onTap: _showAddMoneyDialog,
               ),
             ),
-            const SizedBox(
-              width: 12,
-            ),
+
+            const SizedBox(width: 12),
+
             Expanded(
               child: _actionButton(
-                icon: Icons
-                    .account_balance_rounded,
-                title:
-                    'Withdraw',
-                onTap:
-                    _showWithdrawalInfo,
+                icon: Icons.account_balance_rounded,
+                title: 'Withdraw',
+                onTap: _showWithdrawalInfo,
               ),
             ),
           ],
@@ -869,27 +1074,22 @@ class _WalletPageState extends State<WalletPage> {
   }) {
     return OutlinedButton(
       onPressed: onTap,
-      style:
-          OutlinedButton.styleFrom(
+      style: OutlinedButton.styleFrom(
         padding:
-            const EdgeInsets
-                .symmetric(
+            const EdgeInsets.symmetric(
           vertical: 15,
         ),
-        shape:
-            RoundedRectangleBorder(
+        shape: RoundedRectangleBorder(
           borderRadius:
-              BorderRadius.circular(
-            16,
-          ),
+              BorderRadius.circular(16),
         ),
       ),
       child: Column(
         children: [
           Icon(icon),
-          const SizedBox(
-            height: 6,
-          ),
+
+          const SizedBox(height: 6),
+
           Text(title),
         ],
       ),
@@ -897,38 +1097,55 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   // =========================================================
-  // PAYMENT METHOD TEXT
+  // DETAIL ROW
   // =========================================================
 
-  String _paymentMethodText(
-    dynamic value,
+  Widget _detailRow(
+    String title,
+    String value,
   ) {
-    final method =
-        value?.toString() ?? '';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest,
+        borderRadius:
+            BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(
+                      alpha: 0.65,
+                    ),
+              ),
+            ),
+          ),
 
-    switch (method) {
-      case 'bkash':
-        return 'bKash';
+          const SizedBox(width: 12),
 
-      case 'nagad':
-        return 'Nagad';
-
-      case 'rocket':
-        return 'Rocket';
-
-      case 'bank':
-        return 'Bank Transfer';
-
-      case 'card':
-        return 'Card';
-
-      case 'not_selected':
-      case '':
-        return 'Not selected';
-
-      default:
-        return method;
-    }
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // =========================================================
@@ -943,14 +1160,10 @@ class _WalletPageState extends State<WalletPage> {
             'completed';
 
     final amount =
-        _toDouble(
-      data['amount'],
-    );
+        _toDouble(data['amount']);
 
     final points =
-        _toInt(
-      data['points'],
-    );
+        _toInt(data['points']);
 
     final source =
         data['source']?.toString() ??
@@ -989,47 +1202,34 @@ class _WalletPageState extends State<WalletPage> {
                 children: [
                   const Text(
                     'Transaction Details',
-                    style:
-                        TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(
-                    height: 20,
-                  ),
+
+                  const SizedBox(height: 20),
 
                   _detailRow(
                     'Type',
-                    _transactionTitle(
-                      data,
-                    ),
+                    _transactionTitle(data),
                   ),
 
-                  const SizedBox(
-                    height: 12,
-                  ),
+                  const SizedBox(height: 12),
 
                   _detailRow(
                     'Amount',
                     displayAmount,
                   ),
 
-                  const SizedBox(
-                    height: 12,
-                  ),
+                  const SizedBox(height: 12),
 
                   _detailRow(
                     'Status',
-                    _statusText(
-                      data,
-                    ),
+                    _statusText(data),
                   ),
 
-                  const SizedBox(
-                    height: 12,
-                  ),
+                  const SizedBox(height: 12),
 
                   _detailRow(
                     'Date',
@@ -1038,82 +1238,52 @@ class _WalletPageState extends State<WalletPage> {
                     ),
                   ),
 
-                  if (source ==
-                      'deposit') ...[
-                    const SizedBox(
-                      height: 12,
-                    ),
+                  if (source == 'deposit') ...[
+                    const SizedBox(height: 12),
+
                     _detailRow(
                       'Payment Method',
                       _paymentMethodText(
-                        data[
-                            'paymentMethod'],
+                        data['paymentMethod'],
                       ),
                     ),
                   ],
 
-                  if (data[
-                          'approvedAmount'] !=
+                  if (data['approvedAmount'] !=
                       null) ...[
-                    const SizedBox(
-                      height: 12,
-                    ),
+                    const SizedBox(height: 12),
+
                     _detailRow(
                       'Approved Amount',
                       _formatMoney(
                         _toDouble(
-                          data[
-                              'approvedAmount'],
+                          data['approvedAmount'],
                         ),
                       ),
                     ),
                   ],
 
-                  if (data[
-                          'rejectionReason'] !=
+                  if (data['rejectionReason'] !=
                       null) ...[
-                    const SizedBox(
-                      height: 12,
-                    ),
+                    const SizedBox(height: 12),
+
                     _detailRow(
                       'Rejection Reason',
-                      data[
-                              'rejectionReason']
+                      data['rejectionReason']
                           .toString(),
                     ),
                   ],
 
-                  if (data[
-                          'userMessage'] !=
-                      null) ...[
-                    const SizedBox(
-                      height: 12,
-                    ),
-                    _detailRow(
-                      'Message',
-                      data[
-                              'userMessage']
-                          .toString(),
-                    ),
-                  ],
-
-                  const SizedBox(
-                    height: 24,
-                  ),
+                  const SizedBox(height: 24),
 
                   Container(
-                    width:
-                        double.infinity,
+                    width: double.infinity,
                     padding:
-                        const EdgeInsets.all(
-                      14,
-                    ),
-                    decoration:
-                        BoxDecoration(
+                        const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
                       color:
-                          _statusColor(
-                        data,
-                      ).withValues(
+                          _statusColor(data)
+                              .withValues(
                         alpha: 0.10,
                       ),
                       borderRadius:
@@ -1124,24 +1294,19 @@ class _WalletPageState extends State<WalletPage> {
                     child: Row(
                       children: [
                         Icon(
-                          _statusIcon(
-                            status,
-                          ),
+                          _statusIcon(status),
                           color:
-                              _statusColor(
-                            data,
-                          ),
+                              _statusColor(data),
                         ),
-                        const SizedBox(
-                          width: 10,
-                        ),
+
+                        const SizedBox(width: 10),
+
                         Expanded(
                           child: Text(
                             _statusMessage(
                               status,
                             ),
-                            style:
-                                TextStyle(
+                            style: TextStyle(
                               color:
                                   _statusColor(
                                 data,
@@ -1155,22 +1320,17 @@ class _WalletPageState extends State<WalletPage> {
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 22,
-                  ),
+                  const SizedBox(height: 22),
 
                   SizedBox(
-                    width:
-                        double.infinity,
-                    child:
-                        FilledButton(
+                    width: double.infinity,
+                    child: FilledButton(
                       onPressed: () {
                         Navigator.pop(
                           sheetContext,
                         );
                       },
-                      child:
-                          const Text(
+                      child: const Text(
                         'Close',
                       ),
                     ),
@@ -1182,123 +1342,6 @@ class _WalletPageState extends State<WalletPage> {
         );
       },
     );
-  }
-
-  // =========================================================
-  // DETAIL ROW
-  // =========================================================
-
-  Widget _detailRow(
-    String title,
-    String value,
-  ) {
-    return Container(
-      width:
-          double.infinity,
-      padding:
-          const EdgeInsets.all(14),
-      decoration:
-          BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest,
-        borderRadius:
-            BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style:
-                  TextStyle(
-                color: Theme.of(
-                  context,
-                )
-                    .colorScheme
-                    .onSurface
-                    .withValues(
-                      alpha: 0.65,
-                    ),
-              ),
-            ),
-          ),
-          const SizedBox(
-            width: 12,
-          ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign:
-                  TextAlign.end,
-              style:
-                  const TextStyle(
-                fontWeight:
-                    FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // STATUS ICON
-  // =========================================================
-
-  IconData _statusIcon(
-    String status,
-  ) {
-    switch (status) {
-      case 'pending':
-        return Icons.hourglass_top_rounded;
-
-      case 'approved':
-        return Icons.check_circle_rounded;
-
-      case 'rejected':
-        return Icons.cancel_rounded;
-
-      case 'completed':
-        return Icons.verified_rounded;
-
-      case 'cancelled':
-        return Icons.block_rounded;
-
-      default:
-        return Icons.info_rounded;
-    }
-  }
-
-  // =========================================================
-  // STATUS MESSAGE
-  // =========================================================
-
-  String _statusMessage(
-    String status,
-  ) {
-    switch (status) {
-      case 'pending':
-        return 'Your request is waiting for admin approval.';
-
-      case 'approved':
-        return 'Your deposit has been approved and added to your wallet.';
-
-      case 'rejected':
-        return 'This transaction was rejected by admin.';
-
-      case 'completed':
-        return 'This transaction has been completed successfully.';
-
-      case 'cancelled':
-        return 'This transaction has been cancelled.';
-
-      default:
-        return 'Transaction status: $status';
-    }
   }
 
   // =========================================================
@@ -1318,14 +1361,10 @@ class _WalletPageState extends State<WalletPage> {
             '';
 
     final points =
-        _toInt(
-      data['points'],
-    );
+        _toInt(data['points']);
 
     final amount =
-        _toDouble(
-      data['amount'],
-    );
+        _toDouble(data['amount']);
 
     final isCredit =
         type == 'credit';
@@ -1347,17 +1386,13 @@ class _WalletPageState extends State<WalletPage> {
             'completed';
 
     final statusColor =
-        _statusColor(
-      data,
-    );
+        _statusColor(data);
 
     return InkWell(
       borderRadius:
           BorderRadius.circular(18),
       onTap: () {
-        _showTransactionDetails(
-          data,
-        );
+        _showTransactionDetails(data);
       },
       child: Container(
         margin:
@@ -1372,9 +1407,7 @@ class _WalletPageState extends State<WalletPage> {
               .colorScheme
               .surfaceContainerHighest,
           borderRadius:
-              BorderRadius.circular(
-            18,
-          ),
+              BorderRadius.circular(18),
         ),
         child: Row(
           crossAxisAlignment:
@@ -1398,18 +1431,14 @@ class _WalletPageState extends State<WalletPage> {
                       ),
               ),
               child: Icon(
-                _transactionIcon(
-                  data,
-                ),
+                _transactionIcon(data),
                 color: isCredit
                     ? Colors.green
                     : Colors.red,
               ),
             ),
 
-            const SizedBox(
-              width: 12,
-            ),
+            const SizedBox(width: 12),
 
             Expanded(
               child: Column(
@@ -1417,32 +1446,23 @@ class _WalletPageState extends State<WalletPage> {
                     CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _transactionTitle(
-                      data,
-                    ),
-                    style:
-                        const TextStyle(
+                    _transactionTitle(data),
+                    style: const TextStyle(
                       fontWeight:
                           FontWeight.bold,
                       fontSize: 15,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 4,
-                  ),
+                  const SizedBox(height: 4),
 
                   Text(
                     _formatDate(
-                      data[
-                          'createdAt'],
+                      data['createdAt'],
                     ),
-                    style:
-                        TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Theme.of(
-                        context,
-                      )
+                      color: Theme.of(context)
                           .colorScheme
                           .onSurface
                           .withValues(
@@ -1451,9 +1471,7 @@ class _WalletPageState extends State<WalletPage> {
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 7,
-                  ),
+                  const SizedBox(height: 7),
 
                   Row(
                     children: [
@@ -1466,9 +1484,8 @@ class _WalletPageState extends State<WalletPage> {
                         ),
                         decoration:
                             BoxDecoration(
-                          color:
-                              statusColor
-                                  .withValues(
+                          color: statusColor
+                              .withValues(
                             alpha: 0.12,
                           ),
                           borderRadius:
@@ -1478,17 +1495,13 @@ class _WalletPageState extends State<WalletPage> {
                           ),
                         ),
                         child: Text(
-                          _statusText(
-                            data,
-                          ),
-                          style:
-                              TextStyle(
+                          _statusText(data),
+                          style: TextStyle(
                             fontSize: 11,
                             color:
                                 statusColor,
                             fontWeight:
-                                FontWeight
-                                    .w600,
+                                FontWeight.w600,
                           ),
                         ),
                       ),
@@ -1499,17 +1512,13 @@ class _WalletPageState extends State<WalletPage> {
                           width: 8,
                         ),
                         const Icon(
-                          Icons
-                              .touch_app_rounded,
+                          Icons.touch_app_rounded,
                           size: 15,
                         ),
-                        const SizedBox(
-                          width: 3,
-                        ),
+                        const SizedBox(width: 3),
                         Text(
                           'Tap for details',
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
                             color: Theme.of(
                               context,
@@ -1528,14 +1537,11 @@ class _WalletPageState extends State<WalletPage> {
               ),
             ),
 
-            const SizedBox(
-              width: 8,
-            ),
+            const SizedBox(width: 8),
 
             Text(
               '${isCredit ? '+' : '-'}$displayValue',
-              style:
-                  TextStyle(
+              style: TextStyle(
                 color: isCredit
                     ? Colors.green
                     : Colors.red,
@@ -1555,8 +1561,7 @@ class _WalletPageState extends State<WalletPage> {
   // =========================================================
 
   Widget _transactionHistory() {
-    final user =
-        _auth.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
       return const Center(
@@ -1585,10 +1590,8 @@ class _WalletPageState extends State<WalletPage> {
         context,
         snapshot,
       ) {
-        if (snapshot
-                .connectionState ==
-            ConnectionState
-                .waiting) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const Center(
             child: Padding(
               padding:
@@ -1602,14 +1605,10 @@ class _WalletPageState extends State<WalletPage> {
         if (snapshot.hasError) {
           return Container(
             padding:
-                const EdgeInsets.all(
-              16,
-            ),
+                const EdgeInsets.all(16),
             decoration:
                 BoxDecoration(
-              color: Theme.of(
-                context,
-              )
+              color: Theme.of(context)
                   .colorScheme
                   .surfaceContainerHighest,
               borderRadius:
@@ -1617,30 +1616,23 @@ class _WalletPageState extends State<WalletPage> {
                 16,
               ),
             ),
-            child:
-                const Text(
+            child: const Text(
               'Transaction history is not available yet.',
             ),
           );
         }
 
         final docs =
-            snapshot.data?.docs ??
-                [];
+            snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return Container(
-            width:
-                double.infinity,
+            width: double.infinity,
             padding:
-                const EdgeInsets.all(
-              25,
-            ),
+                const EdgeInsets.all(25),
             decoration:
                 BoxDecoration(
-              color: Theme.of(
-                context,
-              )
+              color: Theme.of(context)
                   .colorScheme
                   .surfaceContainerHighest,
               borderRadius:
@@ -1648,30 +1640,22 @@ class _WalletPageState extends State<WalletPage> {
                 18,
               ),
             ),
-            child:
-                const Column(
+            child: const Column(
               children: [
                 Icon(
-                  Icons
-                      .receipt_long_rounded,
+                  Icons.receipt_long_rounded,
                   size: 45,
                 ),
-                SizedBox(
-                  height: 10,
-                ),
+                SizedBox(height: 10),
                 Text(
                   'No transactions yet',
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     fontWeight:
-                        FontWeight
-                            .bold,
+                        FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
-                SizedBox(
-                  height: 5,
-                ),
+                SizedBox(height: 5),
                 Text(
                   'Your money and rewards history will appear here.',
                   textAlign:
@@ -1683,15 +1667,12 @@ class _WalletPageState extends State<WalletPage> {
         }
 
         return Column(
-          children:
-              docs.map(
-            (doc) {
-              return _transactionItem(
-                doc.id,
-                doc.data(),
-              );
-            },
-          ).toList(),
+          children: docs.map((doc) {
+            return _transactionItem(
+              doc.id,
+              doc.data(),
+            );
+          }).toList(),
         );
       },
     );
@@ -1709,12 +1690,9 @@ class _WalletPageState extends State<WalletPage> {
       return Scaffold(
         appBar: AppBar(
           title:
-              const Text(
-            'Wallet',
-          ),
+              const Text('Wallet'),
         ),
-        body:
-            const Center(
+        body: const Center(
           child:
               CircularProgressIndicator(),
         ),
@@ -1724,85 +1702,62 @@ class _WalletPageState extends State<WalletPage> {
     return Scaffold(
       appBar: AppBar(
         title:
-            const Text(
-          'My Wallet',
-        ),
+            const Text('My Wallet'),
         actions: [
           IconButton(
-            onPressed:
-                _loadWallet,
+            onPressed: _loadWallet,
             icon:
                 const Icon(
               Icons.refresh_rounded,
             ),
-            tooltip:
-                'Refresh',
+            tooltip: 'Refresh',
           ),
         ],
       ),
-      body:
-          RefreshIndicator(
-        onRefresh:
-            _loadWallet,
-        child:
-            ListView(
+      body: RefreshIndicator(
+        onRefresh: _loadWallet,
+        child: ListView(
           physics:
               const AlwaysScrollableScrollPhysics(),
           padding:
-              const EdgeInsets.all(
-            16,
-          ),
+              const EdgeInsets.all(16),
           children: [
             _walletHeader(),
 
-            const SizedBox(
-              height: 16,
-            ),
+            const SizedBox(height: 16),
 
             Row(
               children: [
                 _summaryCard(
                   icon: Icons
                       .account_balance_wallet_rounded,
-                  title:
-                      'Cash Balance',
+                  title: 'Cash Balance',
                   value:
-                      _cashBalance
-                          .toString(),
+                      _cashBalance.toString(),
                   isMoney: true,
                 ),
 
-                const SizedBox(
-                  width: 12,
-                ),
+                const SizedBox(width: 12),
 
                 _summaryCard(
-                  icon: Icons
-                      .stars_rounded,
-                  title:
-                      'Reward Points',
+                  icon:
+                      Icons.stars_rounded,
+                  title: 'Reward Points',
                   value:
-                      _pointsBalance
-                          .toString(),
+                      _pointsBalance.toString(),
                   isMoney: false,
                 ),
               ],
             ),
 
-            const SizedBox(
-              height: 12,
-            ),
+            const SizedBox(height: 12),
 
             Container(
               padding:
-                  const EdgeInsets.all(
-                16,
-              ),
+                  const EdgeInsets.all(16),
               decoration:
                   BoxDecoration(
-                color: Theme.of(
-                  context,
-                )
+                color: Theme.of(context)
                     .colorScheme
                     .surfaceContainerHighest,
                 borderRadius:
@@ -1810,22 +1765,16 @@ class _WalletPageState extends State<WalletPage> {
                   18,
                 ),
               ),
-              child:
-                  Row(
+              child: Row(
                 children: [
                   const Icon(
-                    Icons
-                        .trending_up_rounded,
+                    Icons.trending_up_rounded,
                   ),
-                  const SizedBox(
-                    width: 12,
-                  ),
+                  const SizedBox(width: 12),
                   const Expanded(
-                    child:
-                        Text(
+                    child: Text(
                       'Lifetime Rewards Earned',
-                      style:
-                          TextStyle(
+                      style: TextStyle(
                         fontWeight:
                             FontWeight.w500,
                       ),
@@ -1838,8 +1787,7 @@ class _WalletPageState extends State<WalletPage> {
                     style:
                         const TextStyle(
                       fontWeight:
-                          FontWeight
-                              .bold,
+                          FontWeight.bold,
                       fontSize: 18,
                     ),
                   ),
@@ -1847,38 +1795,28 @@ class _WalletPageState extends State<WalletPage> {
               ),
             ),
 
-            const SizedBox(
-              height: 22,
-            ),
+            const SizedBox(height: 22),
 
             _quickActions(),
 
-            const SizedBox(
-              height: 26,
-            ),
+            const SizedBox(height: 26),
 
             const Text(
               'Transaction History',
-              style:
-                  TextStyle(
+              style: TextStyle(
                 fontSize: 19,
                 fontWeight:
                     FontWeight.bold,
               ),
             ),
 
-            const SizedBox(
-              height: 6,
-            ),
+            const SizedBox(height: 6),
 
             Text(
               'Tap any transaction to see full details.',
-              style:
-                  TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: Theme.of(
-                  context,
-                )
+                color: Theme.of(context)
                     .colorScheme
                     .onSurface
                     .withValues(
@@ -1887,25 +1825,18 @@ class _WalletPageState extends State<WalletPage> {
               ),
             ),
 
-            const SizedBox(
-              height: 12,
-            ),
+            const SizedBox(height: 12),
 
             _transactionHistory(),
 
-            const SizedBox(
-              height: 30,
-            ),
+            const SizedBox(height: 30),
 
             Center(
               child: Text(
                 'BuyNova • BDT Wallet & Rewards',
-                style:
-                    TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(
-                    context,
-                  )
+                  color: Theme.of(context)
                       .colorScheme
                       .onSurface
                       .withValues(
