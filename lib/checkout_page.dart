@@ -82,8 +82,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
   final TextEditingController _addressController =
       TextEditingController();
 
+  final TextEditingController _couponController =
+      TextEditingController();
+
   bool _placingOrder = false;
   bool _loadingAddresses = true;
+  bool _checkingCoupon = false;
 
   String _paymentMethod = 'Cash on Delivery';
 
@@ -92,6 +96,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
   List<Map<String, dynamic>> _savedAddresses = [];
 
   String? _selectedAddressId;
+
+  // =========================================================
+  // COUPON
+  // =========================================================
+
+  Map<String, dynamic>? _appliedCoupon;
+
+  double _discountAmount = 0;
+
+  String? get _couponCode {
+    final code = _couponController.text.trim().toUpperCase();
+
+    if (code.isEmpty) {
+      return null;
+    }
+
+    return code;
+  }
 
   // =========================================================
   // SUBTOTAL
@@ -122,11 +144,29 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
+  // DISCOUNT
+  // =========================================================
+
+  double get discountAmount {
+    if (_appliedCoupon == null) {
+      return 0;
+    }
+
+    return _discountAmount;
+  }
+
+  // =========================================================
   // GRAND TOTAL
   // =========================================================
 
   double get grandTotal {
-    return subtotal + deliveryFee;
+    final total = subtotal + deliveryFee - discountAmount;
+
+    if (total < 0) {
+      return 0;
+    }
+
+    return total;
   }
 
   // =========================================================
@@ -228,10 +268,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         _savedAddresses = addresses;
         _loadingAddresses = false;
       });
-
-      // =====================================================
-      // AUTO SELECT DEFAULT ADDRESS
-      // =====================================================
 
       if (addresses.isNotEmpty) {
         Map<String, dynamic>? defaultAddress;
@@ -392,6 +428,221 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
+  // CHECK COUPON
+  // =========================================================
+
+  Future<void> _checkCoupon() async {
+    if (_checkingCoupon) return;
+
+    final code = _couponController.text.trim().toUpperCase();
+
+    if (code.isEmpty) {
+      _showMessage(
+        'Please enter a coupon code.',
+      );
+      return;
+    }
+
+    if (subtotal <= 0) {
+      _showMessage(
+        'Your order subtotal is invalid.',
+      );
+      return;
+    }
+
+    setState(() {
+      _checkingCoupon = true;
+    });
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('coupons')
+          .where(
+            'code',
+            isEqualTo: code,
+          )
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        _removeCoupon(showMessage: false);
+
+        _showMessage(
+          'Invalid coupon code.',
+        );
+        return;
+      }
+
+      final data = snapshot.docs.first.data();
+
+      final isActive = data['isActive'] == true;
+
+      if (!isActive) {
+        _removeCoupon(showMessage: false);
+
+        _showMessage(
+          'This coupon is not active.',
+        );
+        return;
+      }
+
+      // =====================================================
+      // EXPIRY CHECK
+      // =====================================================
+
+      final expiresAtValue = data['expiresAt'];
+
+      DateTime? expiresAt;
+
+      if (expiresAtValue is Timestamp) {
+        expiresAt = expiresAtValue.toDate();
+      } else if (expiresAtValue is DateTime) {
+        expiresAt = expiresAtValue;
+      }
+
+      if (expiresAt != null &&
+          DateTime.now().isAfter(expiresAt)) {
+        _removeCoupon(showMessage: false);
+
+        _showMessage(
+          'This coupon has expired.',
+        );
+        return;
+      }
+
+      // =====================================================
+      // MINIMUM ORDER CHECK
+      // =====================================================
+
+      final minimumOrder =
+          _toDouble(data['minimumOrder']);
+
+      if (minimumOrder > 0 &&
+          subtotal < minimumOrder) {
+        _removeCoupon(showMessage: false);
+
+        _showMessage(
+          'Minimum order for this coupon is '
+          '₩${minimumOrder.toStringAsFixed(0)}.',
+        );
+        return;
+      }
+
+      // =====================================================
+      // DISCOUNT TYPE
+      // =====================================================
+
+      final discountType =
+          data['discountType']?.toString().toLowerCase() ??
+              'percentage';
+
+      final discountValue =
+          _toDouble(data['discountValue']);
+
+      if (discountValue <= 0) {
+        _removeCoupon(showMessage: false);
+
+        _showMessage(
+          'This coupon has no valid discount.',
+        );
+        return;
+      }
+
+      double calculatedDiscount = 0;
+
+      if (discountType == 'percentage') {
+        calculatedDiscount =
+            subtotal * discountValue / 100;
+
+        final maximumDiscount =
+            _toDouble(data['maximumDiscount']);
+
+        if (maximumDiscount > 0 &&
+            calculatedDiscount > maximumDiscount) {
+          calculatedDiscount = maximumDiscount;
+        }
+      } else {
+        calculatedDiscount = discountValue;
+      }
+
+      if (calculatedDiscount > subtotal) {
+        calculatedDiscount = subtotal;
+      }
+
+      if (calculatedDiscount <= 0) {
+        _removeCoupon(showMessage: false);
+
+        _showMessage(
+          'This coupon cannot be applied.',
+        );
+        return;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _appliedCoupon = {
+          ...data,
+          'id': snapshot.docs.first.id,
+          'code': code,
+        };
+
+        _discountAmount = calculatedDiscount;
+      });
+
+      _showMessage(
+        'Coupon applied successfully.',
+      );
+    } catch (e) {
+      _showMessage(
+        'Could not check coupon.\n$e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _checkingCoupon = false;
+        });
+      }
+    }
+  }
+
+  // =========================================================
+  // REMOVE COUPON
+  // =========================================================
+
+  void _removeCoupon({
+    bool showMessage = true,
+  }) {
+    if (!mounted) return;
+
+    setState(() {
+      _appliedCoupon = null;
+      _discountAmount = 0;
+    });
+
+    if (showMessage) {
+      _showMessage(
+        'Coupon removed.',
+      );
+    }
+  }
+
+  // =========================================================
+  // DOUBLE CONVERTER
+  // =========================================================
+
+  double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
+  }
+
+  // =========================================================
   // GET SELLER INFORMATION
   // =========================================================
 
@@ -458,6 +709,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
     try {
       // =====================================================
       // STEP 1
+      // RECHECK COUPON BEFORE ORDER
+      // =====================================================
+
+      if (_couponCode != null &&
+          _appliedCoupon != null) {
+        await _checkCoupon();
+
+        if (_appliedCoupon == null) {
+          return;
+        }
+      }
+
+      // =====================================================
+      // STEP 2
       // FIND SELLER FOR EVERY PRODUCT
       // =====================================================
 
@@ -482,7 +747,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       // =====================================================
-      // STEP 2
+      // STEP 3
       // MAIN ORDER
       // =====================================================
 
@@ -514,7 +779,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }).toList();
 
       // =====================================================
-      // STEP 3
+      // STEP 4
       // GROUP PRODUCTS BY SELLER
       // =====================================================
 
@@ -543,12 +808,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       // =====================================================
-      // STEP 4
+      // STEP 5
       // CREATE FIRESTORE BATCH
       // =====================================================
 
       final batch =
           firestore.batch();
+
+      // =====================================================
+      // COUPON DATA
+      // =====================================================
+
+      final couponData = _appliedCoupon;
+
+      final savedCouponCode =
+          couponData?['code']?.toString() ?? '';
 
       // =====================================================
       // MAIN CUSTOMER ORDER
@@ -577,6 +851,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
               subtotal,
           'deliveryFee':
               deliveryFee,
+          'discount':
+              discountAmount,
+          'couponCode':
+              savedCouponCode,
           'total':
               grandTotal,
           'paymentMethod':
@@ -674,6 +952,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 sellerQuantity,
             'sellerSubtotal':
                 sellerSubtotal,
+            'couponCode':
+                savedCouponCode,
             'paymentMethod':
                 _paymentMethod,
             'paymentStatus':
@@ -689,14 +969,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       // =====================================================
-      // STEP 5
+      // STEP 6
       // SAVE EVERYTHING
       // =====================================================
 
       await batch.commit();
 
       // =====================================================
-      // STEP 6
+      // STEP 7
       // CLEAR CART
       // =====================================================
 
@@ -1283,6 +1563,204 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
+  // COUPON CARD
+  // =========================================================
+
+  Widget _couponCard() {
+    final applied = _appliedCoupon != null;
+
+    return Card(
+      elevation: 0,
+      shape:
+          RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.circular(14),
+        side: BorderSide(
+          color:
+              Colors.grey.shade300,
+        ),
+      ),
+      child: Padding(
+        padding:
+            const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_offer_outlined,
+                  color: Colors.redAccent,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Coupon',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (applied)
+                  TextButton(
+                    onPressed:
+                        _placingOrder
+                            ? null
+                            : () => _removeCoupon(),
+                    child:
+                        const Text(
+                      'Remove',
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            if (applied)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.all(12),
+                decoration:
+                    BoxDecoration(
+                  color: Colors.green
+                      .withValues(alpha: 0.08),
+                  borderRadius:
+                      BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.green
+                        .withValues(alpha: 0.30),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _couponCode ?? '',
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                              color:
+                                  Colors.green,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'You saved ₩${discountAmount.toStringAsFixed(0)}',
+                            style:
+                                const TextStyle(
+                              color:
+                                  Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller:
+                          _couponController,
+                      textCapitalization:
+                          TextCapitalization.characters,
+                      enabled:
+                          !_checkingCoupon &&
+                              !_placingOrder,
+                      decoration:
+                          InputDecoration(
+                        hintText:
+                            'Enter coupon code',
+                        prefixIcon:
+                            const Icon(
+                          Icons.confirmation_number_outlined,
+                        ),
+                        border:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(
+                            12,
+                          ),
+                        ),
+                      ),
+                      onChanged: (_) {
+                        if (_appliedCoupon != null) {
+                          _removeCoupon(
+                            showMessage: false,
+                          );
+                        }
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed:
+                          _checkingCoupon ||
+                                  _placingOrder
+                              ? null
+                              : _checkCoupon,
+                      style:
+                          ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Colors.redAccent,
+                        foregroundColor:
+                            Colors.white,
+                        shape:
+                            RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(
+                            12,
+                          ),
+                        ),
+                      ),
+                      child:
+                          _checkingCoupon
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color:
+                                        Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Apply',
+                                ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
   // SUMMARY ROW
   // =========================================================
 
@@ -1607,6 +2085,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     height: 20,
                   ),
 
+                  _couponCard(),
+
+                  const SizedBox(
+                    height: 20,
+                  ),
+
                   const Text(
                     'Order Summary',
                     style:
@@ -1651,6 +2135,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             'Delivery Fee',
                             '₩${deliveryFee.toStringAsFixed(0)}',
                           ),
+
+                          if (discountAmount > 0)
+                            _summaryRow(
+                              'Coupon Discount',
+                              '-₩${discountAmount.toStringAsFixed(0)}',
+                              valueColor:
+                                  Colors.green,
+                            ),
 
                           const Divider(
                             height: 20,
@@ -1776,8 +2268,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _couponController.dispose();
 
     super.dispose();
   }
 }
-
