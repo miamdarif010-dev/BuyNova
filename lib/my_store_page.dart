@@ -46,7 +46,7 @@ class _MyStorePageState extends State<MyStorePage> {
   }
 
   // =========================================================
-  // ADD RESELLER PRODUCT TO CART
+  // ADD RESELLER PRODUCT TO COMMON BUYNOVA CART
   // =========================================================
 
   Future<void> _addToCart(
@@ -84,9 +84,6 @@ class _MyStorePageState extends State<MyStorePage> {
 
     final sourceProductId =
         data['sourceProductId']?.toString() ?? '';
-
-    final storedProfit =
-        _toDouble(data['profit']);
 
     final active =
         data['active'] == true;
@@ -150,17 +147,23 @@ class _MyStorePageState extends State<MyStorePage> {
 
     try {
       // =======================================================
-      // ADD USING COMMON BUYNOVA CART
+      // IMPORTANT:
+      // CartService.addItem IS STATIC.
+      //
+      // Quantity is NOT passed here because CartService
+      // automatically adds quantity = 1 for a new item and
+      // increases the existing quantity by 1.
+      //
+      // All reseller information is preserved.
       // =======================================================
 
-      await CartService().addItem(
+      await CartService.addItem(
         id: product.id,
         name: productName,
         price: sellingPrice,
         imageUrl: imageUrl.isNotEmpty
             ? imageUrl
             : null,
-        quantity: 1,
 
         // Reseller information
         isResellerProduct: true,
