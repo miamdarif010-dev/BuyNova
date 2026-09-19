@@ -863,17 +863,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // RESELLER SUPPLIER TOTAL
   // =========================================================
 
-  double _resellerSupplierTotal(
-    List<CheckoutItem> items,
-  ) {
-    double total = 0;
-
-    for (final item in items) {
-      total += item.supplierTotal;
-    }
-
-    return total;
-  }
+  
 
   // =========================================================
   // PLACE ORDER
