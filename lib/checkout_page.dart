@@ -29,7 +29,6 @@ class CheckoutItem {
     required this.price,
     this.imageUrl,
     required this.quantity,
-
     this.isResellerProduct = false,
     this.entrepreneurUid,
     this.sellerId,
@@ -44,12 +43,12 @@ class CheckoutItem {
       (supplierPrice ?? 0) * quantity;
 
   double get profitTotal {
-    if (resellerProfit != null) {
-      return resellerProfit! * quantity;
-    }
-
     if (supplierPrice != null) {
       return (price - supplierPrice!) * quantity;
+    }
+
+    if (resellerProfit != null) {
+      return resellerProfit! * quantity;
     }
 
     return 0;
@@ -202,26 +201,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
 
     return total;
-  }
-
-  // =========================================================
-  // HAS RESELLER PRODUCT
-  // =========================================================
-
-  bool get hasResellerProduct {
-    return widget.checkoutItems.any(
-      (item) => item.isResellerProduct,
-    );
-  }
-
-  // =========================================================
-  // HAS NORMAL PRODUCT
-  // =========================================================
-
-  bool get hasNormalProduct {
-    return widget.checkoutItems.any(
-      (item) => !item.isResellerProduct,
-    );
   }
 
   // =========================================================
@@ -505,10 +484,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       return false;
     }
 
-    // =======================================================
-    // RESELLER ITEM VALIDATION
-    // =======================================================
-
     for (final item in widget.checkoutItems) {
       if (!item.isResellerProduct) {
         continue;
@@ -537,6 +512,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
         _showMessage(
           'Supplier price is invalid for '
           '${item.productName}.',
+        );
+        return false;
+      }
+
+      final calculatedProfit =
+          item.price - item.supplierPrice!;
+
+      if (calculatedProfit <= 0) {
+        _showMessage(
+          'Selling price must be higher than supplier price '
+          'for ${item.productName}.',
         );
         return false;
       }
@@ -612,10 +598,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         return;
       }
 
-      // =====================================================
-      // EXPIRY CHECK
-      // =====================================================
-
       final expiresAtValue =
           data['expiresAt'];
 
@@ -641,10 +623,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         return;
       }
 
-      // =====================================================
-      // MINIMUM ORDER CHECK
-      // =====================================================
-
       final minimumOrder =
           _toDouble(
         data['minimumOrder'],
@@ -662,10 +640,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         );
         return;
       }
-
-      // =====================================================
-      // DISCOUNT TYPE
-      // =====================================================
 
       final discountType =
           data['discountType']
@@ -847,7 +821,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
-  // CREATE NORMAL SELLER INFORMATION
+  // GET SELLER INFORMATION FOR NORMAL ITEM
   // =========================================================
 
   Future<Map<String, dynamic>>
@@ -870,7 +844,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
-  // CREATE MAIN NORMAL ORDER ITEMS
+  // CREATE NORMAL ORDER ITEMS
   // =========================================================
 
   Future<List<Map<String, dynamic>>>
@@ -968,7 +942,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     try {
       // =====================================================
-      // STEP 1
       // RECHECK COUPON
       // =====================================================
 
@@ -984,12 +957,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final firestore =
           FirebaseFirestore.instance;
 
-      // =====================================================
-      // SEPARATE NORMAL + RESELLER ITEMS
-      // =====================================================
+      final allItems =
+          widget.checkoutItems;
 
       final normalItems =
-          widget.checkoutItems
+          allItems
               .where(
                 (item) =>
                     !item.isResellerProduct,
@@ -997,7 +969,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
               .toList();
 
       final resellerItems =
-          widget.checkoutItems
+          allItems
               .where(
                 (item) =>
                     item.isResellerProduct,
@@ -1023,42 +995,264 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       // =====================================================
-      // MAIN NORMAL ORDER
+      // SELLER INFORMATION FOR RESELLER PRODUCTS
       // =====================================================
 
-      String? normalOrderId;
+      final Map<String,
+              Map<String, dynamic>>
+          resellerSellerInformation = {};
 
-      DocumentReference<
-          Map<String, dynamic>>? orderRef;
+      for (final item in resellerItems) {
+        final sellerId =
+            item.sellerId?.trim();
 
-      List<Map<String, dynamic>>
-          normalItemsData = [];
+        if (sellerId == null ||
+            sellerId.isEmpty) {
+          throw Exception(
+            'Seller information missing for '
+            '${item.productName}.',
+          );
+        }
+
+        resellerSellerInformation[
+            sellerId] = {
+          'sellerId': sellerId,
+        };
+      }
+
+      // =====================================================
+      // NORMAL ITEMS DATA
+      // =====================================================
+
+      final normalItemsData =
+          await _createNormalOrderItems(
+        normalItems,
+        sellerInformation,
+      );
+
+      // =====================================================
+      // ALL CUSTOMER ORDER ITEMS
+      //
+      // This keeps reseller products inside the main
+      // customer order too, so My Orders can see them.
+      // =====================================================
+
+      final List<Map<String, dynamic>>
+          allOrderItemsData = [];
+
+      for (final item in normalItems) {
+        final sellerData =
+            sellerInformation[item.productId]!;
+
+        allOrderItemsData.add({
+          'productId':
+              item.productId,
+          'productName':
+              item.productName,
+          'imageUrl':
+              item.imageUrl ?? '',
+          'price':
+              item.price,
+          'quantity':
+              item.quantity,
+          'total':
+              item.total,
+          'sellerId':
+              sellerData['sellerId'],
+          'sellerCode':
+              sellerData['sellerCode'],
+          'sellerEmail':
+              sellerData['sellerEmail'],
+          'isResellerProduct':
+              false,
+        });
+      }
+
+      for (final item in resellerItems) {
+        final sellerId =
+            item.sellerId!.trim();
+
+        final supplierPrice =
+            item.supplierPrice!;
+
+        final calculatedProfit =
+            item.price -
+                supplierPrice;
+
+        allOrderItemsData.add({
+          'productId':
+              item.productId,
+          'supplierProductId':
+              item.supplierProductId ??
+                  item.productId,
+          'productName':
+              item.productName,
+          'imageUrl':
+              item.imageUrl ?? '',
+          'price':
+              item.price,
+          'sellingPrice':
+              item.price,
+          'supplierPrice':
+              supplierPrice,
+          'quantity':
+              item.quantity,
+          'total':
+              item.total,
+          'sellerId':
+              sellerId,
+          'entrepreneurUid':
+              item.entrepreneurUid,
+          'profit':
+              calculatedProfit *
+                  item.quantity,
+          'isResellerProduct':
+              true,
+        });
+      }
+
+      // =====================================================
+      // SUBTOTALS
+      // =====================================================
 
       double normalSubtotal = 0;
 
       int normalQuantity = 0;
 
-      if (normalItems.isNotEmpty) {
-        orderRef =
-            firestore.collection('orders').doc();
+      for (final item in normalItems) {
+        normalSubtotal += item.total;
+        normalQuantity += item.quantity;
+      }
 
-        normalOrderId =
-            orderRef.id;
+      final resellerSubtotal =
+          _resellerSellingTotal(
+        resellerItems,
+      );
 
-        normalItemsData =
-            await _createNormalOrderItems(
-          normalItems,
-          sellerInformation,
-        );
+      final resellerSupplierTotal =
+          _resellerSupplierTotal(
+        resellerItems,
+      );
 
-        for (final item in normalItems) {
-          normalSubtotal += item.total;
-          normalQuantity += item.quantity;
+      final normalAndResellerSubtotal =
+          normalSubtotal +
+              resellerSubtotal;
+
+      // =====================================================
+      // DISCOUNT ALLOCATION
+      // =====================================================
+
+      double normalDiscount = 0;
+
+      double resellerDiscount = 0;
+
+      if (discountAmount > 0 &&
+          normalAndResellerSubtotal > 0) {
+        if (normalSubtotal > 0) {
+          normalDiscount =
+              discountAmount *
+                  normalSubtotal /
+                  normalAndResellerSubtotal;
+        }
+
+        if (resellerSubtotal > 0) {
+          resellerDiscount =
+              discountAmount *
+                  resellerSubtotal /
+                  normalAndResellerSubtotal;
         }
       }
 
       // =====================================================
-      // GROUP NORMAL PRODUCTS BY SELLER
+      // COUPON
+      // =====================================================
+
+      final couponData =
+          _appliedCoupon;
+
+      final savedCouponCode =
+          couponData?['code']
+                  ?.toString() ??
+              '';
+
+      // =====================================================
+      // MAIN CUSTOMER ORDER
+      // =====================================================
+
+      final orderRef =
+          firestore.collection('orders').doc();
+
+      final customerOrderTotal =
+          normalAndResellerSubtotal +
+              deliveryFee -
+              discountAmount;
+
+      final safeCustomerOrderTotal =
+          customerOrderTotal < 0
+              ? 0
+              : customerOrderTotal;
+
+      final batch =
+          firestore.batch();
+
+      batch.set(
+        orderRef,
+        {
+          'orderId':
+              orderRef.id,
+          'userId':
+              user.uid,
+          'userEmail':
+              user.email ?? '',
+          'customerName':
+              _nameController.text.trim(),
+          'phone':
+              _phoneController.text.trim(),
+          'address':
+              _addressController.text.trim(),
+          'addressId':
+              _selectedAddressId ?? '',
+          'items':
+              allOrderItemsData,
+          'itemCount':
+              allItems.length,
+          'totalQuantity':
+              totalQuantity,
+          'subtotal':
+              normalAndResellerSubtotal,
+          'deliveryFee':
+              deliveryFee,
+          'discount':
+              discountAmount,
+          'couponCode':
+              savedCouponCode,
+          'total':
+              safeCustomerOrderTotal,
+          'paymentMethod':
+              _paymentMethod,
+          'paymentStatus':
+              'pending',
+          'orderStatus':
+              'placed',
+          'currency':
+              'BDT',
+          'currencySymbol':
+              '৳',
+          'hasResellerProduct':
+              resellerItems.isNotEmpty,
+          'hasNormalProduct':
+              normalItems.isNotEmpty,
+          'createdAt':
+              FieldValue
+                  .serverTimestamp(),
+          'updatedAt':
+              FieldValue
+                  .serverTimestamp(),
+        },
+      );
+
+      // =====================================================
+      // NORMAL SELLER ORDERS
       // =====================================================
 
       final Map<String,
@@ -1088,126 +1282,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
             sellerData;
       }
 
-      // =====================================================
-      // COUPON DATA
-      // =====================================================
-
-      final couponData =
-          _appliedCoupon;
-
-      final savedCouponCode =
-          couponData?['code']
-                  ?.toString() ??
-              '';
-
-      // =====================================================
-      // DISCOUNT ALLOCATION
-      //
-      // For mixed normal/reseller checkout, discount is
-      // allocated according to each group subtotal.
-      // =====================================================
-
-      double normalDiscount = 0;
-      double resellerDiscount = 0;
-
-      if (discountAmount > 0 &&
-          subtotal > 0) {
-        if (normalSubtotal > 0) {
-          normalDiscount =
-              discountAmount *
-                  normalSubtotal /
-                  subtotal;
-        }
-
-        final resellerSubtotal =
-            _resellerSellingTotal(
-          resellerItems,
-        );
-
-        if (resellerSubtotal > 0) {
-          resellerDiscount =
-              discountAmount *
-                  resellerSubtotal /
-                  subtotal;
-        }
-      }
-
-      // =====================================================
-      // BATCH
-      // =====================================================
-
-      final batch =
-          firestore.batch();
-
-      // =====================================================
-      // CREATE NORMAL CUSTOMER ORDER
-      // =====================================================
-
-      if (orderRef != null) {
-        batch.set(
-          orderRef,
-          {
-            'orderId':
-                orderRef.id,
-            'userId':
-                user.uid,
-            'userEmail':
-                user.email ?? '',
-            'customerName':
-                _nameController.text.trim(),
-            'phone':
-                _phoneController.text.trim(),
-            'address':
-                _addressController.text.trim(),
-            'addressId':
-                _selectedAddressId ?? '',
-            'items':
-                normalItemsData,
-            'itemCount':
-                normalItems.length,
-            'totalQuantity':
-                normalQuantity,
-            'subtotal':
-                normalSubtotal,
-            'deliveryFee':
-                deliveryFee,
-            'discount':
-                normalDiscount,
-            'couponCode':
-                savedCouponCode,
-            'total':
-                normalSubtotal +
-                    deliveryFee -
-                    normalDiscount <
-                0
-                ? 0
-                : normalSubtotal +
-                    deliveryFee -
-                    normalDiscount,
-            'paymentMethod':
-                _paymentMethod,
-            'paymentStatus':
-                'pending',
-            'orderStatus':
-                'placed',
-            'currency':
-                'BDT',
-            'currencySymbol':
-                '৳',
-            'createdAt':
-                FieldValue
-                    .serverTimestamp(),
-            'updatedAt':
-                FieldValue
-                    .serverTimestamp(),
-          },
-        );
-      }
-
-      // =====================================================
-      // CREATE NORMAL SELLER ORDERS
-      // =====================================================
-
       for (final sellerEntry
           in sellerItems.entries) {
         final sellerId =
@@ -1229,7 +1303,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
         for (final item
             in sellerProducts) {
-          sellerSubtotal += item.total;
+          sellerSubtotal +=
+              item.total;
 
           sellerQuantity +=
               item.quantity;
@@ -1263,7 +1338,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'sellerOrderId':
                 sellerOrderRef.id,
             'orderId':
-                normalOrderId ?? '',
+                orderRef.id,
             'customerId':
                 user.uid,
             'customerEmail':
@@ -1319,8 +1394,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // =====================================================
       // RESELLER ORDERS
       //
-      // Each Entrepreneur + Seller combination gets its own
-      // reseller_orders document.
+      // Group by Entrepreneur + Seller.
       // =====================================================
 
       final Map<String,
@@ -1383,95 +1457,46 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 .sellerId!
                 .trim();
 
-        // ===================================================
-        // VERIFY ALL ITEMS IN GROUP
-        // ===================================================
+        double sellingTotal = 0;
 
-        for (final item in groupItems) {
-          if (item.entrepreneurUid
-                  ?.trim() !=
-              entrepreneurUid) {
-            throw Exception(
-              'Invalid entrepreneur information.',
-            );
-          }
+        double supplierTotal = 0;
 
-          if (item.sellerId?.trim() !=
-              sellerId) {
-            throw Exception(
-              'Invalid seller information.',
-            );
-          }
-        }
-
-        // ===================================================
-        // SELLING TOTAL
-        // ===================================================
-
-        final sellingTotal =
-            _resellerSellingTotal(
-          groupItems,
-        );
-
-        // ===================================================
-        // SUPPLIER TOTAL
-        // ===================================================
-
-        final supplierTotal =
-            _resellerSupplierTotal(
-          groupItems,
-        );
-
-        // ===================================================
-        // PROFIT
-        //
-        // Profit is calculated from actual selling price
-        // minus supplier price.
-        // Coupon discount allocated to reseller group is
-        // deducted from selling revenue.
-        // ===================================================
-
-        final groupDiscount =
-            resellerDiscount *
-                (sellingTotal /
-                    (resellerItems.isEmpty
-                        ? 1
-                        : _resellerSellingTotal(
-                            resellerItems,
-                          )));
-
-        final adjustedSellingTotal =
-            sellingTotal -
-                groupDiscount;
-
-        final profit =
-            adjustedSellingTotal -
-                supplierTotal;
-
-        // ===================================================
-        // ITEMS DATA
-        // ===================================================
+        int resellerQuantity = 0;
 
         final List<
                 Map<String, dynamic>>
             resellerItemsData = [];
 
-        int resellerQuantity = 0;
+        for (final item in groupItems) {
+          final supplierPrice =
+              item.supplierPrice;
 
-        for (final item
-            in groupItems) {
-          resellerQuantity +=
-              item.quantity;
+          if (supplierPrice == null) {
+            throw Exception(
+              'Supplier price is missing for '
+              '${item.productName}.',
+            );
+          }
 
-          final itemSellingTotal =
+          final calculatedProfit =
+              item.price -
+                  supplierPrice;
+
+          if (calculatedProfit <= 0) {
+            throw Exception(
+              'Invalid reseller price for '
+              '${item.productName}.',
+            );
+          }
+
+          sellingTotal +=
               item.total;
 
-          final itemSupplierTotal =
+          supplierTotal +=
               item.supplierTotal;
 
-          final itemProfit =
-              itemSellingTotal -
-                  itemSupplierTotal;
+          resellerQuantity +=
+              item.quantity;
 
           resellerItemsData.add({
             'productId':
@@ -1486,15 +1511,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'sellingPrice':
                 item.price,
             'supplierPrice':
-                item.supplierPrice ?? 0,
+                supplierPrice,
             'quantity':
                 item.quantity,
             'sellingTotal':
-                itemSellingTotal,
+                item.total,
             'supplierTotal':
-                itemSupplierTotal,
+                item.supplierTotal,
             'profit':
-                itemProfit,
+                calculatedProfit *
+                    item.quantity,
             'sellerId':
                 sellerId,
             'entrepreneurUid':
@@ -1502,9 +1528,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
           });
         }
 
-        // ===================================================
-        // RESELLER ORDER DOCUMENT
-        // ===================================================
+        // -----------------------------------------------------
+        // ALLOCATE COUPON DISCOUNT TO THIS RESELLER GROUP
+        // -----------------------------------------------------
+
+        double groupDiscount = 0;
+
+        if (resellerSubtotal > 0 &&
+            resellerDiscount > 0) {
+          groupDiscount =
+              resellerDiscount *
+                  (sellingTotal /
+                      resellerSubtotal);
+        }
+
+        final adjustedSellingTotal =
+            sellingTotal -
+                groupDiscount;
+
+        final profit =
+            adjustedSellingTotal -
+                supplierTotal;
 
         final resellerOrderRef =
             firestore
@@ -1522,7 +1566,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'resellerOrderId':
                 resellerOrderRef.id,
 
-            // Customer information
+            // Customer
             'customerId':
                 user.uid,
             'customerEmail':
@@ -1536,11 +1580,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'addressId':
                 _selectedAddressId ?? '',
 
-            // Business connection
+            // Entrepreneur ↔ Seller connection
             'entrepreneurUid':
                 entrepreneurUid,
             'sellerId':
                 sellerId,
+
+            // Main customer order
+            'orderId':
+                orderRef.id,
 
             // Products
             'items':
@@ -1550,7 +1598,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'totalQuantity':
                 resellerQuantity,
 
-            // Financial information
+            // Financial
             'sellingTotal':
                 sellingTotal,
             'supplierTotal':
@@ -1560,14 +1608,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'profit':
                 profit,
             'deliveryFee':
-                deliveryFee,
+                0,
             'total':
-                adjustedSellingTotal +
-                    deliveryFee <
-                0
-                ? 0
-                : adjustedSellingTotal +
-                    deliveryFee,
+                adjustedSellingTotal,
 
             // Coupon
             'couponCode':
@@ -1600,7 +1643,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       // =====================================================
-      // SAVE EVERYTHING
+      // COMMIT EVERYTHING
       // =====================================================
 
       await batch.commit();
@@ -1615,14 +1658,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (!mounted) return;
 
-      // =====================================================
-      // SUCCESS ID
-      // =====================================================
-
       final successOrderId =
-          normalOrderId ??
-              firstResellerOrderId ??
-              'N/A';
+          orderRef.id;
 
       // =====================================================
       // SUCCESS DIALOG
@@ -1898,10 +1935,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ),
                   ),
 
-                  // =================================================
-                  // ENTREPRENEUR PROFIT INFORMATION
-                  // =================================================
-
                   if (item
                       .isResellerProduct) ...[
                     const SizedBox(
@@ -1941,10 +1974,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
             RoundedRectangleBorder(
           borderRadius:
               BorderRadius.circular(14),
-          side: BorderSide(
-            color:
-                Colors.grey.shade300,
-          ),
         ),
         child: const Padding(
           padding:
