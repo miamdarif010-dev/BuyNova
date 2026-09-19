@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'available_products_page.dart';
+
 class EntrepreneurPage extends StatefulWidget {
   const EntrepreneurPage({super.key});
 
@@ -41,18 +43,16 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
           .doc(user.uid)
           .get();
 
-      if (doc.exists) {
-        final data = doc.data() ?? {};
+      final data = doc.data() ?? <String, dynamic>{};
 
-        if (mounted) {
-          setState(() {
-            _status =
-                data['entrepreneurStatus']?.toString() ?? 'none';
+      if (mounted) {
+        setState(() {
+          _status =
+              data['entrepreneurStatus']?.toString() ?? 'none';
 
-            _entrepreneurCode =
-                data['entrepreneurCode']?.toString() ?? '';
-          });
-        }
+          _entrepreneurCode =
+              data['entrepreneurCode']?.toString() ?? '';
+        });
       }
     } catch (e) {
       debugPrint('Entrepreneur loading error: $e');
@@ -108,7 +108,7 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
           .set(
         {
           'name': user.displayName ?? '',
-          'email': user.email,
+          'email': user.email ?? '',
           'entrepreneurStatus': 'pending',
           'entrepreneurRequestedAt':
               FieldValue.serverTimestamp(),
@@ -153,12 +153,36 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
     );
   }
 
+  Future<void> _openAvailableProducts() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AvailableProductsPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Entrepreneur / Reseller',
+          ),
+        ),
+        body: const Center(
+          child: Text(
+            'Please login first.',
+          ),
         ),
       );
     }
@@ -173,23 +197,26 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _headerCard(),
-            const SizedBox(height: 18),
-            if (_status == 'approved') ...[
-              _approvedSection(),
-            ] else if (_status == 'pending') ...[
-              _pendingSection(),
-            ] else if (_status == 'rejected') ...[
-              _rejectedSection(),
-            ] else ...[
-              _notRegisteredSection(),
+      body: RefreshIndicator(
+        onRefresh: _loadEntrepreneurData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _headerCard(),
+              const SizedBox(height: 18),
+              if (_status == 'approved')
+                _approvedSection()
+              else if (_status == 'pending')
+                _pendingSection()
+              else if (_status == 'rejected')
+                _rejectedSection()
+              else
+                _notRegisteredSection(),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -393,9 +420,7 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
             ),
           ),
         ),
-
         const SizedBox(height: 18),
-
         const Text(
           'My Business',
           style: TextStyle(
@@ -403,9 +428,7 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
         const SizedBox(height: 10),
-
         _businessItem(
           icon: Icons.store_outlined,
           title: 'My Store',
@@ -413,15 +436,13 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
               'Manage products you want to resell.',
           onTap: _openMyStore,
         ),
-
         _businessItem(
           icon: Icons.add_business_outlined,
-          title: 'Find Products',
+          title: 'Available Products',
           subtitle:
               'Browse products from BuyNova sellers.',
-          onTap: _openMyStore,
+          onTap: _openAvailableProducts,
         ),
-
         _businessItem(
           icon: Icons.shopping_bag_outlined,
           title: 'Reseller Orders',
@@ -431,7 +452,6 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
             _comingSoon('Reseller Orders');
           },
         ),
-
         _businessItem(
           icon: Icons.account_balance_wallet_outlined,
           title: 'My Profit',
@@ -485,96 +505,12 @@ class _EntrepreneurPageState extends State<EntrepreneurPage> {
 // MY STORE PAGE
 // =============================================================
 
-class MyStorePage extends StatefulWidget {
+class MyStorePage extends StatelessWidget {
   const MyStorePage({super.key});
 
   @override
-  State<MyStorePage> createState() => _MyStorePageState();
-}
-
-class _MyStorePageState extends State<MyStorePage> {
-  User? get currentUser =>
-      FirebaseAuth.instance.currentUser;
-
-  Future<void> _removeFromStore(
-    String documentId,
-    String name,
-  ) async {
-    final confirm =
-        await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Remove Product',
-          ),
-          content: Text(
-            'Remove "$name" from your store?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(
-                context,
-                false,
-              ),
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(
-                context,
-                true,
-              ),
-              child: const Text(
-                'Remove',
-                style: TextStyle(
-                  color: Colors.red,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm != true) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('reseller_products')
-          .doc(documentId)
-          .delete();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Product removed from your store',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to remove product: $e',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final user = currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return const Scaffold(
@@ -598,28 +534,43 @@ class _MyStorePageState extends State<MyStorePage> {
       ),
       body: Column(
         children: [
-          _storeHeader(user.uid),
+          _StoreHeader(uid: user.uid),
           Expanded(
-            child: _myStoreProducts(
-              user.uid,
-            ),
+            child: _MyStoreProducts(uid: user.uid),
           ),
         ],
       ),
       floatingActionButton:
           FloatingActionButton.extended(
-        onPressed: _showAvailableProducts,
-        icon: const Icon(
-          Icons.add,
-        ),
-        label: const Text(
-          'Find Products',
-        ),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  const AvailableProductsPage(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Find Products'),
       ),
     );
   }
+}
 
-  Widget _storeHeader(String uid) {
+// =============================================================
+// STORE HEADER
+// =============================================================
+
+class _StoreHeader extends StatelessWidget {
+  final String uid;
+
+  const _StoreHeader({
+    required this.uid,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return FutureBuilder<
         DocumentSnapshot<Map<String, dynamic>>>(
       future: FirebaseFirestore.instance
@@ -628,11 +579,11 @@ class _MyStorePageState extends State<MyStorePage> {
           .get(),
       builder: (context, snapshot) {
         final data =
-            snapshot.data?.data() ?? {};
+            snapshot.data?.data() ??
+                <String, dynamic>{};
 
         final code =
-            data['entrepreneurCode']
-                    ?.toString() ??
+            data['entrepreneurCode']?.toString() ??
                 'ENT-${uid.substring(0, 6).toUpperCase()}';
 
         return Container(
@@ -684,9 +635,95 @@ class _MyStorePageState extends State<MyStorePage> {
       },
     );
   }
+}
 
-  Widget _myStoreProducts(String uid) {
-    return StreamBuilder<QuerySnapshot>(
+// =============================================================
+// MY STORE PRODUCTS
+// =============================================================
+
+class _MyStoreProducts extends StatelessWidget {
+  final String uid;
+
+  const _MyStoreProducts({
+    required this.uid,
+  });
+
+  Future<void> _removeProduct(
+    BuildContext context,
+    String documentId,
+    String productName,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Remove Product',
+          ),
+          content: Text(
+            'Remove "$productName" from your store?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context, true),
+              child: const Text(
+                'Remove',
+                style: TextStyle(
+                  color: Colors.red,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('reseller_products')
+          .doc(documentId)
+          .delete();
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Product removed from your store.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to remove product: $e',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  String _money(num value) {
+    return '৳${value.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('reseller_products')
           .where(
@@ -702,28 +739,24 @@ class _MyStorePageState extends State<MyStorePage> {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Center(
-            child:
-                CircularProgressIndicator(),
+            child: CircularProgressIndicator(),
           );
         }
 
         if (snapshot.hasError) {
           return Center(
             child: Padding(
-              padding:
-                  const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               child: Text(
                 'Error loading My Store:\n'
                 '${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
+                textAlign: TextAlign.center,
               ),
             ),
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
@@ -755,8 +788,7 @@ class _MyStorePageState extends State<MyStorePage> {
         }
 
         return ListView.builder(
-          padding:
-              const EdgeInsets.fromLTRB(
+          padding: const EdgeInsets.fromLTRB(
             12,
             0,
             12,
@@ -765,46 +797,34 @@ class _MyStorePageState extends State<MyStorePage> {
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final doc = docs[index];
+            final data = doc.data();
 
-            final data =
-                doc.data()
-                    as Map<String, dynamic>;
-
-            final name =
-                data['name']?.toString() ??
+            final productName =
+                data['productName']?.toString() ??
+                    data['name']?.toString() ??
                     'Product';
 
             final imageUrl =
-                data['imageUrl']
-                        ?.toString() ??
-                    '';
+                data['imageUrl']?.toString() ?? '';
 
             final supplierPrice =
-                (data['supplierPrice']
-                            is num)
-                    ? (data['supplierPrice']
-                            as num)
-                        .toDouble()
-                    : 0.0;
+                (data['supplierPrice'] as num?)
+                        ?.toDouble() ??
+                    0;
 
             final sellingPrice =
-                (data['sellingPrice']
-                            is num)
-                    ? (data['sellingPrice']
-                            as num)
-                        .toDouble()
-                    : 0.0;
+                (data['sellingPrice'] as num?)
+                        ?.toDouble() ??
+                    0;
 
             final profit =
-                (data['profit'] is num)
-                    ? (data['profit'] as num)
-                        .toDouble()
-                    : sellingPrice -
-                        supplierPrice;
+                (data['profit'] as num?)
+                        ?.toDouble() ??
+                    (sellingPrice -
+                        supplierPrice);
 
             final sellerCode =
-                data['sellerCode']
-                        ?.toString() ??
+                data['sellerCode']?.toString() ??
                     '';
 
             return Card(
@@ -821,14 +841,11 @@ class _MyStorePageState extends State<MyStorePage> {
                   children: [
                     ClipRRect(
                       borderRadius:
-                          BorderRadius.circular(
-                        10,
-                      ),
+                          BorderRadius.circular(10),
                       child: SizedBox(
                         width: 85,
                         height: 85,
-                        child: imageUrl
-                                .isNotEmpty
+                        child: imageUrl.isNotEmpty
                             ? Image.network(
                                 imageUrl,
                                 fit: BoxFit.cover,
@@ -854,11 +871,10 @@ class _MyStorePageState extends State<MyStorePage> {
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
+                            CrossAxisAlignment.start,
                         children: [
                           Text(
-                            name,
+                            productName,
                             style:
                                 const TextStyle(
                               fontSize: 16,
@@ -866,35 +882,30 @@ class _MyStorePageState extends State<MyStorePage> {
                                   FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(
-                            height: 6,
+                          const SizedBox(height: 6),
+                          Text(
+                            'Supplier: '
+                            '${_money(supplierPrice)}',
                           ),
                           Text(
-                            'Supplier: â‚©'
-                            '${supplierPrice.toStringAsFixed(0)}',
+                            'Selling: '
+                            '${_money(sellingPrice)}',
                           ),
                           Text(
-                            'Selling: â‚©'
-                            '${sellingPrice.toStringAsFixed(0)}',
-                          ),
-                          Text(
-                            'Profit: â‚©'
-                            '${profit.toStringAsFixed(0)}',
+                            'Profit: '
+                            '${_money(profit)}',
                             style:
                                 const TextStyle(
-                              color:
-                                  Colors.green,
+                              color: Colors.green,
                               fontWeight:
                                   FontWeight.bold,
                             ),
                           ),
-                          if (sellerCode
-                              .isNotEmpty)
+                          if (sellerCode.isNotEmpty)
                             Text(
                               'Seller ID: '
                               '$sellerCode',
-                              style:
-                                  TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: Colors
                                     .grey
@@ -910,9 +921,10 @@ class _MyStorePageState extends State<MyStorePage> {
                         color: Colors.red,
                       ),
                       onPressed: () =>
-                          _removeFromStore(
+                          _removeProduct(
+                        context,
                         doc.id,
-                        name,
+                        productName,
                       ),
                     ),
                   ],
@@ -922,330 +934,6 @@ class _MyStorePageState extends State<MyStorePage> {
           },
         );
       },
-    );
-  }
-
-  void _showAvailableProducts() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            const AvailableProductsPage(),
-      ),
-    );
-  }
-}
-
-// =============================================================
-// AVAILABLE PRODUCTS
-// =============================================================
-
-class AvailableProductsPage
-    extends StatelessWidget {
-  const AvailableProductsPage({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return const _AvailableProductsPage();
-  }
-}
-
-class _AvailableProductsPage
-    extends StatefulWidget {
-  const _AvailableProductsPage();
-
-  @override
-  State<_AvailableProductsPage> createState() =>
-      _AvailableProductsPageState();
-}
-
-class _AvailableProductsPageState
-    extends State<_AvailableProductsPage> {
-  User? get currentUser =>
-      FirebaseAuth.instance.currentUser;
-
-  Future<void> addProduct(
-    String productId,
-    Map<String, dynamic> data,
-  ) async {
-    final user = currentUser;
-
-    if (user == null) return;
-
-    final supplierPrice =
-        (data['price'] is num)
-            ? (data['price'] as num).toDouble()
-            : 0.0;
-
-    final sellerUid =
-        data['sellerId']?.toString() ?? '';
-
-    final sellerEmail =
-        data['sellerEmail']?.toString() ?? '';
-
-    final name =
-        data['name']?.toString() ??
-            'Product';
-
-    final imageUrl =
-        data['imageUrl']?.toString() ?? '';
-
-    final category =
-        data['category']?.toString() ??
-            'General';
-
-    final userDoc =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-
-    final userData =
-        userDoc.data() ?? {};
-
-    final entrepreneurCode =
-        userData['entrepreneurCode']
-                ?.toString() ??
-            'ENT-${user.uid.substring(0, 6).toUpperCase()}';
-
-    final sellerCode =
-        data['sellerCode']?.toString() ??
-            (sellerUid.isNotEmpty
-                ? 'SELL-${sellerUid.substring(0, 6).toUpperCase()}'
-                : '');
-
-    final controller =
-        TextEditingController(
-      text: (supplierPrice * 1.3)
-          .round()
-          .toString(),
-    );
-
-    final sellingPrice =
-        await showDialog<double>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Set Selling Price',
-          ),
-          content: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Supplier Price: '
-                'â‚©${supplierPrice.toStringAsFixed(0)}',
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Your Selling Price',
-                  prefixText: 'â‚© ',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Your profit will be calculated automatically.',
-                style: TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value = double.tryParse(
-                  controller.text.replaceAll(',', '').trim(),
-                );
-
-                if (value == null || value <= 0) {
-                  return;
-                }
-
-                Navigator.pop(context, value);
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (sellingPrice == null) return;
-
-    final profit = sellingPrice - supplierPrice;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('reseller_products')
-          .add({
-        'productId': productId,
-        'name': name,
-        'imageUrl': imageUrl,
-        'category': category,
-        'supplierPrice': supplierPrice,
-        'sellingPrice': sellingPrice,
-        'profit': profit,
-        'entrepreneurUid': user.uid,
-        'entrepreneurCode': entrepreneurCode,
-        'sellerUid': sellerUid,
-        'sellerCode': sellerCode,
-        'sellerEmail': sellerEmail,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$name added to your store!'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to add product: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Find Products',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('products')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error loading products:\n${snapshot.error}'),
-            );
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-
-          if (docs.isEmpty) {
-            return const Center(child: Text('No products available yet'));
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final data = doc.data() as Map<String, dynamic>;
-
-              final name = data['name']?.toString() ?? 'Product';
-              final imageUrl = data['imageUrl']?.toString() ?? '';
-              final price = (data['price'] is num)
-                  ? (data['price'] as num).toDouble()
-                  : 0.0;
-              final sellerEmail = data['sellerEmail']?.toString() ?? '';
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: SizedBox(
-                          width: 85,
-                          height: 85,
-                          child: imageUrl.isNotEmpty
-                              ? Image.network(
-                                  imageUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(Icons.image, size: 40);
-                                  },
-                                )
-                              : const Icon(Icons.image, size: 40),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text('Supplier Price: â‚©${price.toStringAsFixed(0)}'),
-                            if (sellerEmail.isNotEmpty)
-                              Text(
-                                'Seller: $sellerEmail',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () => addProduct(doc.id, data),
-                                child: const Text('Add to My Store'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
     );
   }
 }
