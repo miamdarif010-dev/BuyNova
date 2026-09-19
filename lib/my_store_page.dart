@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'cart_page.dart';
+
 class MyStorePage extends StatefulWidget {
   const MyStorePage({super.key});
 
@@ -41,6 +43,161 @@ class _MyStorePageState extends State<MyStorePage> {
           value?.toString() ?? '',
         ) ??
         0;
+  }
+
+  // =========================================================
+  // ADD RESELLER PRODUCT TO CART
+  // =========================================================
+
+  Future<void> _addToCart(
+    DocumentSnapshot product,
+  ) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      _showMessage('Please login first.');
+      return;
+    }
+
+    final data =
+        product.data() as Map<String, dynamic>;
+
+    final productName =
+        data['productName']?.toString() ??
+            data['name']?.toString() ??
+            'Product';
+
+    final imageUrl =
+        data['imageUrl']?.toString() ?? '';
+
+    final sellingPrice =
+        _toDouble(data['sellingPrice']);
+
+    final supplierPrice =
+        _toDouble(data['supplierPrice']);
+
+    final sellerId =
+        data['sellerId']?.toString() ?? '';
+
+    final entrepreneurUid =
+        data['entrepreneurUid']?.toString() ?? '';
+
+    final sourceProductId =
+        data['sourceProductId']?.toString() ?? '';
+
+    final storedProfit =
+        _toDouble(data['profit']);
+
+    final active =
+        data['active'] == true;
+
+    // ---------------------------------------------------------
+    // VALIDATION
+    // ---------------------------------------------------------
+
+    if (!active) {
+      _showMessage(
+        'This product is currently inactive.',
+      );
+      return;
+    }
+
+    if (sellingPrice <= 0) {
+      _showMessage(
+        'This product has an invalid selling price.',
+      );
+      return;
+    }
+
+    if (supplierPrice <= 0) {
+      _showMessage(
+        'Supplier price is missing.',
+      );
+      return;
+    }
+
+    if (sellerId.isEmpty) {
+      _showMessage(
+        'Seller information is missing.',
+      );
+      return;
+    }
+
+    if (entrepreneurUid.isEmpty ||
+        entrepreneurUid != user.uid) {
+      _showMessage(
+        'This reseller product does not belong to your account.',
+      );
+      return;
+    }
+
+    if (sourceProductId.isEmpty) {
+      _showMessage(
+        'Original product information is missing.',
+      );
+      return;
+    }
+
+    final calculatedProfit =
+        sellingPrice - supplierPrice;
+
+    if (calculatedProfit <= 0) {
+      _showMessage(
+        'Selling price must be higher than supplier price.',
+      );
+      return;
+    }
+
+    try {
+      // =======================================================
+      // ADD USING COMMON BUYNOVA CART
+      // =======================================================
+
+      await CartService().addItem(
+        id: product.id,
+        name: productName,
+        price: sellingPrice,
+        imageUrl: imageUrl.isNotEmpty
+            ? imageUrl
+            : null,
+        quantity: 1,
+
+        // Reseller information
+        isResellerProduct: true,
+        entrepreneurUid: user.uid,
+        sellerId: sellerId,
+        supplierProductId: sourceProductId,
+        supplierPrice: supplierPrice,
+        resellerProfit: calculatedProfit,
+      );
+
+      if (!mounted) return;
+
+      _showMessage(
+        '$productName added to cart.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      _showMessage(
+        'Could not add product to cart: $e',
+      );
+    }
+  }
+
+  // =========================================================
+  // SHOW MESSAGE
+  // =========================================================
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   // =========================================================
@@ -108,22 +265,14 @@ class _MyStorePageState extends State<MyStorePage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Product removed from your store.',
-          ),
-        ),
+      _showMessage(
+        'Product removed from your store.',
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not remove product: $e',
-          ),
-        ),
+      _showMessage(
+        'Could not remove product: $e',
       );
     }
   }
@@ -156,24 +305,16 @@ class _MyStorePageState extends State<MyStorePage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            !active
-                ? 'Product is now active.'
-                : 'Product is now inactive.',
-          ),
-        ),
+      _showMessage(
+        !active
+            ? 'Product is now active.'
+            : 'Product is now inactive.',
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not update product: $e',
-          ),
-        ),
+      _showMessage(
+        'Could not update product: $e',
       );
     }
   }
@@ -265,27 +406,15 @@ class _MyStorePageState extends State<MyStorePage> {
                     0;
 
                 if (price <= 0) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Enter a valid price.',
-                      ),
-                    ),
+                  _showMessage(
+                    'Enter a valid price.',
                   );
                   return;
                 }
 
                 if (price <= supplierPrice) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Selling price must be higher than supplier price.',
-                      ),
-                    ),
+                  _showMessage(
+                    'Selling price must be higher than supplier price.',
                   );
                   return;
                 }
@@ -316,26 +445,14 @@ class _MyStorePageState extends State<MyStorePage> {
 
                   if (!mounted) return;
 
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Selling price updated.',
-                      ),
-                    ),
+                  _showMessage(
+                    'Selling price updated.',
                   );
                 } catch (e) {
                   if (!mounted) return;
 
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Could not update price: $e',
-                      ),
-                    ),
+                  _showMessage(
+                    'Could not update price: $e',
                   );
                 }
               },
@@ -788,6 +905,31 @@ class _MyStorePageState extends State<MyStorePage> {
                     ),
                   ],
                 ),
+
+                const SizedBox(height: 10),
+
+                // =================================================
+                // ADD TO CART
+                // =================================================
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 42,
+                  child: FilledButton.icon(
+                    onPressed: active
+                        ? () {
+                            _addToCart(product);
+                          }
+                        : null,
+                    icon: const Icon(
+                      Icons.shopping_cart_outlined,
+                      size: 19,
+                    ),
+                    label: const Text(
+                      'Add to Cart',
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1030,7 +1172,7 @@ class _MyStorePageState extends State<MyStorePage> {
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 10,
                       childAspectRatio:
-                          0.57,
+                          0.50,
                     ),
                     itemCount:
                         docs.length,
