@@ -53,6 +53,7 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
 
     final userId = data['userId']?.toString() ?? '';
     final amount = _toDouble(data['amount']);
+
     final paymentMethod =
         data['paymentMethod']?.toString() ?? 'Not selected';
 
@@ -63,7 +64,12 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              10,
+              20,
+              24,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,27 +82,34 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+
                 _detailRow(
                   'Amount',
                   _money(amount),
                 ),
+
                 _detailRow(
                   'User ID',
                   userId,
                 ),
+
                 _detailRow(
                   'Payment Method',
                   paymentMethod,
                 ),
+
                 _detailRow(
                   'Status',
                   'Pending',
                 ),
+
                 _detailRow(
                   'Created',
                   _date(data['createdAt']),
                 ),
+
                 const SizedBox(height: 20),
+
                 Row(
                   children: [
                     Expanded(
@@ -105,20 +118,28 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
                             ? null
                             : () async {
                                 Navigator.pop(context);
-                                await _rejectDeposit(transaction);
+
+                                await _rejectDeposit(
+                                  transaction,
+                                );
                               },
                         icon: const Icon(Icons.close),
                         label: const Text('Reject'),
                       ),
                     ),
+
                     const SizedBox(width: 12),
+
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: _processing
                             ? null
                             : () async {
                                 Navigator.pop(context);
-                                await _approveDeposit(transaction);
+
+                                await _approveDeposit(
+                                  transaction,
+                                );
                               },
                         icon: const Icon(Icons.check),
                         label: const Text('Approve'),
@@ -134,11 +155,15 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
     );
   }
 
-  Widget _detailRow(String title, String value) {
+  Widget _detailRow(
+    String title,
+    String value,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 125,
@@ -162,30 +187,54 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
   ) async {
     final data = transaction.data() ?? {};
 
-    final userId = data['userId']?.toString() ?? '';
-    final amount = _toDouble(data['amount']);
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final amount =
+        _toDouble(data['amount']);
 
     if (userId.isEmpty || amount <= 0) {
-      _showMessage('Invalid deposit request.');
+      _showMessage(
+        'Invalid deposit request.',
+        error: true,
+      );
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Approve Deposit?'),
+          title: const Text(
+            'Approve Deposit?',
+          ),
           content: Text(
-            'Approve ${_money(amount)} for this user?',
+            'This will add ${_money(amount)} '
+            'to the user wallet.',
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancel',
+              ),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Approve'),
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              child: const Text(
+                'Approve',
+              ),
             ),
           ],
         );
@@ -201,33 +250,128 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
     });
 
     try {
-      /*
-       * IMPORTANT:
-       *
-       * We intentionally do NOT change cashBalance here.
-       *
-       * Real-money balance must be updated by a trusted backend /
-       * Cloud Function after verification.
-       *
-       * For now we only mark the deposit request as approved.
-       */
+      final transactionReference =
+          transaction.reference;
 
-      await transaction.reference.update({
-        'status': 'approved',
-        'approvedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final userReference =
+          _firestore
+              .collection('users')
+              .doc(userId);
 
-      if (!mounted) return;
+      final notificationReference =
+          userReference
+              .collection('notifications')
+              .doc();
+
+      await _firestore.runTransaction(
+        (firestoreTransaction) async {
+          final transactionSnapshot =
+              await firestoreTransaction.get(
+            transactionReference,
+          );
+
+          final userSnapshot =
+              await firestoreTransaction.get(
+            userReference,
+          );
+
+          if (!transactionSnapshot.exists) {
+            throw Exception(
+              'Deposit request no longer exists.',
+            );
+          }
+
+          if (!userSnapshot.exists) {
+            throw Exception(
+              'User account not found.',
+            );
+          }
+
+          final transactionData =
+              transactionSnapshot.data();
+
+          final currentStatus =
+              transactionData?['status']
+                  ?.toString();
+
+          // Prevent double approval.
+          if (currentStatus != 'pending') {
+            throw Exception(
+              'This deposit has already been processed.',
+            );
+          }
+
+          final userData =
+              userSnapshot.data();
+
+          final currentBalance =
+              _toDouble(
+            userData?['cashBalance'],
+          );
+
+          final newBalance =
+              currentBalance + amount;
+
+          // Update user's real cash balance.
+          firestoreTransaction.update(
+            userReference,
+            {
+              'cashBalance': newBalance,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          // Mark transaction as completed.
+          firestoreTransaction.update(
+            transactionReference,
+            {
+              'status': 'approved',
+              'approvedAmount': amount,
+              'approvedAt':
+                  FieldValue.serverTimestamp(),
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          // Notify user.
+          firestoreTransaction.set(
+            notificationReference,
+            {
+              'title': 'Money Added',
+              'message':
+                  '${_money(amount)} has been added '
+                  'to your BuyNova wallet.',
+              'type': 'wallet_deposit',
+              'amount': amount,
+              'currency': 'BDT',
+              'currencySymbol': '৳',
+              'isRead': false,
+              'createdAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
 
       _showMessage(
-        '${_money(amount)} deposit approved.',
+        '${_money(amount)} added successfully.',
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       _showMessage(
-        'Failed to approve deposit.',
+        e.toString().replaceFirst(
+          'Exception: ',
+          '',
+        ),
         error: true,
       );
     } finally {
@@ -244,28 +388,40 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
   ) async {
     final data = transaction.data() ?? {};
 
-    final amount = _toDouble(data['amount']);
+    final amount =
+        _toDouble(data['amount']);
 
-    final reasonController = TextEditingController();
+    final reasonController =
+        TextEditingController();
 
-    final result = await showDialog<String?>(
+    final result =
+        await showDialog<String?>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Reject Deposit'),
+          title: const Text(
+            'Reject Deposit',
+          ),
           content: TextField(
             controller: reasonController,
             maxLines: 3,
-            decoration: const InputDecoration(
+            decoration:
+                const InputDecoration(
               labelText: 'Reason',
-              hintText: 'Enter rejection reason',
-              border: OutlineInputBorder(),
+              hintText:
+                  'Enter rejection reason',
+              border:
+                  OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'Cancel',
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -274,7 +430,9 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
                   reasonController.text.trim(),
                 );
               },
-              child: const Text('Reject'),
+              child: const Text(
+                'Reject',
+              ),
             ),
           ],
         );
@@ -292,24 +450,102 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
     });
 
     try {
-      await transaction.reference.update({
-        'status': 'rejected',
-        'rejectionReason':
-            result.isEmpty ? 'Deposit rejected by admin.' : result,
-        'rejectedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final userId =
+          data['userId']?.toString() ?? '';
 
-      if (!mounted) return;
+      final notificationReference =
+          userId.isEmpty
+              ? null
+              : _firestore
+                  .collection('users')
+                  .doc(userId)
+                  .collection('notifications')
+                  .doc();
+
+      await _firestore.runTransaction(
+        (firestoreTransaction) async {
+          final transactionSnapshot =
+              await firestoreTransaction.get(
+            transaction.reference,
+          );
+
+          if (!transactionSnapshot.exists) {
+            throw Exception(
+              'Deposit request no longer exists.',
+            );
+          }
+
+          final transactionData =
+              transactionSnapshot.data();
+
+          final currentStatus =
+              transactionData?['status']
+                  ?.toString();
+
+          if (currentStatus != 'pending') {
+            throw Exception(
+              'This deposit has already been processed.',
+            );
+          }
+
+          firestoreTransaction.update(
+            transaction.reference,
+            {
+              'status': 'rejected',
+              'rejectionReason':
+                  result.isEmpty
+                      ? 'Deposit rejected by admin.'
+                      : result,
+              'rejectedAt':
+                  FieldValue.serverTimestamp(),
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          if (notificationReference != null) {
+            firestoreTransaction.set(
+              notificationReference,
+              {
+                'title':
+                    'Deposit Rejected',
+                'message':
+                    result.isEmpty
+                        ? '${_money(amount)} deposit request '
+                          'was rejected.'
+                        : '${_money(amount)} deposit request '
+                          'was rejected. $result',
+                'type':
+                    'wallet_deposit_rejected',
+                'amount': amount,
+                'currency': 'BDT',
+                'currencySymbol': '৳',
+                'isRead': false,
+                'createdAt':
+                    FieldValue.serverTimestamp(),
+              },
+            );
+          }
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
 
       _showMessage(
         '${_money(amount)} deposit rejected.',
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       _showMessage(
-        'Failed to reject deposit.',
+        e.toString().replaceFirst(
+          'Exception: ',
+          '',
+        ),
         error: true,
       );
     } finally {
@@ -325,13 +561,18 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
     String message, {
     bool error = false,
   }) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
         content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: error ? Colors.red : null,
+        behavior:
+            SnackBarBehavior.floating,
+        backgroundColor:
+            error ? Colors.red : null,
       ),
     );
   }
@@ -340,124 +581,171 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Wallet Deposits'),
+        title: const Text(
+          'Wallet Deposits',
+        ),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      body: StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>>(
         stream: _depositStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding:
+                    const EdgeInsets.all(24),
                 child: Text(
                   'Unable to load deposit requests.\n\n'
                   '${snapshot.error}',
-                  textAlign: TextAlign.center,
+                  textAlign:
+                      TextAlign.center,
                 ),
               ),
             );
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             );
           }
 
-          final documents = snapshot.data?.docs ?? [];
+          final documents =
+              snapshot.data?.docs ?? [];
 
           if (documents.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () async {},
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 180),
-                  Icon(
-                    Icons.account_balance_wallet_outlined,
-                    size: 64,
-                  ),
-                  SizedBox(height: 16),
-                  Center(
-                    child: Text(
-                      'No pending deposit requests',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+            return ListView(
+              physics:
+                  const AlwaysScrollableScrollPhysics(),
+              children: const [
+                SizedBox(height: 180),
+                Icon(
+                  Icons
+                      .account_balance_wallet_outlined,
+                  size: 64,
+                ),
+                SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    'No pending deposit requests',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight:
+                          FontWeight.w600,
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Center(
-                    child: Text(
-                      'New Add Money requests will appear here.',
-                    ),
+                ),
+                SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'New Add Money requests '
+                    'will appear here.',
                   ),
-                ],
-              ),
+                ),
+              ],
             );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding:
+                const EdgeInsets.all(16),
             itemCount: documents.length,
-            itemBuilder: (context, index) {
-              final transaction = documents[index];
-              final data = transaction.data();
+            itemBuilder:
+                (context, index) {
+              final transaction =
+                  documents[index];
 
-              final amount = _toDouble(data['amount']);
+              final data =
+                  transaction.data();
+
+              final amount =
+                  _toDouble(
+                data['amount'],
+              );
+
               final userId =
-                  data['userId']?.toString() ?? 'Unknown user';
+                  data['userId']
+                          ?.toString() ??
+                      'Unknown user';
 
               final paymentMethod =
-                  data['paymentMethod']?.toString() ??
+                  data['paymentMethod']
+                          ?.toString() ??
                       'Not selected';
 
               return Card(
-                margin: const EdgeInsets.only(bottom: 12),
+                margin:
+                    const EdgeInsets.only(
+                  bottom: 12,
+                ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  leading: CircleAvatar(
+                  contentPadding:
+                      const EdgeInsets.all(
+                    16,
+                  ),
+                  leading:
+                      const CircleAvatar(
                     radius: 25,
-                    child: const Icon(
-                      Icons.account_balance_wallet,
+                    child: Icon(
+                      Icons
+                          .account_balance_wallet,
                     ),
                   ),
                   title: Text(
                     _money(amount),
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 19,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                  subtitle:
+                      Padding(
+                    padding:
+                        const EdgeInsets.only(
+                      top: 8,
+                    ),
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         Text(
                           'User: $userId',
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          overflow:
+                              TextOverflow
+                                  .ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Payment: $paymentMethod',
+                        const SizedBox(
+                          height: 4,
                         ),
-                        const SizedBox(height: 4),
                         Text(
-                          _date(data['createdAt']),
+                          'Payment: '
+                          '$paymentMethod',
+                        ),
+                        const SizedBox(
+                          height: 4,
+                        ),
+                        Text(
+                          _date(
+                            data['createdAt'],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  trailing: const Icon(
+                  trailing:
+                      const Icon(
                     Icons.chevron_right,
                   ),
                   onTap: _processing
                       ? null
-                      : () => _showDepositDetails(
+                      : () =>
+                          _showDepositDetails(
                             transaction,
                           ),
                 ),
