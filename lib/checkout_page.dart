@@ -1781,20 +1781,3 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 }
 
-এখন "checkout_page.dart" পুরোটা replace করে GitHub-এ commit করো।
-
-এই সংস্করণে:
-
-- "_addressBookAvailable" সম্পূর্ণ বাদ গেছে।
-- Saved Address-এর "Radio" পুরোনো "groupValue/onChanged" ব্যবহার করছে না।
-- Address selection "RadioGroup<String>" দিয়ে হচ্ছে।
-- Payment-এর "RadioGroup<String>" আগের মতোই আছে।
-- Address Book integration থাকবে।
-- Multi-seller order থাকবে।
-- "orders" + "seller_orders" দুটোই তৈরি হবে।
-- "addressId" সংরক্ষণ হবে।
-- COD থাকবে।
-- Cart clear থাকবে।
-- Order সফল হলে My Orders-এ যাবে।
-
-তাই আগের ৩টি analyzer issue-ই এই ফাইলে ঠিক হয়ে যাওয়ার কথা।
