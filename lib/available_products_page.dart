@@ -15,7 +15,8 @@ class _AvailableProductsPageState
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseAuth _auth =
+      FirebaseAuth.instance;
 
   bool _isCheckingEntrepreneur = true;
   bool _isApprovedEntrepreneur = false;
@@ -78,18 +79,14 @@ class _AvailableProductsPageState
         _isCheckingEntrepreneur = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not check entrepreneur status: $e',
-          ),
-        ),
+      _showMessage(
+        'Could not check entrepreneur status.',
       );
     }
   }
 
   // =========================================================
-  // MONEY FORMAT
+  // MONEY
   // =========================================================
 
   String _money(double value) {
@@ -101,7 +98,36 @@ class _AvailableProductsPageState
   }
 
   // =========================================================
-  // ADD TO MY STORE
+  // DOUBLE CONVERTER
+  // =========================================================
+
+  double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
+  }
+
+  // =========================================================
+  // SHOW MESSAGE
+  // =========================================================
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
+  // =========================================================
+  // ADD TO MY STORE DIALOG
   // =========================================================
 
   Future<void> _showAddToStoreDialog(
@@ -124,49 +150,73 @@ class _AvailableProductsPageState
     final data =
         product.data() as Map<String, dynamic>;
 
-    final String productId = product.id;
+    final productId = product.id;
 
-    final String productName =
+    final productName =
         data['name']?.toString() ?? 'Product';
 
-    final double supplierPrice =
+    final supplierPrice =
         _toDouble(data['price']);
 
-    final String imageUrl =
+    final imageUrl =
         data['imageUrl']?.toString() ?? '';
 
-    final String category =
+    final category =
         data['category']?.toString() ?? 'General';
 
-    final String description =
+    final description =
         data['description']?.toString() ?? '';
 
-    final String sellerId =
+    final sellerId =
         data['sellerId']?.toString() ?? '';
 
-    final String sellerCode =
+    final sellerCode =
         data['sellerCode']?.toString() ?? '';
 
-    final String sellerEmail =
+    final sellerEmail =
         data['sellerEmail']?.toString() ?? '';
+
+    final sellerApproved =
+        data['sellerApproved'] == true;
+
+    // ---------------------------------------------------------
+    // SELLER VALIDATION
+    // ---------------------------------------------------------
 
     if (sellerId.isEmpty) {
       _showMessage(
-        'Seller information is missing for this product.',
+        'Seller information is missing.',
       );
       return;
     }
 
+    if (!sellerApproved) {
+      _showMessage(
+        'This product is not available from an approved seller.',
+      );
+      return;
+    }
+
+    if (supplierPrice <= 0) {
+      _showMessage(
+        'This product has an invalid supplier price.',
+      );
+      return;
+    }
+
+    // ---------------------------------------------------------
+    // DEFAULT SELLING PRICE
+    // ---------------------------------------------------------
+
+    final defaultSellingPrice =
+        supplierPrice + 1000;
+
     final controller = TextEditingController(
-      text: supplierPrice > 0
-          ? (supplierPrice + 1000).toStringAsFixed(0)
-          : '',
+      text: defaultSellingPrice.toStringAsFixed(0),
     );
 
     double sellingPrice =
-        supplierPrice > 0
-            ? supplierPrice + 1000
-            : 0;
+        defaultSellingPrice;
 
     double profit =
         sellingPrice - supplierPrice;
@@ -175,7 +225,7 @@ class _AvailableProductsPageState
 
     await showDialog(
       context: context,
-      barrierDismissible: !isSaving,
+      barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (
@@ -188,10 +238,13 @@ class _AvailableProductsPageState
               ),
               content: SingleChildScrollView(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
+                    // -------------------------------------------------
+                    // IMAGE
+                    // -------------------------------------------------
+
                     if (imageUrl.isNotEmpty)
                       ClipRRect(
                         borderRadius:
@@ -209,13 +262,14 @@ class _AvailableProductsPageState
                           ) {
                             return Container(
                               height: 150,
+                              width: double.infinity,
                               color:
                                   Colors.grey.shade200,
                               child: const Center(
                                 child: Icon(
                                   Icons
                                       .image_not_supported_outlined,
-                                  size: 40,
+                                  size: 42,
                                 ),
                               ),
                             );
@@ -224,6 +278,10 @@ class _AvailableProductsPageState
                       ),
 
                     const SizedBox(height: 14),
+
+                    // -------------------------------------------------
+                    // PRODUCT NAME
+                    // -------------------------------------------------
 
                     Text(
                       productName,
@@ -234,10 +292,10 @@ class _AvailableProductsPageState
                       ),
                     ),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
 
                     Text(
-                      'Category: $category',
+                      category,
                       style: TextStyle(
                         color:
                             Colors.grey.shade600,
@@ -245,6 +303,52 @@ class _AvailableProductsPageState
                     ),
 
                     const SizedBox(height: 12),
+
+                    // -------------------------------------------------
+                    // SELLER
+                    // -------------------------------------------------
+
+                    if (sellerCode.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding:
+                            const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue
+                              .withValues(alpha: 0.08),
+                          borderRadius:
+                              BorderRadius.circular(
+                            10,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons
+                                  .storefront_rounded,
+                              size: 20,
+                              color: Colors.blue,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Supplier: $sellerCode',
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const SizedBox(height: 14),
+
+                    // -------------------------------------------------
+                    // SUPPLIER PRICE
+                    // -------------------------------------------------
 
                     Container(
                       width: double.infinity,
@@ -274,7 +378,7 @@ class _AvailableProductsPageState
                           Text(
                             _money(supplierPrice),
                             style: const TextStyle(
-                              fontSize: 20,
+                              fontSize: 21,
                               fontWeight:
                                   FontWeight.bold,
                             ),
@@ -284,6 +388,10 @@ class _AvailableProductsPageState
                     ),
 
                     const SizedBox(height: 16),
+
+                    // -------------------------------------------------
+                    // SELLING PRICE
+                    // -------------------------------------------------
 
                     TextField(
                       controller: controller,
@@ -300,7 +408,7 @@ class _AvailableProductsPageState
                         border:
                             OutlineInputBorder(),
                         helperText:
-                            'Set the price customers will pay.',
+                            'This is the price your customers will pay.',
                       ),
                       onChanged: (value) {
                         final parsed =
@@ -320,6 +428,10 @@ class _AvailableProductsPageState
                     ),
 
                     const SizedBox(height: 14),
+
+                    // -------------------------------------------------
+                    // PROFIT
+                    // -------------------------------------------------
 
                     Container(
                       width: double.infinity,
@@ -359,8 +471,7 @@ class _AvailableProductsPageState
                                   'Your Profit',
                                   style: TextStyle(
                                     fontWeight:
-                                        FontWeight
-                                            .w600,
+                                        FontWeight.w600,
                                   ),
                                 ),
                                 const SizedBox(
@@ -371,8 +482,7 @@ class _AvailableProductsPageState
                                   style: TextStyle(
                                     fontSize: 19,
                                     fontWeight:
-                                        FontWeight
-                                            .bold,
+                                        FontWeight.bold,
                                     color: profit > 0
                                         ? Colors.green
                                         : Colors.red,
@@ -384,6 +494,10 @@ class _AvailableProductsPageState
                         ],
                       ),
                     ),
+
+                    // -------------------------------------------------
+                    // DESCRIPTION
+                    // -------------------------------------------------
 
                     if (description.isNotEmpty) ...[
                       const SizedBox(height: 16),
@@ -423,28 +537,16 @@ class _AvailableProductsPageState
                       ? null
                       : () async {
                           if (sellingPrice <= 0) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Enter a valid selling price.',
-                                ),
-                              ),
+                            _showMessage(
+                              'Enter a valid selling price.',
                             );
                             return;
                           }
 
                           if (sellingPrice <=
                               supplierPrice) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Selling price must be higher than supplier price.',
-                                ),
-                              ),
+                            _showMessage(
+                              'Selling price must be higher than supplier price.',
                             );
                             return;
                           }
@@ -518,7 +620,7 @@ class _AvailableProductsPageState
   }
 
   // =========================================================
-  // SAVE RESELLER PRODUCT
+  // SAVE TO RESELLER PRODUCTS
   // =========================================================
 
   Future<bool> _addProductToMyStore({
@@ -541,6 +643,10 @@ class _AvailableProductsPageState
     }
 
     try {
+      // -------------------------------------------------------
+      // CHECK ENTREPRENEUR AGAIN
+      // -------------------------------------------------------
+
       final entrepreneurSnapshot =
           await _firestore
               .collection('users')
@@ -550,9 +656,10 @@ class _AvailableProductsPageState
       final entrepreneurData =
           entrepreneurSnapshot.data();
 
-      final status = entrepreneurData?[
-              'entrepreneurStatus']
-          ?.toString();
+      final status =
+          entrepreneurData?[
+                  'entrepreneurStatus']
+              ?.toString();
 
       if (status != 'approved') {
         _showMessage(
@@ -563,10 +670,10 @@ class _AvailableProductsPageState
 
       final entrepreneurCode =
           entrepreneurData?[
-                  'entrepreneurCode']
-              ?.toString() ??
-          _entrepreneurCode ??
-          '';
+                      'entrepreneurCode']
+                  ?.toString() ??
+              _entrepreneurCode ??
+              '';
 
       if (entrepreneurCode.isEmpty) {
         _showMessage(
@@ -575,9 +682,50 @@ class _AvailableProductsPageState
         return false;
       }
 
-      // =====================================================
-      // PREVENT DUPLICATE PRODUCT
-      // =====================================================
+      // -------------------------------------------------------
+      // VERIFY ORIGINAL PRODUCT STILL EXISTS
+      // -------------------------------------------------------
+
+      final originalProduct =
+          await _firestore
+              .collection('products')
+              .doc(productId)
+              .get();
+
+      if (!originalProduct.exists) {
+        _showMessage(
+          'This product is no longer available.',
+        );
+        return false;
+      }
+
+      final originalData =
+          originalProduct.data();
+
+      if (originalData == null) {
+        _showMessage(
+          'Product information is unavailable.',
+        );
+        return false;
+      }
+
+      if (originalData['active'] != true) {
+        _showMessage(
+          'This product is no longer active.',
+        );
+        return false;
+      }
+
+      if (originalData['sellerApproved'] != true) {
+        _showMessage(
+          'This seller is no longer approved.',
+        );
+        return false;
+      }
+
+      // -------------------------------------------------------
+      // PREVENT DUPLICATE
+      // -------------------------------------------------------
 
       final existingQuery =
           await _firestore
@@ -600,21 +748,21 @@ class _AvailableProductsPageState
         return false;
       }
 
-      // =====================================================
+      // -------------------------------------------------------
       // CREATE RESELLER PRODUCT
-      // =====================================================
+      // -------------------------------------------------------
 
       await _firestore
           .collection('reseller_products')
           .add({
-        // Original product
+        // Original Seller Product
         'sourceProductId': productId,
         'productName': productName,
         'imageUrl': imageUrl,
         'category': category,
         'description': description,
 
-        // Supplier / Seller
+        // Seller / Supplier
         'sellerId': sellerId,
         'sellerCode': sellerCode,
         'sellerEmail': sellerEmail,
@@ -622,17 +770,16 @@ class _AvailableProductsPageState
 
         // Entrepreneur
         'entrepreneurUid': user.uid,
-        'entrepreneurCode':
-            entrepreneurCode,
+        'entrepreneurCode': entrepreneurCode,
         'entrepreneurEmail':
             user.email ?? '',
 
-        // Reseller pricing
+        // Entrepreneur pricing
         'sellingPrice': sellingPrice,
-        'profit': sellingPrice -
-            supplierPrice,
+        'profit':
+            sellingPrice - supplierPrice,
 
-        // Store / product status
+        // Status
         'active': true,
         'status': 'active',
 
@@ -640,7 +787,7 @@ class _AvailableProductsPageState
         'views': 0,
         'salesCount': 0,
 
-        // Timestamp
+        // Dates
         'createdAt':
             FieldValue.serverTimestamp(),
         'updatedAt':
@@ -649,8 +796,7 @@ class _AvailableProductsPageState
 
       if (!mounted) return true;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Product added to your store successfully!',
@@ -662,13 +808,8 @@ class _AvailableProductsPageState
     } catch (e) {
       if (!mounted) return false;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not add product: $e',
-          ),
-        ),
+      _showMessage(
+        'Could not add product: $e',
       );
 
       return false;
@@ -676,37 +817,7 @@ class _AvailableProductsPageState
   }
 
   // =========================================================
-  // DOUBLE CONVERTER
-  // =========================================================
-
-  double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
-  }
-
-  // =========================================================
-  // MESSAGE
-  // =========================================================
-
-  void _showMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
-  }
-
-  // =========================================================
-  // NOT APPROVED VIEW
+  // NOT APPROVED
   // =========================================================
 
   Widget _notApprovedView() {
@@ -789,6 +900,14 @@ class _AvailableProductsPageState
         data['sellerCode']?.toString() ??
             '';
 
+    final sellerApproved =
+        data['sellerApproved'] == true;
+
+    // Only approved seller products
+    if (!sellerApproved) {
+      return const SizedBox.shrink();
+    }
+
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 2,
@@ -796,9 +915,9 @@ class _AvailableProductsPageState
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
-          // ===================================================
+          // -----------------------------------------------------
           // IMAGE
-          // ===================================================
+          // -----------------------------------------------------
 
           SizedBox(
             height: 190,
@@ -831,17 +950,16 @@ class _AvailableProductsPageState
                         Colors.grey.shade200,
                     child: const Center(
                       child: Icon(
-                        Icons
-                            .image_outlined,
+                        Icons.image_outlined,
                         size: 45,
                       ),
                     ),
                   ),
           ),
 
-          // ===================================================
+          // -----------------------------------------------------
           // DETAILS
-          // ===================================================
+          // -----------------------------------------------------
 
           Padding(
             padding:
@@ -989,8 +1107,7 @@ class _AvailableProductsPageState
             )
           : !_isApprovedEntrepreneur
               ? _notApprovedView()
-              : StreamBuilder<
-                  QuerySnapshot>(
+              : StreamBuilder<QuerySnapshot>(
                   stream: _firestore
                       .collection('products')
                       .where(
@@ -1006,8 +1123,9 @@ class _AvailableProductsPageState
                       return Center(
                         child: Padding(
                           padding:
-                              const EdgeInsets
-                                  .all(24),
+                              const EdgeInsets.all(
+                            24,
+                          ),
                           child: Text(
                             'Could not load products.\n\n${snapshot.error}',
                             textAlign:
@@ -1025,17 +1143,36 @@ class _AvailableProductsPageState
                       );
                     }
 
-                    final docs =
+                    final allDocs =
                         snapshot.data?.docs ??
                             [];
+
+                    // -------------------------------------------------
+                    // ONLY APPROVED SELLER PRODUCTS
+                    // -------------------------------------------------
+
+                    final docs =
+                        allDocs.where((doc) {
+                      final data =
+                          doc.data()
+                              as Map<String, dynamic>;
+
+                      return data['sellerApproved'] ==
+                              true &&
+                          data['sellerId'] != null &&
+                          data['sellerId']
+                              .toString()
+                              .isNotEmpty;
+                    }).toList();
 
                     if (docs.isEmpty) {
                       return Center(
                         child:
                             SingleChildScrollView(
                           padding:
-                              const EdgeInsets
-                                  .all(24),
+                              const EdgeInsets.all(
+                            24,
+                          ),
                           child: Column(
                             mainAxisAlignment:
                                 MainAxisAlignment
@@ -1068,8 +1205,7 @@ class _AvailableProductsPageState
                               Text(
                                 'Approved sellers have not added any active products yet.',
                                 textAlign:
-                                    TextAlign
-                                        .center,
+                                    TextAlign.center,
                                 style:
                                     TextStyle(
                                   color: Colors
@@ -1088,8 +1224,9 @@ class _AvailableProductsPageState
                           _checkEntrepreneurApproval,
                       child: GridView.builder(
                         padding:
-                            const EdgeInsets
-                                .all(12),
+                            const EdgeInsets.all(
+                          12,
+                        ),
                         physics:
                             const AlwaysScrollableScrollPhysics(),
                         gridDelegate:
