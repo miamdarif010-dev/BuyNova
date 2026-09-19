@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'admin_coupon_page.dart';
+import 'admin_wallet_page.dart';
 
 /// Only reachable if the logged-in user's email matches kAdminEmail.
 const String kAdminEmail = 'miamdarif010@gmail.com';
@@ -22,7 +23,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
     super.initState();
 
     _tabController = TabController(
-      length: 7,
+      length: 8,
       vsync: this,
     );
   }
@@ -308,6 +309,12 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ),
               text: 'Coupons',
             ),
+            Tab(
+              icon: Icon(
+                Icons.account_balance_wallet_outlined,
+              ),
+              text: 'Wallet',
+            ),
           ],
         ),
       ),
@@ -321,6 +328,7 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           _relationshipsTab(),
           _ordersTab(),
           const AdminCouponPage(),
+          const AdminWalletPage(),
         ],
       ),
     );
@@ -1575,7 +1583,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            // ORDER HEADER
             Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
@@ -1619,7 +1626,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
             const Divider(height: 22),
 
-            // CUSTOMER
             Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
@@ -1668,7 +1674,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 10,
             ),
 
-            // ADDRESS
             Row(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
@@ -1712,7 +1717,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 14,
             ),
 
-            // ITEM COUNT
             Container(
               width: double.infinity,
               padding:
@@ -1745,7 +1749,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               ),
             ),
 
-            // ALL ORDER ITEMS
             const SizedBox(
               height: 4,
             ),
@@ -1758,7 +1761,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 12,
             ),
 
-            // PRICE SUMMARY
             Container(
               width: double.infinity,
               padding:
@@ -1818,7 +1820,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 10,
             ),
 
-            // PAYMENT
             Row(
               children: [
                 const Icon(
@@ -1874,7 +1875,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 12,
             ),
 
-            // CHANGE ORDER STATUS
             SizedBox(
               width: double.infinity,
               child:
@@ -1897,7 +1897,6 @@ class _AdminPanelPageState extends State<AdminPanelPage>
               height: 5,
             ),
 
-            // CHANGE PAYMENT STATUS
             SizedBox(
               width: double.infinity,
               child:
