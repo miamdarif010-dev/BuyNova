@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class WalletPage extends StatefulWidget {
   const WalletPage({super.key});
@@ -10,438 +10,134 @@ class WalletPage extends StatefulWidget {
 }
 
 class _WalletPageState extends State<WalletPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  bool _isLoading = true;
+  bool _isProcessing = false;
 
-  // Rewards
-  int _pointsBalance = 0;
-  int _lifetimePoints = 0;
+  String? get _uid => _auth.currentUser?.uid;
 
-  // Real money - Bangladesh BDT
-  double _cashBalance = 0;
+  DocumentReference<Map<String, dynamic>>? get _userRef {
+    final uid = _uid;
+    if (uid == null) return null;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadWallet();
+    return _firestore.collection('users').doc(uid);
   }
 
-  // =========================================================
-  // LOAD WALLET
-  // =========================================================
+  CollectionReference<Map<String, dynamic>>? get _transactionsRef {
+    final uid = _uid;
+    if (uid == null) return null;
 
-  Future<void> _loadWallet() async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-      return;
-    }
-
-    try {
-      final snapshot =
-          await _firestore.collection('users').doc(user.uid).get();
-
-      final data = snapshot.data();
-
-      if (mounted) {
-        setState(() {
-          _pointsBalance = _toInt(data?['pointsBalance']);
-          _lifetimePoints = _toInt(data?['lifetimePoints']);
-          _cashBalance = _toDouble(data?['cashBalance']);
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Wallet load failed: $e'),
-        ),
-      );
-    }
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('walletTransactions');
   }
 
-  // =========================================================
-  // CONVERTERS
-  // =========================================================
-
-  int _toInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-
-    return int.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
+  String _money(num value) {
+    return '৳${value.toStringAsFixed(2)}';
   }
 
-  double _toDouble(dynamic value) {
-    if (value is num) return value.toDouble();
-
-    return double.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
-  }
-
-  // =========================================================
-  // FORMATTING
-  // =========================================================
-
-  String _formatNumber(int number) {
-    return number.toString().replaceAllMapped(
-          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-          (match) => '${match.group(1)},',
-        );
-  }
-
-  String _formatMoney(double amount) {
-    return '৳${amount.toStringAsFixed(2)}';
-  }
-
-  // =========================================================
-  // TRANSACTION TITLE
-  // =========================================================
-
-  String _transactionTitle(
-    Map<String, dynamic> data,
-  ) {
-    final type = data['type']?.toString() ?? '';
-    final source = data['source']?.toString() ?? '';
-
-    if (type == 'credit') {
-      switch (source) {
-        case 'watch_earn':
-          return 'Watch & Earn';
-
-        case 'referral':
-          return 'Referral Reward';
-
-        case 'seller_video':
-          return 'Seller Video Reward';
-
-        case 'deposit':
-          return 'Money Added';
-
-        case 'profit':
-          return 'Profit Earned';
-
-        case 'refund':
-          return 'Refund';
-
-        default:
-          return 'Reward Earned';
-      }
-    }
-
-    if (type == 'debit') {
-      switch (source) {
-        case 'withdrawal':
-          return 'Withdrawal';
-
-        case 'purchase':
-          return 'Purchase';
-
-        default:
-          return 'Points Used';
-      }
-    }
-
-    return 'Wallet Transaction';
-  }
-
-  // =========================================================
-  // TRANSACTION ICON
-  // =========================================================
-
-  IconData _transactionIcon(
-    Map<String, dynamic> data,
-  ) {
-    final type = data['type']?.toString() ?? '';
-    final source = data['source']?.toString() ?? '';
-
-    if (type == 'debit') {
-      switch (source) {
-        case 'withdrawal':
-          return Icons.account_balance_rounded;
-
-        case 'purchase':
-          return Icons.shopping_bag_rounded;
-
-        default:
-          return Icons.arrow_upward_rounded;
-      }
-    }
-
-    switch (source) {
-      case 'watch_earn':
-        return Icons.play_circle_fill_rounded;
-
-      case 'referral':
-        return Icons.people_alt_rounded;
-
-      case 'seller_video':
-        return Icons.video_library_rounded;
-
-      case 'deposit':
-        return Icons.add_circle_rounded;
-
-      case 'profit':
-        return Icons.trending_up_rounded;
-
-      case 'refund':
-        return Icons.currency_exchange_rounded;
-
-      default:
-        return Icons.stars_rounded;
-    }
-  }
-
-  // =========================================================
-  // STATUS
-  // =========================================================
-
-  String _statusText(
-    Map<String, dynamic> data,
-  ) {
-    final status =
-        data['status']?.toString() ?? 'completed';
-
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-
-      case 'approved':
-        return 'Approved';
-
-      case 'rejected':
-        return 'Rejected';
-
-      case 'completed':
-        return 'Completed';
-
-      case 'cancelled':
-        return 'Cancelled';
-
-      default:
-        return status;
-    }
-  }
-
-  Color _statusColor(
-    Map<String, dynamic> data,
-  ) {
-    final status =
-        data['status']?.toString() ?? 'completed';
-
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-
-      case 'approved':
-      case 'completed':
-        return Colors.green;
-
-      case 'rejected':
-      case 'cancelled':
-        return Colors.red;
-
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'pending':
-        return Icons.hourglass_top_rounded;
-
-      case 'approved':
-        return Icons.check_circle_rounded;
-
-      case 'rejected':
-        return Icons.cancel_rounded;
-
-      case 'completed':
-        return Icons.verified_rounded;
-
-      case 'cancelled':
-        return Icons.block_rounded;
-
-      default:
-        return Icons.info_rounded;
-    }
-  }
-
-  String _statusMessage(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Your request is waiting for admin approval.';
-
-      case 'approved':
-        return 'Your deposit has been approved and added to your wallet.';
-
-      case 'rejected':
-        return 'This transaction was rejected by admin.';
-
-      case 'completed':
-        return 'This transaction has been completed successfully.';
-
-      case 'cancelled':
-        return 'This transaction has been cancelled.';
-
-      default:
-        return 'Transaction status: $status';
-    }
-  }
-
-  // =========================================================
-  // DATE
-  // =========================================================
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp is Timestamp) {
-      final date = timestamp.toDate();
-
-      final day = date.day.toString().padLeft(2, '0');
-      final month = date.month.toString().padLeft(2, '0');
-      final year = date.year.toString();
-
-      final hour = date.hour.toString().padLeft(2, '0');
-      final minute = date.minute.toString().padLeft(2, '0');
-
-      return '$day/$month/$year • $hour:$minute';
-    }
-
-    return 'Date unavailable';
-  }
-
-  // =========================================================
-  // PAYMENT METHOD NAME
-  // =========================================================
-
-  String _paymentMethodText(dynamic value) {
-    final method = value?.toString() ?? '';
-
+  String _paymentMethodText(String method) {
     switch (method) {
       case 'bkash':
         return 'bKash';
-
       case 'nagad':
         return 'Nagad';
-
       case 'rocket':
         return 'Rocket';
-
       case 'bank':
         return 'Bank Transfer';
-
-      case 'card':
-        return 'Card';
-
-      case 'not_selected':
-      case '':
-        return 'Not selected';
-
       default:
         return method;
     }
   }
 
-  // =========================================================
-  // PAYMENT METHOD OPTION
-  // =========================================================
+  IconData _paymentMethodIcon(String method) {
+    switch (method) {
+      case 'bkash':
+        return Icons.phone_android;
+      case 'nagad':
+        return Icons.account_balance_wallet;
+      case 'rocket':
+        return Icons.rocket_launch;
+      case 'bank':
+        return Icons.account_balance;
+      default:
+        return Icons.payment;
+    }
+  }
 
   Widget _paymentMethodOption({
-    required String title,
-    required String subtitle,
-    required IconData icon,
     required String value,
-    required String groupValue,
+    required String selectedValue,
     required ValueChanged<String> onChanged,
   }) {
-    final isSelected = value == groupValue;
+    final bool selected = value == selectedValue;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        onChanged(value);
-      },
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => onChanged(value),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
         decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context)
-                    .colorScheme
-                    .outline
-                    .withValues(alpha: 0.35),
-            width: isSelected ? 2 : 1,
+            color: selected
+                ? Colors.redAccent
+                : Colors.grey.shade300,
+            width: selected ? 2 : 1,
           ),
-          borderRadius: BorderRadius.circular(14),
-          color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.06)
-              : null,
+          color: selected
+              ? Colors.redAccent.withValues(alpha: 0.06)
+              : Colors.white,
         ),
         child: Row(
           children: [
             Icon(
-              icon,
-              size: 28,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
+              _paymentMethodIcon(value),
+              color: selected
+                  ? Colors.redAccent
+                  : Colors.grey.shade700,
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.60),
-                    ),
-                  ),
-                ],
+              child: Text(
+                _paymentMethodText(value),
+                style: TextStyle(
+                  fontWeight:
+                      selected ? FontWeight.bold : FontWeight.normal,
+                ),
               ),
             ),
-            Radio<String>(
-              value: value,
-              groupValue: groupValue,
-              onChanged: (newValue) {
-                if (newValue != null) {
-                  onChanged(newValue);
-                }
-              },
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? Colors.redAccent
+                      : Colors.grey.shade500,
+                  width: 2,
+                ),
+              ),
+              child: selected
+                  ? Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    )
+                  : null,
             ),
           ],
         ),
@@ -449,20 +145,22 @@ class _WalletPageState extends State<WalletPage> {
     );
   }
 
-  // =========================================================
-  // ADD MONEY
-  // =========================================================
-
   Future<void> _showAddMoneyDialog() async {
-    final user = _auth.currentUser;
+    if (_uid == null) {
+      if (!mounted) return;
 
-    if (user == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please login first'),
+        ),
+      );
+      return;
+    }
 
-    final controller = TextEditingController();
-
+    final amountController = TextEditingController();
     String selectedPaymentMethod = 'bkash';
 
-    await showDialog<void>(
+    await showDialog(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -477,134 +175,88 @@ class _WalletPageState extends State<WalletPage> {
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text(
+                      'Amount',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     TextField(
-                      controller: controller,
+                      controller: amountController,
                       keyboardType:
                           const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Amount',
-                        hintText: 'Example: 1000',
+                      decoration: InputDecoration(
                         prefixText: '৳ ',
-                        border: OutlineInputBorder(),
+                        hintText: 'Minimum ৳100',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
-
-                    const SizedBox(height: 20),
-
+                    const SizedBox(height: 18),
                     const Text(
                       'Payment Method',
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-
-                    const SizedBox(height: 10),
-
+                    const SizedBox(height: 8),
                     _paymentMethodOption(
-                      title: 'bKash',
-                      subtitle: 'Pay using bKash',
-                      icon: Icons.phone_android_rounded,
                       value: 'bkash',
-                      groupValue:
-                          selectedPaymentMethod,
+                      selectedValue: selectedPaymentMethod,
                       onChanged: (value) {
                         setDialogState(() {
                           selectedPaymentMethod = value;
                         });
                       },
                     ),
-
-                    const SizedBox(height: 8),
-
                     _paymentMethodOption(
-                      title: 'Nagad',
-                      subtitle: 'Pay using Nagad',
-                      icon:
-                          Icons.account_balance_wallet_rounded,
                       value: 'nagad',
-                      groupValue:
-                          selectedPaymentMethod,
+                      selectedValue: selectedPaymentMethod,
                       onChanged: (value) {
                         setDialogState(() {
                           selectedPaymentMethod = value;
                         });
                       },
                     ),
-
-                    const SizedBox(height: 8),
-
                     _paymentMethodOption(
-                      title: 'Rocket',
-                      subtitle: 'Pay using Rocket',
-                      icon:
-                          Icons.currency_exchange_rounded,
                       value: 'rocket',
-                      groupValue:
-                          selectedPaymentMethod,
+                      selectedValue: selectedPaymentMethod,
                       onChanged: (value) {
                         setDialogState(() {
                           selectedPaymentMethod = value;
                         });
                       },
                     ),
-
-                    const SizedBox(height: 8),
-
                     _paymentMethodOption(
-                      title: 'Bank Transfer',
-                      subtitle:
-                          'Pay through bank transfer',
-                      icon:
-                          Icons.account_balance_rounded,
                       value: 'bank',
-                      groupValue:
-                          selectedPaymentMethod,
+                      selectedValue: selectedPaymentMethod,
                       onChanged: (value) {
                         setDialogState(() {
                           selectedPaymentMethod = value;
                         });
                       },
                     ),
-
-                    const SizedBox(height: 12),
-
+                    const SizedBox(height: 8),
                     Container(
                       width: double.infinity,
-                      padding:
-                          const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.08),
-                        borderRadius:
-                            BorderRadius.circular(12),
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Row(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.info_outline_rounded,
-                            size: 20,
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Minimum deposit amount is ৳100. Your wallet balance will increase only after admin approval.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: const Text(
+                        'Your deposit will be reviewed by BuyNova Admin. '
+                        'Your wallet balance will increase only after approval.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black87,
+                        ),
                       ),
                     ),
                   ],
@@ -617,46 +269,40 @@ class _WalletPageState extends State<WalletPage> {
                   },
                   child: const Text('Cancel'),
                 ),
-                FilledButton(
-                  onPressed: () async {
-                    final amount =
-                        double.tryParse(
-                              controller.text.trim(),
-                            ) ??
-                            0;
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: _isProcessing
+                      ? null
+                      : () async {
+                          final text =
+                              amountController.text.trim();
 
-                    if (amount <= 0) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Please enter a valid amount.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
+                          final amount =
+                              double.tryParse(text);
 
-                    if (amount < 100) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Minimum amount is ৳100.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
+                          if (amount == null || amount < 100) {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Minimum deposit amount is ৳100',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
-                    Navigator.pop(dialogContext);
+                          Navigator.pop(dialogContext);
 
-                    await _createDepositRequest(
-                      user.uid,
-                      amount,
-                      selectedPaymentMethod,
-                    );
-                  },
+                          await _createDepositRequest(
+                            amount: amount,
+                            paymentMethod:
+                                selectedPaymentMethod,
+                          );
+                        },
                   child: const Text('Continue'),
                 ),
               ],
@@ -666,43 +312,45 @@ class _WalletPageState extends State<WalletPage> {
       },
     );
 
-    controller.dispose();
+    amountController.dispose();
   }
 
-  // =========================================================
-  // CREATE DEPOSIT REQUEST
-  // =========================================================
+  Future<void> _createDepositRequest({
+    required double amount,
+    required String paymentMethod,
+  }) async {
+    final uid = _uid;
+    final ref = _transactionsRef;
 
-  Future<void> _createDepositRequest(
-    String uid,
-    double amount,
-    String paymentMethod,
-  ) async {
+    if (uid == null || ref == null) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
     try {
-      await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('walletTransactions')
-          .add({
+      await ref.add({
+        'userId': uid,
         'type': 'credit',
         'source': 'deposit',
+        'status': 'pending',
         'amount': amount,
         'currency': 'BDT',
         'currencySymbol': '৳',
-        'status': 'pending',
         'paymentMethod': paymentMethod,
-        'userId': uid,
+        'paymentMethodName':
+            _paymentMethodText(paymentMethod),
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text(
-            '${_formatMoney(amount)} deposit request created using ${_paymentMethodText(paymentMethod)}. Please wait for admin approval.',
+            'Deposit request submitted successfully.',
           ),
-          duration: const Duration(seconds: 4),
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
@@ -711,88 +359,176 @@ class _WalletPageState extends State<WalletPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not create deposit request: $e',
+            'Failed to create deposit request: $e',
           ),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
 
-  // =========================================================
-  // WITHDRAW
-  // =========================================================
-
   void _showWithdrawalInfo() {
-    showModalBottomSheet<void>(
+    showDialog(
       context: context,
-      showDragHandle: true,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Withdraw Money'),
+          content: const Text(
+            'Withdrawal functionality will be available soon.\n\n'
+            'BuyNova will support secure withdrawal methods '
+            'for eligible wallet balances.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _statusText(String status) {
+    switch (status) {
+      case 'approved':
+        return 'Approved';
+      case 'pending':
+        return 'Pending';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'approved':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _dateText(dynamic value) {
+    if (value is Timestamp) {
+      final date = value.toDate();
+
+      final day =
+          date.day.toString().padLeft(2, '0');
+      final month =
+          date.month.toString().padLeft(2, '0');
+      final year = date.year.toString();
+
+      final hour =
+          date.hour.toString().padLeft(2, '0');
+      final minute =
+          date.minute.toString().padLeft(2, '0');
+
+      return '$day/$month/$year $hour:$minute';
+    }
+
+    return 'Processing...';
+  }
+
+  void _showTransactionDetails(
+    Map<String, dynamic> data,
+  ) {
+    final amount =
+        (data['amount'] as num?)?.toDouble() ?? 0;
+
+    final status =
+        data['status']?.toString() ?? 'unknown';
+
+    final type =
+        data['type']?.toString() ?? '';
+
+    final source =
+        data['source']?.toString() ?? '';
+
+    final paymentMethod =
+        data['paymentMethodName']?.toString() ??
+            data['paymentMethod']?.toString() ??
+            '';
+
+    final rejectionReason =
+        data['rejectionReason']?.toString() ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              10,
-              20,
-              30,
-            ),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Withdraw',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                const Center(
+                  child: Text(
+                    'Transaction Details',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-
+                const SizedBox(height: 20),
+                _detailRow(
+                  'Amount',
+                  _money(amount),
+                ),
+                _detailRow(
+                  'Type',
+                  type.isEmpty ? '-' : type,
+                ),
+                _detailRow(
+                  'Source',
+                  source.isEmpty ? '-' : source,
+                ),
+                _detailRow(
+                  'Payment Method',
+                  paymentMethod.isEmpty
+                      ? '-'
+                      : paymentMethod,
+                ),
+                _detailRow(
+                  'Status',
+                  _statusText(status),
+                ),
+                _detailRow(
+                  'Date',
+                  _dateText(data['createdAt']),
+                ),
+                if (rejectionReason.isNotEmpty)
+                  _detailRow(
+                    'Rejection Reason',
+                    rejectionReason,
+                  ),
                 const SizedBox(height: 12),
-
-                const Text(
-                  'Money withdrawal will be available after BuyNova enables the secure withdrawal system.',
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.5,
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-
-                _infoRow(
-                  Icons.account_balance_wallet_rounded,
-                  'Cash Balance',
-                  _formatMoney(_cashBalance),
-                ),
-
-                const SizedBox(height: 10),
-
-                _infoRow(
-                  Icons.stars_rounded,
-                  'Reward Points',
-                  _formatNumber(_pointsBalance),
-                ),
-
-                const SizedBox(height: 10),
-
-                _infoRow(
-                  Icons.security_rounded,
-                  'Security',
-                  'Payment verification required',
-                ),
-
-                const SizedBox(height: 22),
-
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text(
-                      'Coming Soon',
-                    ),
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        Navigator.pop(context),
+                    child: const Text('Close'),
                   ),
                 ),
               ],
@@ -803,100 +539,95 @@ class _WalletPageState extends State<WalletPage> {
     );
   }
 
-  // =========================================================
-  // INFO ROW
-  // =========================================================
-
-  Widget _infoRow(
-    IconData icon,
+  Widget _detailRow(
     String title,
     String value,
   ) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 22,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w500,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 125,
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  // =========================================================
-  // WALLET HEADER
-  // =========================================================
-
-  Widget _walletHeader() {
+  Widget _walletHeader({
+    required double cashBalance,
+    required int pointsBalance,
+  }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      margin: const EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        8,
+      ),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [
-            Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.primaryContainer,
+            Colors.redAccent,
+            Colors.red,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.redAccent.withValues(
+              alpha: 0.25,
+            ),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(
-                    alpha: 0.18,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
+              Icon(
+                Icons.account_balance_wallet,
+                color: Colors.white,
+                size: 28,
               ),
-
-              const SizedBox(width: 12),
-
-              const Expanded(
-                child: Text(
-                  'BuyNova Wallet',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+              SizedBox(width: 10),
+              Text(
+                'BuyNova Wallet',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 21,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 24),
-
+          const SizedBox(height: 22),
           const Text(
             'Cash Balance',
             style: TextStyle(
@@ -904,949 +635,454 @@ class _WalletPageState extends State<WalletPage> {
               fontSize: 14,
             ),
           ),
-
-          const SizedBox(height: 5),
-
+          const SizedBox(height: 4),
           Text(
-            _formatMoney(_cashBalance),
+            _money(cashBalance),
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 38,
+              fontSize: 32,
               fontWeight: FontWeight.bold,
             ),
           ),
-
-          const SizedBox(height: 4),
-
+          const SizedBox(height: 2),
           const Text(
-            'Bangladesh Taka (BDT)',
+            'BDT',
             style: TextStyle(
               color: Colors.white70,
-              fontSize: 14,
+              fontSize: 13,
             ),
           ),
-
-          const SizedBox(height: 20),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _showAddMoneyDialog,
-              icon: const Icon(
-                Icons.add_rounded,
-              ),
-              label: const Text(
-                'Add Money',
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black87,
-                padding:
-                    const EdgeInsets.symmetric(
-                  vertical: 14,
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.redAccent,
+                    padding:
+                        const EdgeInsets.symmetric(
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: _isProcessing
+                      ? null
+                      : _showAddMoneyDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text(
+                    'Add Money',
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(
+                      color: Colors.white,
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: _showWithdrawalInfo,
+                  icon: const Icon(
+                    Icons.arrow_upward,
+                  ),
+                  label: const Text(
+                    'Withdraw',
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
-
-  // =========================================================
-  // SUMMARY CARD
-  // =========================================================
 
   Widget _summaryCard({
     required IconData icon,
     required String title,
     required String value,
-    required bool isMoney,
+    required Color color,
   }) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Icon(
-              icon,
-              size: 25,
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              title,
-              style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(
-                      alpha: 0.65,
-                    ),
-                fontSize: 13,
+      child: Card(
+        elevation: 1,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Icon(
+                icon,
+                color: color,
+                size: 26,
               ),
-            ),
-
-            const SizedBox(height: 4),
-
-            Text(
-              isMoney
-                  ? _formatMoney(
-                      double.tryParse(
-                            value,
-                          ) ??
-                          0,
-                    )
-                  : _formatNumber(
-                      int.tryParse(
-                            value,
-                          ) ??
-                          0,
-                    ),
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // QUICK ACTIONS
-  // =========================================================
-
-  Widget _quickActions() {
-    return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Wallet',
-          style: TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.bold,
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
-
-        const SizedBox(height: 12),
-
-        Row(
-          children: [
-            Expanded(
-              child: _actionButton(
-                icon: Icons.add_card_rounded,
-                title: 'Add Money',
-                onTap: _showAddMoneyDialog,
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            Expanded(
-              child: _actionButton(
-                icon: Icons.account_balance_rounded,
-                title: 'Withdraw',
-                onTap: _showWithdrawalInfo,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _actionButton({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        padding:
-            const EdgeInsets.symmetric(
-          vertical: 15,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(16),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon),
-
-          const SizedBox(height: 6),
-
-          Text(title),
-        ],
       ),
     );
   }
 
-  // =========================================================
-  // DETAIL ROW
-  // =========================================================
-
-  Widget _detailRow(
-    String title,
-    String value,
+  Widget _transactionTile(
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        doc,
   ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest,
-        borderRadius:
-            BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(
-                      alpha: 0.65,
-                    ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // TRANSACTION DETAILS
-  // =========================================================
-
-  void _showTransactionDetails(
-    Map<String, dynamic> data,
-  ) {
-    final status =
-        data['status']?.toString() ??
-            'completed';
+    final data = doc.data();
 
     final amount =
-        _toDouble(data['amount']);
+        (data['amount'] as num?)?.toDouble() ?? 0;
 
-    final points =
-        _toInt(data['points']);
-
-    final source =
-        data['source']?.toString() ??
-            '';
-
-    final isMoneyTransaction =
-        source == 'deposit' ||
-        source == 'profit' ||
-        source == 'refund' ||
-        source == 'purchase' ||
-        source == 'withdrawal';
-
-    final displayAmount =
-        isMoneyTransaction
-            ? _formatMoney(amount)
-            : _formatNumber(points);
-
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding:
-                const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              30,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Transaction Details',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  _detailRow(
-                    'Type',
-                    _transactionTitle(data),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _detailRow(
-                    'Amount',
-                    displayAmount,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _detailRow(
-                    'Status',
-                    _statusText(data),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _detailRow(
-                    'Date',
-                    _formatDate(
-                      data['createdAt'],
-                    ),
-                  ),
-
-                  if (source == 'deposit') ...[
-                    const SizedBox(height: 12),
-
-                    _detailRow(
-                      'Payment Method',
-                      _paymentMethodText(
-                        data['paymentMethod'],
-                      ),
-                    ),
-                  ],
-
-                  if (data['approvedAmount'] !=
-                      null) ...[
-                    const SizedBox(height: 12),
-
-                    _detailRow(
-                      'Approved Amount',
-                      _formatMoney(
-                        _toDouble(
-                          data['approvedAmount'],
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  if (data['rejectionReason'] !=
-                      null) ...[
-                    const SizedBox(height: 12),
-
-                    _detailRow(
-                      'Rejection Reason',
-                      data['rejectionReason']
-                          .toString(),
-                    ),
-                  ],
-
-                  const SizedBox(height: 24),
-
-                  Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color:
-                          _statusColor(data)
-                              .withValues(
-                        alpha: 0.10,
-                      ),
-                      borderRadius:
-                          BorderRadius.circular(
-                        14,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _statusIcon(status),
-                          color:
-                              _statusColor(data),
-                        ),
-
-                        const SizedBox(width: 10),
-
-                        Expanded(
-                          child: Text(
-                            _statusMessage(
-                              status,
-                            ),
-                            style: TextStyle(
-                              color:
-                                  _statusColor(
-                                data,
-                              ),
-                              fontWeight:
-                                  FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        Navigator.pop(
-                          sheetContext,
-                        );
-                      },
-                      child: const Text(
-                        'Close',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // =========================================================
-  // TRANSACTION ITEM
-  // =========================================================
-
-  Widget _transactionItem(
-    String id,
-    Map<String, dynamic> data,
-  ) {
     final type =
-        data['type']?.toString() ??
-            'credit';
+        data['type']?.toString() ?? '';
 
     final source =
-        data['source']?.toString() ??
-            '';
-
-    final points =
-        _toInt(data['points']);
-
-    final amount =
-        _toDouble(data['amount']);
-
-    final isCredit =
-        type == 'credit';
-
-    final isMoneyTransaction =
-        source == 'deposit' ||
-        source == 'profit' ||
-        source == 'refund' ||
-        source == 'purchase' ||
-        source == 'withdrawal';
-
-    final displayValue =
-        isMoneyTransaction
-            ? _formatMoney(amount)
-            : _formatNumber(points);
+        data['source']?.toString() ?? '';
 
     final status =
-        data['status']?.toString() ??
-            'completed';
+        data['status']?.toString() ?? 'unknown';
 
-    final statusColor =
-        _statusColor(data);
+    final paymentMethod =
+        data['paymentMethodName']?.toString() ??
+            data['paymentMethod']?.toString() ??
+            '';
 
-    return InkWell(
-      borderRadius:
-          BorderRadius.circular(18),
-      onTap: () {
-        _showTransactionDetails(data);
-      },
-      child: Container(
-        margin:
-            const EdgeInsets.only(
-          bottom: 10,
+    final isCredit = type == 'credit';
+
+    return Card(
+      margin: const EdgeInsets.only(
+        bottom: 8,
+      ),
+      child: ListTile(
+        onTap: () {
+          _showTransactionDetails(data);
+        },
+        leading: CircleAvatar(
+          backgroundColor: isCredit
+              ? Colors.green.shade50
+              : Colors.red.shade50,
+          child: Icon(
+            isCredit
+                ? Icons.arrow_downward
+                : Icons.arrow_upward,
+            color: isCredit
+                ? Colors.green
+                : Colors.red,
+          ),
         ),
-        padding:
-            const EdgeInsets.all(14),
-        decoration:
-            BoxDecoration(
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHighest,
-          borderRadius:
-              BorderRadius.circular(18),
-        ),
-        child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration:
-                  BoxDecoration(
-                shape:
-                    BoxShape.circle,
-                color: isCredit
-                    ? Colors.green
-                        .withValues(
-                        alpha: 0.12,
-                      )
-                    : Colors.red
-                        .withValues(
-                        alpha: 0.12,
-                      ),
-              ),
-              child: Icon(
-                _transactionIcon(data),
-                color: isCredit
-                    ? Colors.green
-                    : Colors.red,
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
             Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _transactionTitle(data),
-                    style: const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    _formatDate(
-                      data['createdAt'],
-                    ),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(
-                            alpha: 0.55,
-                          ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 7),
-
-                  Row(
-                    children: [
-                      Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          color: statusColor
-                              .withValues(
-                            alpha: 0.12,
-                          ),
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            8,
-                          ),
-                        ),
-                        child: Text(
-                          _statusText(data),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color:
-                                statusColor,
-                            fontWeight:
-                                FontWeight.w600,
-                          ),
-                        ),
-                      ),
-
-                      if (status ==
-                          'pending') ...[
-                        const SizedBox(
-                          width: 8,
-                        ),
-                        const Icon(
-                          Icons.touch_app_rounded,
-                          size: 15,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          'Tap for details',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Theme.of(
-                              context,
-                            )
-                                .colorScheme
-                                .onSurface
-                                .withValues(
-                                  alpha: 0.50,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
+              child: Text(
+                source == 'deposit'
+                    ? 'Wallet Deposit'
+                    : source.isEmpty
+                        ? 'Wallet Transaction'
+                        : source,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-
-            const SizedBox(width: 8),
-
             Text(
-              '${isCredit ? '+' : '-'}$displayValue',
+              '${isCredit ? '+' : '-'}${_money(amount)}',
               style: TextStyle(
                 color: isCredit
                     ? Colors.green
                     : Colors.red,
-                fontWeight:
-                    FontWeight.bold,
-                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
+        subtitle: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            if (paymentMethod.isNotEmpty)
+              Text(paymentMethod),
+            Text(
+              _dateText(data['createdAt']),
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: _statusColor(status)
+                .withValues(alpha: 0.10),
+            borderRadius:
+                BorderRadius.circular(20),
+          ),
+          child: Text(
+            _statusText(status),
+            style: TextStyle(
+              color: _statusColor(status),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ),
     );
   }
-
-  // =========================================================
-  // TRANSACTION HISTORY
-  // =========================================================
-
-  Widget _transactionHistory() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return const Center(
-        child: Text(
-          'Please login first.',
-        ),
-      );
-    }
-
-    return StreamBuilder<
-        QuerySnapshot<
-            Map<String, dynamic>>>(
-      stream: _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection(
-            'walletTransactions',
-          )
-          .orderBy(
-            'createdAt',
-            descending: true,
-          )
-          .limit(50)
-          .snapshots(),
-      builder: (
-        context,
-        snapshot,
-      ) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding:
-                  EdgeInsets.all(30),
-              child:
-                  CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Container(
-            padding:
-                const EdgeInsets.all(16),
-            decoration:
-                BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest,
-              borderRadius:
-                  BorderRadius.circular(
-                16,
-              ),
-            ),
-            child: const Text(
-              'Transaction history is not available yet.',
-            ),
-          );
-        }
-
-        final docs =
-            snapshot.data?.docs ?? [];
-
-        if (docs.isEmpty) {
-          return Container(
-            width: double.infinity,
-            padding:
-                const EdgeInsets.all(25),
-            decoration:
-                BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest,
-              borderRadius:
-                  BorderRadius.circular(
-                18,
-              ),
-            ),
-            child: const Column(
-              children: [
-                Icon(
-                  Icons.receipt_long_rounded,
-                  size: 45,
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'No transactions yet',
-                  style: TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Your money and rewards history will appear here.',
-                  textAlign:
-                      TextAlign.center,
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Column(
-          children: docs.map((doc) {
-            return _transactionItem(
-              doc.id,
-              doc.data(),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-
-  // =========================================================
-  // BUILD
-  // =========================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    if (_isLoading) {
+  Widget build(BuildContext context) {
+    final userRef = _userRef;
+    final transactionsRef = _transactionsRef;
+
+    if (_uid == null ||
+        userRef == null ||
+        transactionsRef == null) {
       return Scaffold(
         appBar: AppBar(
-          title:
-              const Text('Wallet'),
+          title: const Text('Wallet'),
+          backgroundColor: Colors.redAccent,
+          foregroundColor: Colors.white,
         ),
         body: const Center(
-          child:
-              CircularProgressIndicator(),
+          child: Text(
+            'Please login to use BuyNova Wallet',
+          ),
         ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('My Wallet'),
-        actions: [
-          IconButton(
-            onPressed: _loadWallet,
-            icon:
-                const Icon(
-              Icons.refresh_rounded,
-            ),
-            tooltip: 'Refresh',
-          ),
-        ],
+        title: const Text('Wallet'),
+        backgroundColor: Colors.redAccent,
+        foregroundColor: Colors.white,
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadWallet,
-        child: ListView(
-          physics:
-              const AlwaysScrollableScrollPhysics(),
-          padding:
-              const EdgeInsets.all(16),
-          children: [
-            _walletHeader(),
+      body: StreamBuilder<
+          DocumentSnapshot<Map<String, dynamic>>>(
+        stream: userRef.snapshots(),
+        builder: (context, userSnapshot) {
+          if (userSnapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
 
-            const SizedBox(height: 16),
+          final userData =
+              userSnapshot.data?.data() ??
+                  <String, dynamic>{};
 
-            Row(
-              children: [
-                _summaryCard(
-                  icon: Icons
-                      .account_balance_wallet_rounded,
-                  title: 'Cash Balance',
-                  value:
-                      _cashBalance.toString(),
-                  isMoney: true,
-                ),
+          final cashBalance =
+              (userData['cashBalance'] as num?)
+                      ?.toDouble() ??
+                  0.0;
 
-                const SizedBox(width: 12),
+          final pointsBalance =
+              (userData['pointsBalance'] as num?)
+                      ?.toInt() ??
+                  0;
 
-                _summaryCard(
-                  icon:
-                      Icons.stars_rounded,
-                  title: 'Reward Points',
-                  value:
-                      _pointsBalance.toString(),
-                  isMoney: false,
-                ),
-              ],
-            ),
+          final lifetimePoints =
+              (userData['lifetimePoints'] as num?)
+                      ?.toInt() ??
+                  0;
 
-            const SizedBox(height: 12),
-
-            Container(
-              padding:
-                  const EdgeInsets.all(16),
-              decoration:
-                  BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest,
-                borderRadius:
-                    BorderRadius.circular(
-                  18,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.trending_up_rounded,
+          return Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding:
+                      const EdgeInsets.only(
+                    bottom: 20,
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Lifetime Rewards Earned',
-                      style: TextStyle(
-                        fontWeight:
-                            FontWeight.w500,
+                  children: [
+                    _walletHeader(
+                      cashBalance: cashBalance,
+                      pointsBalance:
+                          pointsBalance,
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          _summaryCard(
+                            icon:
+                                Icons.account_balance_wallet,
+                            title: 'Cash Balance',
+                            value:
+                                _money(cashBalance),
+                            color:
+                                Colors.redAccent,
+                          ),
+                          _summaryCard(
+                            icon: Icons.stars,
+                            title: 'Reward Points',
+                            value:
+                                pointsBalance
+                                    .toString(),
+                            color:
+                                Colors.orange,
+                          ),
+                          _summaryCard(
+                            icon:
+                                Icons.workspace_premium,
+                            title: 'Lifetime',
+                            value:
+                                lifetimePoints
+                                    .toString(),
+                            color:
+                                Colors.amber.shade800,
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  Text(
-                    _formatNumber(
-                      _lifetimePoints,
-                    ),
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 22),
-
-            _quickActions(),
-
-            const SizedBox(height: 26),
-
-            const Text(
-              'Transaction History',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight:
-                    FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            Text(
-              'Tap any transaction to see full details.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(
-                      alpha: 0.55,
-                    ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            _transactionHistory(),
-
-            const SizedBox(height: 30),
-
-            Center(
-              child: Text(
-                'BuyNova • BDT Wallet & Rewards',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(
-                        alpha: 0.45,
+                    const SizedBox(height: 12),
+                    const Padding(
+                      padding:
+                          EdgeInsets.symmetric(
+                        horizontal: 16,
                       ),
+                      child: Text(
+                        'TRANSACTION HISTORY',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    StreamBuilder<
+                        QuerySnapshot<
+                            Map<String,
+                                dynamic>>>(
+                      stream: transactionsRef
+                          .orderBy(
+                            'createdAt',
+                            descending: true,
+                          )
+                          .snapshots(),
+                      builder:
+                          (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState
+                                .waiting) {
+                          return const Padding(
+                            padding:
+                                EdgeInsets.all(30),
+                            child: Center(
+                              child:
+                                  CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        if (snapshot.hasError) {
+                          return Padding(
+                            padding:
+                                const EdgeInsets.all(
+                              20,
+                            ),
+                            child: Text(
+                              'Unable to load transactions.',
+                              style: TextStyle(
+                                color: Colors
+                                    .red.shade700,
+                              ),
+                            ),
+                          );
+                        }
+
+                        final docs =
+                            snapshot.data?.docs ??
+                                [];
+
+                        if (docs.isEmpty) {
+                          return const Padding(
+                            padding:
+                                EdgeInsets.all(30),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.receipt_long,
+                                    size: 50,
+                                    color:
+                                        Colors.grey,
+                                  ),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    'No wallet transactions yet',
+                                    style: TextStyle(
+                                      color:
+                                          Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return Padding(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal: 12,
+                          ),
+                          child: Column(
+                            children: docs
+                                .map(
+                                  (doc) =>
+                                      _transactionTile(
+                                    doc,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
