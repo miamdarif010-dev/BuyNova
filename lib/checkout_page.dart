@@ -12,15 +12,48 @@ class CheckoutItem {
   final String? imageUrl;
   final int quantity;
 
+  // =========================================================
+  // RESELLER / ENTREPRENEUR DATA
+  // =========================================================
+
+  final bool isResellerProduct;
+  final String? entrepreneurUid;
+  final String? sellerId;
+  final String? supplierProductId;
+  final double? supplierPrice;
+  final double? resellerProfit;
+
   const CheckoutItem({
     required this.productId,
     required this.productName,
     required this.price,
     this.imageUrl,
     required this.quantity,
+
+    this.isResellerProduct = false,
+    this.entrepreneurUid,
+    this.sellerId,
+    this.supplierProductId,
+    this.supplierPrice,
+    this.resellerProfit,
   });
 
   double get total => price * quantity;
+
+  double get supplierTotal =>
+      (supplierPrice ?? 0) * quantity;
+
+  double get profitTotal {
+    if (resellerProfit != null) {
+      return resellerProfit! * quantity;
+    }
+
+    if (supplierPrice != null) {
+      return (price - supplierPrice!) * quantity;
+    }
+
+    return 0;
+  }
 }
 
 class CheckoutPage extends StatefulWidget {
@@ -106,7 +139,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   double _discountAmount = 0;
 
   String? get _couponCode {
-    final code = _couponController.text.trim().toUpperCase();
+    final code =
+        _couponController.text.trim().toUpperCase();
 
     if (code.isEmpty) {
       return null;
@@ -160,13 +194,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // =========================================================
 
   double get grandTotal {
-    final total = subtotal + deliveryFee - discountAmount;
+    final total =
+        subtotal + deliveryFee - discountAmount;
 
     if (total < 0) {
       return 0;
     }
 
     return total;
+  }
+
+  // =========================================================
+  // HAS RESELLER PRODUCT
+  // =========================================================
+
+  bool get hasResellerProduct {
+    return widget.checkoutItems.any(
+      (item) => item.isResellerProduct,
+    );
+  }
+
+  // =========================================================
+  // HAS NORMAL PRODUCT
+  // =========================================================
+
+  bool get hasNormalProduct {
+    return widget.checkoutItems.any(
+      (item) => !item.isResellerProduct,
+    );
   }
 
   // =========================================================
@@ -186,15 +241,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // =========================================================
 
   Future<void> _loadUserInformation() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) return;
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
 
       if (!mounted) return;
 
@@ -217,7 +274,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // =========================================================
 
   Future<void> _loadSavedAddresses() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       if (mounted) {
@@ -225,31 +283,41 @@ class _CheckoutPageState extends State<CheckoutPage> {
           _loadingAddresses = false;
         });
       }
+
       return;
     }
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('addresses')
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('addresses')
+              .get();
 
-      final addresses = snapshot.docs.map((document) {
+      final addresses =
+          snapshot.docs.map((document) {
         final data = document.data();
 
         return {
           'id': document.id,
-          'name': data['name']?.toString() ?? '',
-          'phone': data['phone']?.toString() ?? '',
-          'address': data['address']?.toString() ?? '',
-          'isDefault': data['isDefault'] == true,
+          'name':
+              data['name']?.toString() ?? '',
+          'phone':
+              data['phone']?.toString() ?? '',
+          'address':
+              data['address']?.toString() ?? '',
+          'isDefault':
+              data['isDefault'] == true,
         };
       }).toList();
 
       addresses.sort((a, b) {
-        final aDefault = a['isDefault'] == true;
-        final bDefault = b['isDefault'] == true;
+        final aDefault =
+            a['isDefault'] == true;
+
+        final bDefault =
+            b['isDefault'] == true;
 
         if (aDefault && !bDefault) {
           return -1;
@@ -320,11 +388,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // SELECT ADDRESS BY ID
   // =========================================================
 
-  void _selectAddressById(String? addressId) {
+  void _selectAddressById(
+    String? addressId,
+  ) {
     if (addressId == null) return;
 
     for (final address in _savedAddresses) {
-      if (address['id']?.toString() == addressId) {
+      if (address['id']?.toString() ==
+          addressId) {
         _selectSavedAddress(address);
         return;
       }
@@ -339,7 +410,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AddressBookPage(),
+        builder: (context) =>
+            const AddressBookPage(),
       ),
     );
 
@@ -362,16 +434,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // CLEAR CART
   // =========================================================
 
-  Future<void> _clearCart(String uid) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('cart')
-        .get();
+  Future<void> _clearCart(
+    String uid,
+  ) async {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('cart')
+            .get();
 
     if (snapshot.docs.isEmpty) return;
 
-    final batch = FirebaseFirestore.instance.batch();
+    final batch =
+        FirebaseFirestore.instance.batch();
 
     for (final document in snapshot.docs) {
       batch.delete(document.reference);
@@ -385,9 +461,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // =========================================================
 
   bool _validateForm() {
-    final name = _nameController.text.trim();
-    final phone = _phoneController.text.trim();
-    final address = _addressController.text.trim();
+    final name =
+        _nameController.text.trim();
+
+    final phone =
+        _phoneController.text.trim();
+
+    final address =
+        _addressController.text.trim();
 
     if (name.isEmpty) {
       _showMessage(
@@ -424,6 +505,43 @@ class _CheckoutPageState extends State<CheckoutPage> {
       return false;
     }
 
+    // =======================================================
+    // RESELLER ITEM VALIDATION
+    // =======================================================
+
+    for (final item in widget.checkoutItems) {
+      if (!item.isResellerProduct) {
+        continue;
+      }
+
+      if (item.entrepreneurUid == null ||
+          item.entrepreneurUid!.trim().isEmpty) {
+        _showMessage(
+          'Entrepreneur information is missing for '
+          '${item.productName}.',
+        );
+        return false;
+      }
+
+      if (item.sellerId == null ||
+          item.sellerId!.trim().isEmpty) {
+        _showMessage(
+          'Seller information is missing for '
+          '${item.productName}.',
+        );
+        return false;
+      }
+
+      if (item.supplierPrice == null ||
+          item.supplierPrice! < 0) {
+        _showMessage(
+          'Supplier price is invalid for '
+          '${item.productName}.',
+        );
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -434,7 +552,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<void> _checkCoupon() async {
     if (_checkingCoupon) return;
 
-    final code = _couponController.text.trim().toUpperCase();
+    final code =
+        _couponController.text.trim().toUpperCase();
 
     if (code.isEmpty) {
       _showMessage(
@@ -455,17 +574,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
     });
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('coupons')
-          .where(
-            'code',
-            isEqualTo: code,
-          )
-          .limit(1)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('coupons')
+              .where(
+                'code',
+                isEqualTo: code,
+              )
+              .limit(1)
+              .get();
 
       if (snapshot.docs.isEmpty) {
-        _removeCoupon(showMessage: false);
+        _removeCoupon(
+          showMessage: false,
+        );
 
         _showMessage(
           'Invalid coupon code.',
@@ -473,12 +595,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
         return;
       }
 
-      final data = snapshot.docs.first.data();
+      final data =
+          snapshot.docs.first.data();
 
-      final isActive = data['isActive'] == true;
+      final isActive =
+          data['isActive'] == true;
 
       if (!isActive) {
-        _removeCoupon(showMessage: false);
+        _removeCoupon(
+          showMessage: false,
+        );
 
         _showMessage(
           'This coupon is not active.',
@@ -490,19 +616,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // EXPIRY CHECK
       // =====================================================
 
-      final expiresAtValue = data['expiresAt'];
+      final expiresAtValue =
+          data['expiresAt'];
 
       DateTime? expiresAt;
 
       if (expiresAtValue is Timestamp) {
-        expiresAt = expiresAtValue.toDate();
-      } else if (expiresAtValue is DateTime) {
+        expiresAt =
+            expiresAtValue.toDate();
+      } else if (expiresAtValue
+          is DateTime) {
         expiresAt = expiresAtValue;
       }
 
       if (expiresAt != null &&
           DateTime.now().isAfter(expiresAt)) {
-        _removeCoupon(showMessage: false);
+        _removeCoupon(
+          showMessage: false,
+        );
 
         _showMessage(
           'This coupon has expired.',
@@ -515,15 +646,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // =====================================================
 
       final minimumOrder =
-          _toDouble(data['minimumOrder']);
+          _toDouble(
+        data['minimumOrder'],
+      );
 
       if (minimumOrder > 0 &&
           subtotal < minimumOrder) {
-        _removeCoupon(showMessage: false);
+        _removeCoupon(
+          showMessage: false,
+        );
 
         _showMessage(
           'Minimum order for this coupon is '
-          '₩${minimumOrder.toStringAsFixed(0)}.',
+          '৳${minimumOrder.toStringAsFixed(0)}.',
         );
         return;
       }
@@ -533,14 +668,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // =====================================================
 
       final discountType =
-          data['discountType']?.toString().toLowerCase() ??
+          data['discountType']
+                  ?.toString()
+                  .toLowerCase() ??
               'percentage';
 
       final discountValue =
-          _toDouble(data['discountValue']);
+          _toDouble(
+        data['discountValue'],
+      );
 
       if (discountValue <= 0) {
-        _removeCoupon(showMessage: false);
+        _removeCoupon(
+          showMessage: false,
+        );
 
         _showMessage(
           'This coupon has no valid discount.',
@@ -550,27 +691,38 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       double calculatedDiscount = 0;
 
-      if (discountType == 'percentage') {
+      if (discountType ==
+          'percentage') {
         calculatedDiscount =
-            subtotal * discountValue / 100;
+            subtotal *
+                discountValue /
+                100;
 
         final maximumDiscount =
-            _toDouble(data['maximumDiscount']);
+            _toDouble(
+          data['maximumDiscount'],
+        );
 
         if (maximumDiscount > 0 &&
-            calculatedDiscount > maximumDiscount) {
-          calculatedDiscount = maximumDiscount;
+            calculatedDiscount >
+                maximumDiscount) {
+          calculatedDiscount =
+              maximumDiscount;
         }
       } else {
-        calculatedDiscount = discountValue;
+        calculatedDiscount =
+            discountValue;
       }
 
-      if (calculatedDiscount > subtotal) {
+      if (calculatedDiscount >
+          subtotal) {
         calculatedDiscount = subtotal;
       }
 
       if (calculatedDiscount <= 0) {
-        _removeCoupon(showMessage: false);
+        _removeCoupon(
+          showMessage: false,
+        );
 
         _showMessage(
           'This coupon cannot be applied.',
@@ -583,11 +735,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
       setState(() {
         _appliedCoupon = {
           ...data,
-          'id': snapshot.docs.first.id,
+          'id':
+              snapshot.docs.first.id,
           'code': code,
         };
 
-        _discountAmount = calculatedDiscount;
+        _discountAmount =
+            calculatedDiscount;
       });
 
       _showMessage(
@@ -646,20 +800,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // GET SELLER INFORMATION
   // =========================================================
 
-  Future<Map<String, dynamic>?> _getProductSellerData(
+  Future<Map<String, dynamic>?>
+      _getProductSellerData(
     String productId,
   ) async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('products')
-          .doc(productId)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('products')
+              .doc(productId)
+              .get();
 
       if (!snapshot.exists) {
         return null;
       }
 
-      final data = snapshot.data();
+      final data =
+          snapshot.data();
 
       if (data == null) {
         return null;
@@ -668,20 +825,122 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final sellerId =
           data['sellerId']?.toString();
 
-      if (sellerId == null || sellerId.isEmpty) {
+      if (sellerId == null ||
+          sellerId.isEmpty) {
         return null;
       }
 
       return {
         'sellerId': sellerId,
         'sellerCode':
-            data['sellerCode']?.toString() ?? '',
+            data['sellerCode']
+                    ?.toString() ??
+                '',
         'sellerEmail':
-            data['sellerEmail']?.toString() ?? '',
+            data['sellerEmail']
+                    ?.toString() ??
+                '',
       };
     } catch (_) {
       return null;
     }
+  }
+
+  // =========================================================
+  // CREATE NORMAL SELLER INFORMATION
+  // =========================================================
+
+  Future<Map<String, dynamic>>
+      _getSellerInformationForNormalItem(
+    CheckoutItem item,
+  ) async {
+    final sellerData =
+        await _getProductSellerData(
+      item.productId,
+    );
+
+    if (sellerData == null) {
+      throw Exception(
+        'Seller information not found for '
+        '${item.productName}.',
+      );
+    }
+
+    return sellerData;
+  }
+
+  // =========================================================
+  // CREATE MAIN NORMAL ORDER ITEMS
+  // =========================================================
+
+  Future<List<Map<String, dynamic>>>
+      _createNormalOrderItems(
+    List<CheckoutItem> normalItems,
+    Map<String, Map<String, dynamic>>
+        sellerInformation,
+  ) async {
+    final List<Map<String, dynamic>>
+        itemsData = [];
+
+    for (final item in normalItems) {
+      final sellerData =
+          sellerInformation[item.productId]!;
+
+      itemsData.add({
+        'productId':
+            item.productId,
+        'productName':
+            item.productName,
+        'imageUrl':
+            item.imageUrl ?? '',
+        'price':
+            item.price,
+        'quantity':
+            item.quantity,
+        'total':
+            item.total,
+        'sellerId':
+            sellerData['sellerId'],
+        'sellerCode':
+            sellerData['sellerCode'],
+        'sellerEmail':
+            sellerData['sellerEmail'],
+      });
+    }
+
+    return itemsData;
+  }
+
+  // =========================================================
+  // RESELLER SELLING TOTAL
+  // =========================================================
+
+  double _resellerSellingTotal(
+    List<CheckoutItem> items,
+  ) {
+    double total = 0;
+
+    for (final item in items) {
+      total += item.total;
+    }
+
+    return total;
+  }
+
+  // =========================================================
+  // RESELLER SUPPLIER TOTAL
+  // =========================================================
+
+  double _resellerSupplierTotal(
+    List<CheckoutItem> items,
+  ) {
+    double total = 0;
+
+    for (final item in items) {
+      total += item.supplierTotal;
+    }
+
+    return total;
   }
 
   // =========================================================
@@ -691,7 +950,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<void> _placeOrder() async {
     if (_placingOrder) return;
 
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       _showMessage(
@@ -709,7 +969,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     try {
       // =====================================================
       // STEP 1
-      // RECHECK COUPON BEFORE ORDER
+      // RECHECK COUPON
       // =====================================================
 
       if (_couponCode != null &&
@@ -721,80 +981,101 @@ class _CheckoutPageState extends State<CheckoutPage> {
         }
       }
 
+      final firestore =
+          FirebaseFirestore.instance;
+
       // =====================================================
-      // STEP 2
-      // FIND SELLER FOR EVERY PRODUCT
+      // SEPARATE NORMAL + RESELLER ITEMS
       // =====================================================
 
-      final Map<String, Map<String, dynamic>>
+      final normalItems =
+          widget.checkoutItems
+              .where(
+                (item) =>
+                    !item.isResellerProduct,
+              )
+              .toList();
+
+      final resellerItems =
+          widget.checkoutItems
+              .where(
+                (item) =>
+                    item.isResellerProduct,
+              )
+              .toList();
+
+      // =====================================================
+      // SELLER INFORMATION FOR NORMAL PRODUCTS
+      // =====================================================
+
+      final Map<String,
+              Map<String, dynamic>>
           sellerInformation = {};
 
-      for (final item in widget.checkoutItems) {
+      for (final item in normalItems) {
         final sellerData =
-            await _getProductSellerData(
-          item.productId,
+            await _getSellerInformationForNormalItem(
+          item,
         );
-
-        if (sellerData == null) {
-          throw Exception(
-            'Seller information not found for '
-            '${item.productName}.',
-          );
-        }
 
         sellerInformation[item.productId] =
             sellerData;
       }
 
       // =====================================================
-      // STEP 3
-      // MAIN ORDER
+      // MAIN NORMAL ORDER
       // =====================================================
 
-      final firestore =
-          FirebaseFirestore.instance;
+      String? normalOrderId;
 
-      final orderRef =
-          firestore.collection('orders').doc();
+      DocumentReference<
+          Map<String, dynamic>>? orderRef;
 
-      final itemsData =
-          widget.checkoutItems.map((item) {
-        final sellerData =
-            sellerInformation[item.productId]!;
+      List<Map<String, dynamic>>
+          normalItemsData = [];
 
-        return {
-          'productId': item.productId,
-          'productName': item.productName,
-          'imageUrl': item.imageUrl ?? '',
-          'price': item.price,
-          'quantity': item.quantity,
-          'total': item.total,
-          'sellerId':
-              sellerData['sellerId'],
-          'sellerCode':
-              sellerData['sellerCode'],
-          'sellerEmail':
-              sellerData['sellerEmail'],
-        };
-      }).toList();
+      double normalSubtotal = 0;
+
+      int normalQuantity = 0;
+
+      if (normalItems.isNotEmpty) {
+        orderRef =
+            firestore.collection('orders').doc();
+
+        normalOrderId =
+            orderRef.id;
+
+        normalItemsData =
+            await _createNormalOrderItems(
+          normalItems,
+          sellerInformation,
+        );
+
+        for (final item in normalItems) {
+          normalSubtotal += item.total;
+          normalQuantity += item.quantity;
+        }
+      }
 
       // =====================================================
-      // STEP 4
-      // GROUP PRODUCTS BY SELLER
+      // GROUP NORMAL PRODUCTS BY SELLER
       // =====================================================
 
-      final Map<String, List<CheckoutItem>>
+      final Map<String,
+              List<CheckoutItem>>
           sellerItems = {};
 
-      final Map<String, Map<String, dynamic>>
+      final Map<String,
+              Map<String, dynamic>>
           sellerDataMap = {};
 
-      for (final item in widget.checkoutItems) {
+      for (final item in normalItems) {
         final sellerData =
             sellerInformation[item.productId]!;
 
         final sellerId =
-            sellerData['sellerId'].toString();
+            sellerData['sellerId']
+                .toString();
 
         sellerItems.putIfAbsent(
           sellerId,
@@ -808,68 +1089,123 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       // =====================================================
-      // STEP 5
-      // CREATE FIRESTORE BATCH
+      // COUPON DATA
+      // =====================================================
+
+      final couponData =
+          _appliedCoupon;
+
+      final savedCouponCode =
+          couponData?['code']
+                  ?.toString() ??
+              '';
+
+      // =====================================================
+      // DISCOUNT ALLOCATION
+      //
+      // For mixed normal/reseller checkout, discount is
+      // allocated according to each group subtotal.
+      // =====================================================
+
+      double normalDiscount = 0;
+      double resellerDiscount = 0;
+
+      if (discountAmount > 0 &&
+          subtotal > 0) {
+        if (normalSubtotal > 0) {
+          normalDiscount =
+              discountAmount *
+                  normalSubtotal /
+                  subtotal;
+        }
+
+        final resellerSubtotal =
+            _resellerSellingTotal(
+          resellerItems,
+        );
+
+        if (resellerSubtotal > 0) {
+          resellerDiscount =
+              discountAmount *
+                  resellerSubtotal /
+                  subtotal;
+        }
+      }
+
+      // =====================================================
+      // BATCH
       // =====================================================
 
       final batch =
           firestore.batch();
 
       // =====================================================
-      // COUPON DATA
+      // CREATE NORMAL CUSTOMER ORDER
       // =====================================================
 
-      final couponData = _appliedCoupon;
-
-      final savedCouponCode =
-          couponData?['code']?.toString() ?? '';
+      if (orderRef != null) {
+        batch.set(
+          orderRef,
+          {
+            'orderId':
+                orderRef.id,
+            'userId':
+                user.uid,
+            'userEmail':
+                user.email ?? '',
+            'customerName':
+                _nameController.text.trim(),
+            'phone':
+                _phoneController.text.trim(),
+            'address':
+                _addressController.text.trim(),
+            'addressId':
+                _selectedAddressId ?? '',
+            'items':
+                normalItemsData,
+            'itemCount':
+                normalItems.length,
+            'totalQuantity':
+                normalQuantity,
+            'subtotal':
+                normalSubtotal,
+            'deliveryFee':
+                deliveryFee,
+            'discount':
+                normalDiscount,
+            'couponCode':
+                savedCouponCode,
+            'total':
+                normalSubtotal +
+                    deliveryFee -
+                    normalDiscount <
+                0
+                ? 0
+                : normalSubtotal +
+                    deliveryFee -
+                    normalDiscount,
+            'paymentMethod':
+                _paymentMethod,
+            'paymentStatus':
+                'pending',
+            'orderStatus':
+                'placed',
+            'currency':
+                'BDT',
+            'currencySymbol':
+                '৳',
+            'createdAt':
+                FieldValue
+                    .serverTimestamp(),
+            'updatedAt':
+                FieldValue
+                    .serverTimestamp(),
+          },
+        );
+      }
 
       // =====================================================
-      // MAIN CUSTOMER ORDER
-      // =====================================================
-
-      batch.set(
-        orderRef,
-        {
-          'orderId': orderRef.id,
-          'userId': user.uid,
-          'userEmail': user.email ?? '',
-          'customerName':
-              _nameController.text.trim(),
-          'phone':
-              _phoneController.text.trim(),
-          'address':
-              _addressController.text.trim(),
-          'addressId':
-              _selectedAddressId ?? '',
-          'items': itemsData,
-          'itemCount':
-              widget.checkoutItems.length,
-          'totalQuantity':
-              totalQuantity,
-          'subtotal':
-              subtotal,
-          'deliveryFee':
-              deliveryFee,
-          'discount':
-              discountAmount,
-          'couponCode':
-              savedCouponCode,
-          'total':
-              grandTotal,
-          'paymentMethod':
-              _paymentMethod,
-          'paymentStatus':
-              'pending',
-          'orderStatus':
-              'placed',
-          'createdAt':
-              FieldValue.serverTimestamp(),
-        },
-      );
-
-      // =====================================================
-      // SELLER ORDERS
+      // CREATE NORMAL SELLER ORDERS
       // =====================================================
 
       for (final sellerEntry
@@ -884,15 +1220,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
             sellerDataMap[sellerId]!;
 
         double sellerSubtotal = 0;
+
         int sellerQuantity = 0;
 
-        final List<Map<String, dynamic>>
+        final List<
+                Map<String, dynamic>>
             sellerItemsData = [];
 
         for (final item
             in sellerProducts) {
           sellerSubtotal += item.total;
-          sellerQuantity += item.quantity;
+
+          sellerQuantity +=
+              item.quantity;
 
           sellerItemsData.add({
             'productId':
@@ -910,13 +1250,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
           });
         }
 
-        // ===================================================
-        // UNIQUE SELLER ORDER DOCUMENT
-        // ===================================================
-
         final sellerOrderRef =
             firestore
-                .collection('seller_orders')
+                .collection(
+                  'seller_orders',
+                )
                 .doc();
 
         batch.set(
@@ -925,7 +1263,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'sellerOrderId':
                 sellerOrderRef.id,
             'orderId':
-                orderRef.id,
+                normalOrderId ?? '',
             'customerId':
                 user.uid,
             'customerEmail':
@@ -941,9 +1279,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'sellerId':
                 sellerId,
             'sellerCode':
-                sellerInfo['sellerCode'] ?? '',
+                sellerInfo[
+                        'sellerCode'] ??
+                    '',
             'sellerEmail':
-                sellerInfo['sellerEmail'] ?? '',
+                sellerInfo[
+                        'sellerEmail'] ??
+                    '',
             'items':
                 sellerItemsData,
             'itemCount':
@@ -960,23 +1302,310 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 'pending',
             'orderStatus':
                 'placed',
+            'currency':
+                'BDT',
+            'currencySymbol':
+                '৳',
             'createdAt':
-                FieldValue.serverTimestamp(),
+                FieldValue
+                    .serverTimestamp(),
             'updatedAt':
-                FieldValue.serverTimestamp(),
+                FieldValue
+                    .serverTimestamp(),
           },
         );
       }
 
       // =====================================================
-      // STEP 6
+      // RESELLER ORDERS
+      //
+      // Each Entrepreneur + Seller combination gets its own
+      // reseller_orders document.
+      // =====================================================
+
+      final Map<String,
+              List<CheckoutItem>>
+          resellerGroups = {};
+
+      for (final item in resellerItems) {
+        final entrepreneurUid =
+            item.entrepreneurUid
+                ?.trim();
+
+        final sellerId =
+            item.sellerId?.trim();
+
+        if (entrepreneurUid == null ||
+            entrepreneurUid.isEmpty) {
+          throw Exception(
+            'Entrepreneur information is missing for '
+            '${item.productName}.',
+          );
+        }
+
+        if (sellerId == null ||
+            sellerId.isEmpty) {
+          throw Exception(
+            'Seller information is missing for '
+            '${item.productName}.',
+          );
+        }
+
+        final groupKey =
+            '$entrepreneurUid|$sellerId';
+
+        resellerGroups
+            .putIfAbsent(
+              groupKey,
+              () => [],
+            )
+            .add(item);
+      }
+
+      String? firstResellerOrderId;
+
+      for (final entry
+          in resellerGroups.entries) {
+        final groupItems =
+            entry.value;
+
+        if (groupItems.isEmpty) {
+          continue;
+        }
+
+        final entrepreneurUid =
+            groupItems.first
+                .entrepreneurUid!
+                .trim();
+
+        final sellerId =
+            groupItems.first
+                .sellerId!
+                .trim();
+
+        // ===================================================
+        // VERIFY ALL ITEMS IN GROUP
+        // ===================================================
+
+        for (final item in groupItems) {
+          if (item.entrepreneurUid
+                  ?.trim() !=
+              entrepreneurUid) {
+            throw Exception(
+              'Invalid entrepreneur information.',
+            );
+          }
+
+          if (item.sellerId?.trim() !=
+              sellerId) {
+            throw Exception(
+              'Invalid seller information.',
+            );
+          }
+        }
+
+        // ===================================================
+        // SELLING TOTAL
+        // ===================================================
+
+        final sellingTotal =
+            _resellerSellingTotal(
+          groupItems,
+        );
+
+        // ===================================================
+        // SUPPLIER TOTAL
+        // ===================================================
+
+        final supplierTotal =
+            _resellerSupplierTotal(
+          groupItems,
+        );
+
+        // ===================================================
+        // PROFIT
+        //
+        // Profit is calculated from actual selling price
+        // minus supplier price.
+        // Coupon discount allocated to reseller group is
+        // deducted from selling revenue.
+        // ===================================================
+
+        final groupDiscount =
+            resellerDiscount *
+                (sellingTotal /
+                    (resellerItems.isEmpty
+                        ? 1
+                        : _resellerSellingTotal(
+                            resellerItems,
+                          )));
+
+        final adjustedSellingTotal =
+            sellingTotal -
+                groupDiscount;
+
+        final profit =
+            adjustedSellingTotal -
+                supplierTotal;
+
+        // ===================================================
+        // ITEMS DATA
+        // ===================================================
+
+        final List<
+                Map<String, dynamic>>
+            resellerItemsData = [];
+
+        int resellerQuantity = 0;
+
+        for (final item
+            in groupItems) {
+          resellerQuantity +=
+              item.quantity;
+
+          final itemSellingTotal =
+              item.total;
+
+          final itemSupplierTotal =
+              item.supplierTotal;
+
+          final itemProfit =
+              itemSellingTotal -
+                  itemSupplierTotal;
+
+          resellerItemsData.add({
+            'productId':
+                item.productId,
+            'supplierProductId':
+                item.supplierProductId ??
+                    item.productId,
+            'productName':
+                item.productName,
+            'imageUrl':
+                item.imageUrl ?? '',
+            'sellingPrice':
+                item.price,
+            'supplierPrice':
+                item.supplierPrice ?? 0,
+            'quantity':
+                item.quantity,
+            'sellingTotal':
+                itemSellingTotal,
+            'supplierTotal':
+                itemSupplierTotal,
+            'profit':
+                itemProfit,
+            'sellerId':
+                sellerId,
+            'entrepreneurUid':
+                entrepreneurUid,
+          });
+        }
+
+        // ===================================================
+        // RESELLER ORDER DOCUMENT
+        // ===================================================
+
+        final resellerOrderRef =
+            firestore
+                .collection(
+                  'reseller_orders',
+                )
+                .doc();
+
+        firstResellerOrderId ??=
+            resellerOrderRef.id;
+
+        batch.set(
+          resellerOrderRef,
+          {
+            'resellerOrderId':
+                resellerOrderRef.id,
+
+            // Customer information
+            'customerId':
+                user.uid,
+            'customerEmail':
+                user.email ?? '',
+            'customerName':
+                _nameController.text.trim(),
+            'phone':
+                _phoneController.text.trim(),
+            'address':
+                _addressController.text.trim(),
+            'addressId':
+                _selectedAddressId ?? '',
+
+            // Business connection
+            'entrepreneurUid':
+                entrepreneurUid,
+            'sellerId':
+                sellerId,
+
+            // Products
+            'items':
+                resellerItemsData,
+            'itemCount':
+                groupItems.length,
+            'totalQuantity':
+                resellerQuantity,
+
+            // Financial information
+            'sellingTotal':
+                sellingTotal,
+            'supplierTotal':
+                supplierTotal,
+            'discount':
+                groupDiscount,
+            'profit':
+                profit,
+            'deliveryFee':
+                deliveryFee,
+            'total':
+                adjustedSellingTotal +
+                    deliveryFee <
+                0
+                ? 0
+                : adjustedSellingTotal +
+                    deliveryFee,
+
+            // Coupon
+            'couponCode':
+                savedCouponCode,
+
+            // Payment
+            'paymentMethod':
+                _paymentMethod,
+            'paymentStatus':
+                'pending',
+
+            // Order
+            'orderStatus':
+                'placed',
+
+            // Currency
+            'currency':
+                'BDT',
+            'currencySymbol':
+                '৳',
+
+            'createdAt':
+                FieldValue
+                    .serverTimestamp(),
+            'updatedAt':
+                FieldValue
+                    .serverTimestamp(),
+          },
+        );
+      }
+
+      // =====================================================
       // SAVE EVERYTHING
       // =====================================================
 
       await batch.commit();
 
       // =====================================================
-      // STEP 7
       // CLEAR CART
       // =====================================================
 
@@ -985,6 +1614,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       if (!mounted) return;
+
+      // =====================================================
+      // SUCCESS ID
+      // =====================================================
+
+      final successOrderId =
+          normalOrderId ??
+              firstResellerOrderId ??
+              'N/A';
 
       // =====================================================
       // SUCCESS DIALOG
@@ -1008,12 +1646,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   size: 30,
                 ),
                 SizedBox(width: 10),
-                Text('Order Placed'),
+                Expanded(
+                  child: Text(
+                    'Order Placed',
+                  ),
+                ),
               ],
             ),
             content: Text(
               'Your order has been placed successfully.\n\n'
-              'Order ID:\n${orderRef.id}',
+              'Order ID:\n$successOrderId',
             ),
             actions: [
               TextButton(
@@ -1061,7 +1703,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // MESSAGE
   // =========================================================
 
-  void _showMessage(String message) {
+  void _showMessage(
+    String message,
+  ) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context)
@@ -1090,7 +1734,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         height: 75,
         decoration:
             BoxDecoration(
-          color: Colors.grey.shade200,
+          color:
+              Colors.grey.shade200,
           borderRadius:
               BorderRadius.circular(10),
         ),
@@ -1115,7 +1760,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           return Container(
             width: 75,
             height: 75,
-            color: Colors.grey.shade200,
+            color:
+                Colors.grey.shade200,
             child: const Icon(
               Icons.image_outlined,
               color: Colors.grey,
@@ -1161,17 +1807,66 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item.productName,
-                    maxLines: 2,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                  Row(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.productName,
+                          maxLines: 2,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style:
+                              const TextStyle(
+                            fontSize: 16,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                      if (item
+                          .isResellerProduct)
+                        Container(
+                          margin:
+                              const EdgeInsets.only(
+                            left: 6,
+                          ),
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal: 7,
+                            vertical: 4,
+                          ),
+                          decoration:
+                              BoxDecoration(
+                            color: Colors
+                                .blue
+                                .withValues(
+                              alpha: 0.08,
+                            ),
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              20,
+                            ),
+                          ),
+                          child:
+                              const Text(
+                            'Reseller',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.blue,
+                              fontSize:
+                                  10,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
 
                   const SizedBox(
@@ -1179,7 +1874,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
 
                   Text(
-                    '₩${item.price.toStringAsFixed(0)} × ${item.quantity}',
+                    '৳${item.price.toStringAsFixed(0)} × ${item.quantity}',
                     style: TextStyle(
                       color:
                           Colors.grey.shade700,
@@ -1192,7 +1887,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
 
                   Text(
-                    '₩${item.total.toStringAsFixed(0)}',
+                    '৳${item.total.toStringAsFixed(0)}',
                     style:
                         const TextStyle(
                       color:
@@ -1202,6 +1897,29 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           FontWeight.bold,
                     ),
                   ),
+
+                  // =================================================
+                  // ENTREPRENEUR PROFIT INFORMATION
+                  // =================================================
+
+                  if (item
+                      .isResellerProduct) ...[
+                    const SizedBox(
+                      height: 6,
+                    ),
+                    Text(
+                      'Estimated Profit: '
+                      '৳${item.profitTotal.toStringAsFixed(0)}',
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.green,
+                        fontSize: 13,
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1312,7 +2030,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 onPressed:
                     _openAddressBook,
                 icon: const Icon(
-                  Icons.add_location_alt_outlined,
+                  Icons
+                      .add_location_alt_outlined,
                 ),
                 label: const Text(
                   'Add Address',
@@ -1349,7 +2068,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 children: [
                   for (final address
                       in _savedAddresses)
-                    _savedAddressTile(address),
+                    _savedAddressTile(
+                      address,
+                    ),
                 ],
               ),
             ),
@@ -1364,10 +2085,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: TextButton.icon(
                     onPressed:
                         _openAddressBook,
-                    icon: const Icon(
-                      Icons.manage_accounts_outlined,
+                    icon:
+                        const Icon(
+                      Icons
+                          .manage_accounts_outlined,
                     ),
-                    label: const Text(
+                    label:
+                        const Text(
                       'Manage Addresses',
                     ),
                   ),
@@ -1377,10 +2101,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: TextButton.icon(
                     onPressed:
                         _useManualAddress,
-                    icon: const Icon(
+                    icon:
+                        const Icon(
                       Icons.edit_outlined,
                     ),
-                    label: const Text(
+                    label:
+                        const Text(
                       'Enter Manually',
                     ),
                   ),
@@ -1404,19 +2130,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
         address['id']?.toString() ?? '';
 
     final isSelected =
-        _selectedAddressId == addressId;
+        _selectedAddressId ==
+            addressId;
 
     final isDefault =
         address['isDefault'] == true;
 
     final name =
-        address['name']?.toString() ?? '';
+        address['name']?.toString() ??
+            '';
 
     final phone =
-        address['phone']?.toString() ?? '';
+        address['phone']?.toString() ??
+            '';
 
     final fullAddress =
-        address['address']?.toString() ?? '';
+        address['address']?.toString() ??
+            '';
 
     return InkWell(
       borderRadius:
@@ -1435,7 +2165,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
             BoxDecoration(
           color: isSelected
               ? Colors.redAccent
-                  .withValues(alpha: 0.06)
+                  .withValues(
+                  alpha: 0.06,
+                )
               : Colors.transparent,
           borderRadius:
               BorderRadius.circular(12),
@@ -1514,8 +2246,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               fontSize:
                                   11,
                               fontWeight:
-                                  FontWeight
-                                      .bold,
+                                  FontWeight.bold,
                             ),
                           ),
                         ),
@@ -1567,7 +2298,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // =========================================================
 
   Widget _couponCard() {
-    final applied = _appliedCoupon != null;
+    final applied =
+        _appliedCoupon != null;
 
     return Card(
       elevation: 0,
@@ -1591,7 +2323,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
               children: [
                 const Icon(
                   Icons.local_offer_outlined,
-                  color: Colors.redAccent,
+                  color:
+                      Colors.redAccent,
                 ),
                 const SizedBox(width: 8),
                 const Expanded(
@@ -1609,7 +2342,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     onPressed:
                         _placingOrder
                             ? null
-                            : () => _removeCoupon(),
+                            : () =>
+                                _removeCoupon(),
                     child:
                         const Text(
                       'Remove',
@@ -1622,45 +2356,61 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
             if (applied)
               Container(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.all(12),
+                    const EdgeInsets.all(
+                  12,
+                ),
                 decoration:
                     BoxDecoration(
                   color: Colors.green
-                      .withValues(alpha: 0.08),
+                      .withValues(
+                    alpha: 0.08,
+                  ),
                   borderRadius:
-                      BorderRadius.circular(12),
+                      BorderRadius.circular(
+                    12,
+                  ),
                   border: Border.all(
                     color: Colors.green
-                        .withValues(alpha: 0.30),
+                        .withValues(
+                      alpha: 0.30,
+                    ),
                   ),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.check_circle,
-                      color: Colors.green,
+                      color:
+                          Colors.green,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(
+                        width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            CrossAxisAlignment
+                                .start,
                         children: [
                           Text(
-                            _couponCode ?? '',
+                            _couponCode ??
+                                '',
                             style:
                                 const TextStyle(
                               fontWeight:
-                                  FontWeight.bold,
+                                  FontWeight
+                                      .bold,
                               color:
                                   Colors.green,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(
+                              height: 3),
                           Text(
-                            'You saved ₩${discountAmount.toStringAsFixed(0)}',
+                            'You saved '
+                            '৳${discountAmount.toStringAsFixed(0)}',
                             style:
                                 const TextStyle(
                               color:
@@ -1681,7 +2431,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       controller:
                           _couponController,
                       textCapitalization:
-                          TextCapitalization.characters,
+                          TextCapitalization
+                              .characters,
                       enabled:
                           !_checkingCoupon &&
                               !_placingOrder,
@@ -1691,46 +2442,56 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             'Enter coupon code',
                         prefixIcon:
                             const Icon(
-                          Icons.confirmation_number_outlined,
+                          Icons
+                              .confirmation_number_outlined,
                         ),
                         border:
                             OutlineInputBorder(
                           borderRadius:
-                              BorderRadius.circular(
+                              BorderRadius
+                                  .circular(
                             12,
                           ),
                         ),
                       ),
                       onChanged: (_) {
-                        if (_appliedCoupon != null) {
+                        if (_appliedCoupon !=
+                            null) {
                           _removeCoupon(
-                            showMessage: false,
+                            showMessage:
+                                false,
                           );
                         }
                       },
                     ),
                   ),
 
-                  const SizedBox(width: 8),
+                  const SizedBox(
+                    width: 8,
+                  ),
 
                   SizedBox(
                     height: 52,
-                    child: ElevatedButton(
+                    child:
+                        ElevatedButton(
                       onPressed:
                           _checkingCoupon ||
                                   _placingOrder
                               ? null
                               : _checkCoupon,
                       style:
-                          ElevatedButton.styleFrom(
+                          ElevatedButton
+                              .styleFrom(
                         backgroundColor:
-                            Colors.redAccent,
+                            Colors
+                                .redAccent,
                         foregroundColor:
                             Colors.white,
                         shape:
                             RoundedRectangleBorder(
                           borderRadius:
-                              BorderRadius.circular(
+                              BorderRadius
+                                  .circular(
                             12,
                           ),
                         ),
@@ -1742,7 +2503,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   height: 20,
                                   child:
                                       CircularProgressIndicator(
-                                    strokeWidth: 2,
+                                    strokeWidth:
+                                        2,
                                     color:
                                         Colors.white,
                                   ),
@@ -1808,7 +2570,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // =========================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final items =
         widget.checkoutItems;
 
@@ -1833,7 +2597,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 'No products selected.',
                 style: TextStyle(
                   fontSize: 17,
-                  color: Colors.grey,
+                  color:
+                      Colors.grey,
                 ),
               ),
             )
@@ -1910,7 +2675,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     controller:
                         _nameController,
                     textInputAction:
-                        TextInputAction.next,
+                        TextInputAction
+                            .next,
                     decoration:
                         InputDecoration(
                       labelText:
@@ -1942,7 +2708,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     keyboardType:
                         TextInputType.phone,
                     textInputAction:
-                        TextInputAction.next,
+                        TextInputAction
+                            .next,
                     decoration:
                         InputDecoration(
                       labelText:
@@ -2075,7 +2842,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           Icons
                               .payments_outlined,
                           color:
-                              Colors.redAccent,
+                              Colors
+                                  .redAccent,
                         ),
                       ),
                     ),
@@ -2128,18 +2896,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
                           _summaryRow(
                             'Subtotal',
-                            '₩${subtotal.toStringAsFixed(0)}',
+                            '৳${subtotal.toStringAsFixed(0)}',
                           ),
 
                           _summaryRow(
                             'Delivery Fee',
-                            '₩${deliveryFee.toStringAsFixed(0)}',
+                            '৳${deliveryFee.toStringAsFixed(0)}',
                           ),
 
-                          if (discountAmount > 0)
+                          if (discountAmount >
+                              0)
                             _summaryRow(
                               'Coupon Discount',
-                              '-₩${discountAmount.toStringAsFixed(0)}',
+                              '-৳${discountAmount.toStringAsFixed(0)}',
                               valueColor:
                                   Colors.green,
                             ),
@@ -2150,7 +2919,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
                           _summaryRow(
                             'Total',
-                            '₩${grandTotal.toStringAsFixed(0)}',
+                            '৳${grandTotal.toStringAsFixed(0)}',
                             bold:
                                 true,
                             valueColor:
@@ -2165,9 +2934,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
             ),
 
-      // =========================================================
+      // =======================================================
       // PLACE ORDER BUTTON
-      // =========================================================
+      // =======================================================
 
       bottomNavigationBar:
           items.isEmpty
@@ -2243,7 +3012,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     ),
                                   )
                                 : Text(
-                                    'Place Order • ₩${grandTotal.toStringAsFixed(0)}',
+                                    'Place Order • ৳${grandTotal.toStringAsFixed(0)}',
                                     style:
                                         const TextStyle(
                                       fontSize:
