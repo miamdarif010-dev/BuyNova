@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'my_orders_page.dart';
+import 'address_book_page.dart';
 
 class CheckoutItem {
   final String productId;
@@ -25,7 +26,6 @@ class CheckoutItem {
 class CheckoutPage extends StatefulWidget {
   final List<CheckoutItem> items;
 
-  // Buy Now compatibility
   final String? productId;
   final String? productName;
   final double? price;
@@ -69,8 +69,7 @@ class CheckoutPage extends StatefulWidget {
   }
 
   @override
-  State<CheckoutPage> createState() =>
-      _CheckoutPageState();
+  State<CheckoutPage> createState() => _CheckoutPageState();
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
@@ -84,10 +83,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
       TextEditingController();
 
   bool _placingOrder = false;
+  bool _loadingAddresses = true;
 
   String _paymentMethod = 'Cash on Delivery';
 
   static const double deliveryFee = 3000;
+
+  List<Map<String, dynamic>> _savedAddresses = [];
+
+  String? _selectedAddressId;
+
+  bool _addressBookAvailable = false;
 
   // =========================================================
   // SUBTOTAL
@@ -132,7 +138,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   void initState() {
     super.initState();
+
     _loadUserInformation();
+    _loadSavedAddresses();
   }
 
   // =========================================================
@@ -167,6 +175,143 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
+  // LOAD SAVED ADDRESSES
+  // =========================================================
+
+  Future<void> _loadSavedAddresses() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _loadingAddresses = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('addresses')
+          .get();
+
+      final addresses = snapshot.docs.map((document) {
+        final data = document.data();
+
+        return {
+          'id': document.id,
+          'name': data['name']?.toString() ?? '',
+          'phone': data['phone']?.toString() ?? '',
+          'address': data['address']?.toString() ?? '',
+          'isDefault': data['isDefault'] == true,
+        };
+      }).toList();
+
+      addresses.sort((a, b) {
+        final aDefault = a['isDefault'] == true;
+        final bDefault = b['isDefault'] == true;
+
+        if (aDefault && !bDefault) {
+          return -1;
+        }
+
+        if (!aDefault && bDefault) {
+          return 1;
+        }
+
+        return 0;
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _savedAddresses = addresses;
+        _addressBookAvailable = addresses.isNotEmpty;
+        _loadingAddresses = false;
+      });
+
+      // =====================================================
+      // AUTO SELECT DEFAULT ADDRESS
+      // =====================================================
+
+      if (addresses.isNotEmpty) {
+        Map<String, dynamic>? defaultAddress;
+
+        for (final address in addresses) {
+          if (address['isDefault'] == true) {
+            defaultAddress = address;
+            break;
+          }
+        }
+
+        defaultAddress ??= addresses.first;
+
+        _selectSavedAddress(defaultAddress);
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loadingAddresses = false;
+        _addressBookAvailable = false;
+      });
+    }
+  }
+
+  // =========================================================
+  // SELECT SAVED ADDRESS
+  // =========================================================
+
+  void _selectSavedAddress(
+    Map<String, dynamic> address,
+  ) {
+    if (!mounted) return;
+
+    setState(() {
+      _selectedAddressId =
+          address['id']?.toString();
+
+      _nameController.text =
+          address['name']?.toString() ?? '';
+
+      _phoneController.text =
+          address['phone']?.toString() ?? '';
+
+      _addressController.text =
+          address['address']?.toString() ?? '';
+    });
+  }
+
+  // =========================================================
+  // OPEN ADDRESS BOOK
+  // =========================================================
+
+  Future<void> _openAddressBook() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddressBookPage(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await _loadSavedAddresses();
+  }
+
+  // =========================================================
+  // CLEAR SELECTED ADDRESS
+  // =========================================================
+
+  void _useManualAddress() {
+    setState(() {
+      _selectedAddressId = null;
+    });
+  }
+
+  // =========================================================
   // CLEAR CART
   // =========================================================
 
@@ -179,8 +324,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     if (snapshot.docs.isEmpty) return;
 
-    final batch =
-        FirebaseFirestore.instance.batch();
+    final batch = FirebaseFirestore.instance.batch();
 
     for (final document in snapshot.docs) {
       batch.delete(document.reference);
@@ -194,14 +338,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // =========================================================
 
   bool _validateForm() {
-    final name =
-        _nameController.text.trim();
+    final name = _nameController.text.trim();
 
-    final phone =
-        _phoneController.text.trim();
+    final phone = _phoneController.text.trim();
 
-    final address =
-        _addressController.text.trim();
+    final address = _addressController.text.trim();
 
     if (name.isEmpty) {
       _showMessage(
@@ -245,16 +386,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // GET SELLER INFORMATION
   // =========================================================
 
-  Future<Map<String, dynamic>?>
-      _getProductSellerData(
+  Future<Map<String, dynamic>?> _getProductSellerData(
     String productId,
   ) async {
     try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('products')
-              .doc(productId)
-              .get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('products')
+          .doc(productId)
+          .get();
 
       if (!snapshot.exists) {
         return null;
@@ -269,8 +408,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final sellerId =
           data['sellerId']?.toString();
 
-      if (sellerId == null ||
-          sellerId.isEmpty) {
+      if (sellerId == null || sellerId.isEmpty) {
         return null;
       }
 
@@ -293,8 +431,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<void> _placeOrder() async {
     if (_placingOrder) return;
 
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       _showMessage(
@@ -310,10 +447,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     });
 
     try {
-      // =======================================================
+      // =====================================================
       // STEP 1
       // FIND SELLER FOR EVERY PRODUCT
-      // =======================================================
+      // =====================================================
 
       final Map<String, Map<String, dynamic>>
           sellerInformation = {};
@@ -335,10 +472,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
             sellerData;
       }
 
-      // =======================================================
+      // =====================================================
       // STEP 2
       // MAIN ORDER
-      // =======================================================
+      // =====================================================
 
       final firestore =
           FirebaseFirestore.instance;
@@ -358,8 +495,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'price': item.price,
           'quantity': item.quantity,
           'total': item.total,
-
-          // Seller information
           'sellerId':
               sellerData['sellerId'],
           'sellerCode':
@@ -369,10 +504,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
         };
       }).toList();
 
-      // =======================================================
+      // =====================================================
       // STEP 3
       // GROUP PRODUCTS BY SELLER
-      // =======================================================
+      // =====================================================
 
       final Map<String, List<CheckoutItem>>
           sellerItems = {};
@@ -385,8 +520,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             sellerInformation[item.productId]!;
 
         final sellerId =
-            sellerData['sellerId']
-                .toString();
+            sellerData['sellerId'].toString();
 
         sellerItems.putIfAbsent(
           sellerId,
@@ -399,17 +533,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
             sellerData;
       }
 
-      // =======================================================
+      // =====================================================
       // STEP 4
       // CREATE FIRESTORE BATCH
-      // =======================================================
+      // =====================================================
 
       final batch =
           firestore.batch();
 
-      // =======================================================
+      // =====================================================
       // MAIN CUSTOMER ORDER
-      // =======================================================
+      // =====================================================
 
       batch.set(
         orderRef,
@@ -417,7 +551,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'orderId': orderRef.id,
 
           'userId': user.uid,
-          'userEmail': user.email ?? '',
+
+          'userEmail':
+              user.email ?? '',
 
           'customerName':
               _nameController.text.trim(),
@@ -428,7 +564,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'address':
               _addressController.text.trim(),
 
-          'items': itemsData,
+          // Save selected address ID too.
+          'addressId':
+              _selectedAddressId ?? '',
+
+          'items':
+              itemsData,
 
           'itemCount':
               widget.checkoutItems.length,
@@ -459,9 +600,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         },
       );
 
-      // =======================================================
+      // =====================================================
       // SELLER ORDERS
-      // =======================================================
+      // =====================================================
 
       for (final sellerEntry
           in sellerItems.entries) {
@@ -509,9 +650,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
           });
         }
 
-        // =====================================================
+        // ===================================================
         // UNIQUE SELLER ORDER DOCUMENT
-        // =====================================================
+        // ===================================================
 
         final sellerOrderRef =
             firestore
@@ -521,15 +662,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
         batch.set(
           sellerOrderRef,
           {
-            // Seller order ID
             'sellerOrderId':
                 sellerOrderRef.id,
 
-            // Main customer order
             'orderId':
                 orderRef.id,
 
-            // Customer
             'customerId':
                 user.uid,
 
@@ -545,7 +683,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'address':
                 _addressController.text.trim(),
 
-            // Seller
+            'addressId':
+                _selectedAddressId ?? '',
+
             'sellerId':
                 sellerId,
 
@@ -555,7 +695,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'sellerEmail':
                 sellerInfo['sellerEmail'] ?? '',
 
-            // Seller products only
             'items':
                 sellerItemsData,
 
@@ -565,22 +704,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'totalQuantity':
                 sellerQuantity,
 
-            // Seller money
             'sellerSubtotal':
                 sellerSubtotal,
 
-            // Payment
             'paymentMethod':
                 _paymentMethod,
 
             'paymentStatus':
                 'pending',
 
-            // Seller order status
             'orderStatus':
                 'placed',
 
-            // Dates
             'createdAt':
                 FieldValue.serverTimestamp(),
 
@@ -590,17 +725,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
         );
       }
 
-      // =======================================================
+      // =====================================================
       // STEP 5
       // SAVE EVERYTHING
-      // =======================================================
+      // =====================================================
 
       await batch.commit();
 
-      // =======================================================
+      // =====================================================
       // STEP 6
       // CLEAR CART
-      // =======================================================
+      // =====================================================
 
       if (widget.clearCartOnSuccess) {
         await _clearCart(user.uid);
@@ -608,9 +743,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (!mounted) return;
 
-      // =======================================================
+      // =====================================================
       // SUCCESS DIALOG
-      // =======================================================
+      // =====================================================
 
       await showDialog<void>(
         context: context,
@@ -652,9 +787,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (!mounted) return;
 
-      // =======================================================
+      // =====================================================
       // GO TO MY ORDERS
-      // =======================================================
+      // =====================================================
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -834,6 +969,354 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
+  // ADDRESS CARD
+  // =========================================================
+
+  Widget _addressBookCard() {
+    if (_loadingAddresses) {
+      return Card(
+        elevation: 0,
+        shape:
+            RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(14),
+          side: BorderSide(
+            color:
+                Colors.grey.shade300,
+          ),
+        ),
+        child: const Padding(
+          padding:
+              EdgeInsets.all(18),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child:
+                    CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Loading saved addresses...',
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_savedAddresses.isEmpty) {
+      return Card(
+        elevation: 0,
+        shape:
+            RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(14),
+          side: BorderSide(
+            color:
+                Colors.grey.shade300,
+          ),
+        ),
+        child: Padding(
+          padding:
+              const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(
+                    Icons.location_on_outlined,
+                    color:
+                        Colors.redAccent,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'No saved address',
+                      style:
+                          TextStyle(
+                        fontSize: 16,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(
+                height: 8,
+              ),
+
+              Text(
+                'You can add an address to your Address Book for faster checkout.',
+                style: TextStyle(
+                  color:
+                      Colors.grey.shade700,
+                ),
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              OutlinedButton.icon(
+                onPressed:
+                    _openAddressBook,
+                icon: const Icon(
+                  Icons.add_location_alt_outlined,
+                ),
+                label: const Text(
+                  'Add Address',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 0,
+      shape:
+          RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.circular(14),
+        side: BorderSide(
+          color:
+              Colors.grey.shade300,
+        ),
+      ),
+      child: Padding(
+        padding:
+            const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            for (final address
+                in _savedAddresses)
+              _savedAddressTile(address),
+
+            const Divider(
+              height: 20,
+            ),
+
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed:
+                        _openAddressBook,
+                    icon: const Icon(
+                      Icons.manage_accounts_outlined,
+                    ),
+                    label: const Text(
+                      'Manage Addresses',
+                    ),
+                  ),
+                ),
+
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed:
+                        _useManualAddress,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                    ),
+                    label: const Text(
+                      'Enter Manually',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // SAVED ADDRESS TILE
+  // =========================================================
+
+  Widget _savedAddressTile(
+    Map<String, dynamic> address,
+  ) {
+    final addressId =
+        address['id']?.toString() ?? '';
+
+    final isSelected =
+        _selectedAddressId == addressId;
+
+    final isDefault =
+        address['isDefault'] == true;
+
+    final name =
+        address['name']?.toString() ?? '';
+
+    final phone =
+        address['phone']?.toString() ?? '';
+
+    final fullAddress =
+        address['address']?.toString() ?? '';
+
+    return InkWell(
+      borderRadius:
+          BorderRadius.circular(12),
+      onTap: () {
+        _selectSavedAddress(address);
+      },
+      child: Container(
+        margin:
+            const EdgeInsets.only(
+          bottom: 8,
+        ),
+        padding:
+            const EdgeInsets.all(12),
+        decoration:
+            BoxDecoration(
+          color: isSelected
+              ? Colors.redAccent
+                  .withValues(alpha: 0.06)
+              : Colors.transparent,
+          borderRadius:
+              BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? Colors.redAccent
+                : Colors.grey.shade300,
+            width:
+                isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Radio<String>(
+              value: addressId,
+              groupValue:
+                  _selectedAddressId,
+              activeColor:
+                  Colors.redAccent,
+              onChanged: (_) {
+                _selectSavedAddress(
+                  address,
+                );
+              },
+            ),
+
+            const SizedBox(width: 4),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name.isEmpty
+                              ? 'Saved Address'
+                              : name,
+                          style:
+                              const TextStyle(
+                            fontSize: 15,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                      if (isDefault) ...[
+                        const SizedBox(
+                          width: 7,
+                        ),
+                        Container(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration:
+                              BoxDecoration(
+                            color: Colors
+                                .green
+                                .withValues(
+                              alpha: 0.10,
+                            ),
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              20,
+                            ),
+                          ),
+                          child:
+                              const Text(
+                            'Default',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.green,
+                              fontSize:
+                                  11,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  if (phone.isNotEmpty) ...[
+                    const SizedBox(
+                      height: 4,
+                    ),
+                    Text(
+                      phone,
+                      style: TextStyle(
+                        color:
+                            Colors.grey.shade700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+
+                  if (fullAddress.isNotEmpty) ...[
+                    const SizedBox(
+                      height: 4,
+                    ),
+                    Text(
+                      fullAddress,
+                      maxLines: 3,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color:
+                            Colors.grey.shade700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
   // SUMMARY ROW
   // =========================================================
 
@@ -945,6 +1428,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     height: 20,
                   ),
 
+                  // =================================================
+                  // DELIVERY INFORMATION
+                  // =================================================
+
                   const Text(
                     'Delivery Information',
                     style:
@@ -958,6 +1445,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 12,
                   ),
+
+                  // =================================================
+                  // ADDRESS BOOK
+                  // =================================================
+
+                  const Text(
+                    'Saved Addresses',
+                    style:
+                        TextStyle(
+                      fontSize: 16,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 8,
+                  ),
+
+                  _addressBookCard(),
+
+                  const SizedBox(
+                    height: 14,
+                  ),
+
+                  // =================================================
+                  // NAME
+                  // =================================================
 
                   TextField(
                     controller:
@@ -988,6 +1503,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 12,
                   ),
+
+                  // =================================================
+                  // PHONE
+                  // =================================================
 
                   TextField(
                     controller:
@@ -1020,6 +1539,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 12,
                   ),
+
+                  // =================================================
+                  // ADDRESS
+                  // =================================================
 
                   TextField(
                     controller:
@@ -1060,6 +1583,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     height: 20,
                   ),
 
+                  // =================================================
+                  // PAYMENT
+                  // =================================================
+
                   const Text(
                     'Payment Method',
                     style:
@@ -1090,8 +1617,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
                     ),
                     child:
-                        RadioGroup<
-                            String>(
+                        RadioGroup<String>(
                       groupValue:
                           _paymentMethod,
                       onChanged:
@@ -1138,6 +1664,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 20,
                   ),
+
+                  // =================================================
+                  // ORDER SUMMARY
+                  // =================================================
 
                   const Text(
                     'Order Summary',
@@ -1205,9 +1735,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
             ),
 
-      // =======================================================
+      // =========================================================
       // PLACE ORDER BUTTON
-      // =======================================================
+      // =========================================================
 
       bottomNavigationBar:
           items.isEmpty
