@@ -93,8 +93,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   String? _selectedAddressId;
 
-  bool _addressBookAvailable = false;
-
   // =========================================================
   // SUBTOTAL
   // =========================================================
@@ -228,7 +226,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       setState(() {
         _savedAddresses = addresses;
-        _addressBookAvailable = addresses.isNotEmpty;
         _loadingAddresses = false;
       });
 
@@ -255,7 +252,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       setState(() {
         _loadingAddresses = false;
-        _addressBookAvailable = false;
       });
     }
   }
@@ -285,6 +281,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
+  // SELECT ADDRESS BY ID
+  // =========================================================
+
+  void _selectAddressById(String? addressId) {
+    if (addressId == null) return;
+
+    for (final address in _savedAddresses) {
+      if (address['id']?.toString() == addressId) {
+        _selectSavedAddress(address);
+        return;
+      }
+    }
+  }
+
+  // =========================================================
   // OPEN ADDRESS BOOK
   // =========================================================
 
@@ -302,7 +313,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // =========================================================
-  // CLEAR SELECTED ADDRESS
+  // USE MANUAL ADDRESS
   // =========================================================
 
   void _useManualAddress() {
@@ -339,9 +350,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   bool _validateForm() {
     final name = _nameController.text.trim();
-
     final phone = _phoneController.text.trim();
-
     final address = _addressController.text.trim();
 
     if (name.isEmpty) {
@@ -549,52 +558,33 @@ class _CheckoutPageState extends State<CheckoutPage> {
         orderRef,
         {
           'orderId': orderRef.id,
-
           'userId': user.uid,
-
-          'userEmail':
-              user.email ?? '',
-
+          'userEmail': user.email ?? '',
           'customerName':
               _nameController.text.trim(),
-
           'phone':
               _phoneController.text.trim(),
-
           'address':
               _addressController.text.trim(),
-
-          // Save selected address ID too.
           'addressId':
               _selectedAddressId ?? '',
-
-          'items':
-              itemsData,
-
+          'items': itemsData,
           'itemCount':
               widget.checkoutItems.length,
-
           'totalQuantity':
               totalQuantity,
-
           'subtotal':
               subtotal,
-
           'deliveryFee':
               deliveryFee,
-
           'total':
               grandTotal,
-
           'paymentMethod':
               _paymentMethod,
-
           'paymentStatus':
               'pending',
-
           'orderStatus':
               'placed',
-
           'createdAt':
               FieldValue.serverTimestamp(),
         },
@@ -616,7 +606,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
             sellerDataMap[sellerId]!;
 
         double sellerSubtotal = 0;
-
         int sellerQuantity = 0;
 
         final List<Map<String, dynamic>>
@@ -625,26 +614,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
         for (final item
             in sellerProducts) {
           sellerSubtotal += item.total;
-
-          sellerQuantity +=
-              item.quantity;
+          sellerQuantity += item.quantity;
 
           sellerItemsData.add({
             'productId':
                 item.productId,
-
             'productName':
                 item.productName,
-
             'imageUrl':
                 item.imageUrl ?? '',
-
             'price':
                 item.price,
-
             'quantity':
                 item.quantity,
-
             'total':
                 item.total,
           });
@@ -664,61 +646,42 @@ class _CheckoutPageState extends State<CheckoutPage> {
           {
             'sellerOrderId':
                 sellerOrderRef.id,
-
             'orderId':
                 orderRef.id,
-
             'customerId':
                 user.uid,
-
             'customerEmail':
                 user.email ?? '',
-
             'customerName':
                 _nameController.text.trim(),
-
             'phone':
                 _phoneController.text.trim(),
-
             'address':
                 _addressController.text.trim(),
-
             'addressId':
                 _selectedAddressId ?? '',
-
             'sellerId':
                 sellerId,
-
             'sellerCode':
                 sellerInfo['sellerCode'] ?? '',
-
             'sellerEmail':
                 sellerInfo['sellerEmail'] ?? '',
-
             'items':
                 sellerItemsData,
-
             'itemCount':
                 sellerProducts.length,
-
             'totalQuantity':
                 sellerQuantity,
-
             'sellerSubtotal':
                 sellerSubtotal,
-
             'paymentMethod':
                 _paymentMethod,
-
             'paymentStatus':
                 'pending',
-
             'orderStatus':
                 'placed',
-
             'createdAt':
                 FieldValue.serverTimestamp(),
-
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
@@ -1097,9 +1060,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
             const EdgeInsets.all(12),
         child: Column(
           children: [
-            for (final address
-                in _savedAddresses)
-              _savedAddressTile(address),
+            RadioGroup<String>(
+              groupValue:
+                  _selectedAddressId,
+              onChanged:
+                  _selectAddressById,
+              child: Column(
+                children: [
+                  for (final address
+                      in _savedAddresses)
+                    _savedAddressTile(address),
+                ],
+              ),
+            ),
 
             const Divider(
               height: 20,
@@ -1200,15 +1173,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           children: [
             Radio<String>(
               value: addressId,
-              groupValue:
-                  _selectedAddressId,
               activeColor:
                   Colors.redAccent,
-              onChanged: (_) {
-                _selectSavedAddress(
-                  address,
-                );
-              },
             ),
 
             const SizedBox(width: 4),
@@ -1428,10 +1394,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     height: 20,
                   ),
 
-                  // =================================================
-                  // DELIVERY INFORMATION
-                  // =================================================
-
                   const Text(
                     'Delivery Information',
                     style:
@@ -1445,10 +1407,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 12,
                   ),
-
-                  // =================================================
-                  // ADDRESS BOOK
-                  // =================================================
 
                   const Text(
                     'Saved Addresses',
@@ -1469,10 +1427,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 14,
                   ),
-
-                  // =================================================
-                  // NAME
-                  // =================================================
 
                   TextField(
                     controller:
@@ -1503,10 +1457,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 12,
                   ),
-
-                  // =================================================
-                  // PHONE
-                  // =================================================
 
                   TextField(
                     controller:
@@ -1539,10 +1489,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 12,
                   ),
-
-                  // =================================================
-                  // ADDRESS
-                  // =================================================
 
                   TextField(
                     controller:
@@ -1582,10 +1528,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 20,
                   ),
-
-                  // =================================================
-                  // PAYMENT
-                  // =================================================
 
                   const Text(
                     'Payment Method',
@@ -1664,10 +1606,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   const SizedBox(
                     height: 20,
                   ),
-
-                  // =================================================
-                  // ORDER SUMMARY
-                  // =================================================
 
                   const Text(
                     'Order Summary',
@@ -1842,3 +1780,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
     super.dispose();
   }
 }
+
+এখন "checkout_page.dart" পুরোটা replace করে GitHub-এ commit করো।
+
+এই সংস্করণে:
+
+- "_addressBookAvailable" সম্পূর্ণ বাদ গেছে।
+- Saved Address-এর "Radio" পুরোনো "groupValue/onChanged" ব্যবহার করছে না।
+- Address selection "RadioGroup<String>" দিয়ে হচ্ছে।
+- Payment-এর "RadioGroup<String>" আগের মতোই আছে।
+- Address Book integration থাকবে।
+- Multi-seller order থাকবে।
+- "orders" + "seller_orders" দুটোই তৈরি হবে।
+- "addressId" সংরক্ষণ হবে।
+- COD থাকবে।
+- Cart clear থাকবে।
+- Order সফল হলে My Orders-এ যাবে।
+
+তাই আগের ৩টি analyzer issue-ই এই ফাইলে ঠিক হয়ে যাওয়ার কথা।
