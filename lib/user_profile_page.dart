@@ -15,6 +15,7 @@ import 'seller_page.dart';
 import 'notifications_page.dart';
 import 'seller_messages_page.dart';
 import 'earnings_page.dart';
+import 'address_book_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -238,6 +239,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const NotificationsPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // ADDRESS BOOK
+  // =========================================================
+
+  void _openAddressBook() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddressBookPage(),
       ),
     );
   }
@@ -599,6 +613,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
         onTap: _openBuyer,
       ),
 
+      // =====================================================
+      // ADDRESS BOOK — NEW
+      // =====================================================
+
+      _menuItem(
+        icon: Icons.location_on_outlined,
+        title: 'Address Book',
+        onTap: _openAddressBook,
+      ),
+
       _menuItem(
         icon: Icons.help_outline,
         title: 'Help & Support',
@@ -698,10 +722,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
             );
           },
         ),
-
-        // =====================================================
-        // SELLER EARNINGS — CONNECTED
-        // =====================================================
 
         _menuItem(
           icon: Icons.account_balance_wallet_outlined,
