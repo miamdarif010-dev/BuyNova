@@ -869,6 +869,3 @@ class NotificationsPage extends StatelessWidget {
   }
 }
 
-এটা তোমার "lib/notifications_page.dart"-এর সম্পূর্ণ replacement। মূল পরিবর্তন শুধু "rejectionReason" support; বাকি Wallet, Return/Refund, Order, Seller, Payment, Review এবং notification UI রাখা হয়েছে।
-
-এখন পুরো ফাইলটা replace করে Save/Commit করো। তারপর আমরা পরের ধাপে যাব।
