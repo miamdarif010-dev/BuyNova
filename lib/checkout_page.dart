@@ -76,11 +76,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Map<String, dynamic>? _selectedAddress;
 
-  final List<String> _paymentMethods = [
-    'Cash on Delivery',
-    'BuyNova Wallet',
-  ];
-
   double get subtotal {
     return widget.items.fold(
       0,
