@@ -16,6 +16,7 @@ import 'notifications_page.dart';
 import 'seller_messages_page.dart';
 import 'earnings_page.dart';
 import 'address_book_page.dart';
+import 'reseller_orders_seller_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -278,6 +279,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const EarningsPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // SELLER RESELLER ORDERS
+  // =========================================================
+
+  void _openSellerResellerOrders() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const ResellerOrdersSellerPage(),
       ),
     );
   }
@@ -613,10 +628,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
         onTap: _openBuyer,
       ),
 
-      // =====================================================
-      // ADDRESS BOOK — NEW
-      // =====================================================
-
       _menuItem(
         icon: Icons.location_on_outlined,
         title: 'Address Book',
@@ -711,6 +722,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
           icon: Icons.favorite_border,
           title: 'Favorites',
           onTap: _openFavorites,
+        ),
+
+        // =====================================================
+        // RESELLER ORDERS — NEW
+        // =====================================================
+
+        _menuItem(
+          icon: Icons.local_shipping_outlined,
+          title: 'Reseller Orders',
+          onTap: _openSellerResellerOrders,
         ),
 
         _menuItem(
@@ -1349,3 +1370,4 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 }
+
