@@ -553,6 +553,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'sellerOrderId': sellerOrderRef.id,
             'sellerId': sellerId,
             'buyerId': user.uid,
+            'customerId': user.uid,
             'userId': user.uid,
             'items': items.map((item) {
               return {
@@ -621,6 +622,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'entrepreneurUid':
                 entrepreneurUid,
             'buyerId': user.uid,
+            'customerId': user.uid,
             'userId': user.uid,
             'sellerId': sellerId,
             'items': items.map((item) {
