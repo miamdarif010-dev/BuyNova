@@ -296,12 +296,16 @@ class _ProductDetailsPageState
       context,
       MaterialPageRoute(
         builder: (context) => CheckoutPage(
-          productId: widget.productId,
-          productName: productName,
-          price: price,
-          imageUrl:
-              imageUrl.isEmpty ? null : imageUrl,
-          quantity: _quantity,
+          items: [
+            CheckoutItem(
+              id: widget.productId,
+              name: productName,
+              price: price,
+              imageUrl:
+                  imageUrl.isEmpty ? null : imageUrl,
+              quantity: _quantity,
+            ),
+          ],
         ),
       ),
     );
