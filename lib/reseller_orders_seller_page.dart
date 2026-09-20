@@ -380,17 +380,10 @@ class ResellerOrdersSellerPage extends StatelessWidget {
                         final quantity =
                             _toInt(
                           item['quantity'],
-                        );
-
                         final price =
-                            _toDouble(
-                          item['price'],
-                        );
+                            _toDouble(item['supplierPrice']);
 
-                        final total =
-                            _toDouble(
-                          item['total'],
-                        );
+                        final total = price * quantity;
 
                         return Card(
                           elevation: 0,
