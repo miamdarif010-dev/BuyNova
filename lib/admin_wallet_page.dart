@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class AdminWalletPage extends StatefulWidget {
@@ -8,21 +9,1020 @@ class AdminWalletPage extends StatefulWidget {
   State<AdminWalletPage> createState() => _AdminWalletPageState();
 }
 
-class _AdminWalletPageState extends State<AdminWalletPage> {
+class _AdminWalletPageState extends State<AdminWalletPage>
+    with SingleTickerProviderStateMixin {
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
+  final FirebaseAuth _auth =
+      FirebaseAuth.instance;
+
+  late TabController _tabController;
+
   bool _processing = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // =========================================================
+  // HELPERS
+  // =========================================================
+
+  String _money(dynamic value) {
+    final amount =
+        value is num ? value.toDouble() : 0.0;
+
+    if (amount == amount.roundToDouble()) {
+      return '৳${amount.toInt()}';
+    }
+
+    return '৳${amount.toStringAsFixed(2)}';
+  }
+
+  String _formatDate(Timestamp? timestamp) {
+    if (timestamp == null) {
+      return 'Processing...';
+    }
+
+    final date = timestamp.toDate();
+
+    final hour = date.hour == 0
+        ? 12
+        : date.hour > 12
+            ? date.hour - 12
+            : date.hour;
+
+    final minute =
+        date.minute.toString().padLeft(2, '0');
+
+    final period =
+        date.hour >= 12 ? 'PM' : 'AM';
+
+    return '${date.day}/${date.month}/${date.year} '
+        '$hour:$minute $period';
+  }
+
+  String _methodName(Map<String, dynamic> data) {
+    return data['withdrawalMethodName']?.toString() ??
+        data['paymentMethodName']?.toString() ??
+        data['withdrawalMethod']?.toString() ??
+        data['paymentMethod']?.toString() ??
+        'Unknown';
+  }
+
+  String _maskedAccount(String account) {
+    if (account.length <= 4) {
+      return account;
+    }
+
+    return '•••• ${account.substring(account.length - 4)}';
+  }
+
+  // =========================================================
+  // USER DATA
+  // =========================================================
+
+  Future<Map<String, dynamic>> _getUserData(
+    String uid,
+  ) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    if (!snapshot.exists) {
+      throw Exception('User account not found.');
+    }
+
+    return snapshot.data() ?? {};
+  }
+
+  // =========================================================
+  // NOTIFICATION
+  // =========================================================
+
+  Future<void> _createNotification({
+    required String userId,
+    required String title,
+    required String message,
+    required String type,
+    required String orderStatus,
+  }) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .add({
+      'customerId': userId,
+      'sellerId': _auth.currentUser?.uid ?? '',
+      'title': title,
+      'message': message,
+      'type': type,
+      'orderStatus': orderStatus,
+      'isRead': false,
+      'createdAt':
+          FieldValue.serverTimestamp(),
+    });
+  }
+
+  // =========================================================
+  // DEPOSIT APPROVE
+  // =========================================================
+
+  Future<void> _approveDeposit(
+    DocumentSnapshot<Map<String, dynamic>> transactionDoc,
+  ) async {
+    if (_processing) return;
+
+    final data = transactionDoc.data();
+
+    if (data == null) return;
+
+    final transactionRef =
+        transactionDoc.reference;
+
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final amount =
+        (data['amount'] as num?)?.toDouble() ?? 0.0;
+
+    if (userId.isEmpty || amount < 100) {
+      _showMessage(
+        'Invalid deposit transaction.',
+        Colors.red,
+      );
+      return;
+    }
+
+    final confirmed =
+        await _confirmAction(
+      title: 'Approve Deposit?',
+      message:
+          'Approve ${_money(amount)} deposit for this user?',
+      confirmText: 'Approve',
+      confirmColor: Colors.green,
+    );
+
+    if (!confirmed) return;
+
+    setState(() {
+      _processing = true;
+    });
+
+    try {
+      final userRef = _firestore
+          .collection('users')
+          .doc(userId);
+
+      await _firestore.runTransaction(
+        (transaction) async {
+          final txSnapshot =
+              await transaction.get(
+            transactionRef,
+          );
+
+          if (!txSnapshot.exists) {
+            throw Exception(
+              'Transaction no longer exists.',
+            );
+          }
+
+          final txData =
+              txSnapshot.data() ?? {};
+
+          final status =
+              txData['status']?.toString();
+
+          if (status != 'pending') {
+            throw Exception(
+              'This transaction has already been processed.',
+            );
+          }
+
+          final userSnapshot =
+              await transaction.get(userRef);
+
+          if (!userSnapshot.exists) {
+            throw Exception(
+              'User account not found.',
+            );
+          }
+
+          final userData =
+              userSnapshot.data() ?? {};
+
+          final currentBalance =
+              (userData['cashBalance'] as num?)
+                      ?.toDouble() ??
+                  0.0;
+
+          final newBalance =
+              currentBalance + amount;
+
+          transaction.update(
+            userRef,
+            {
+              'cashBalance': newBalance,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          transaction.update(
+            transactionRef,
+            {
+              'status': 'approved',
+              'approvedAt':
+                  FieldValue.serverTimestamp(),
+              'processedBy':
+                  _auth.currentUser?.uid,
+            },
+          );
+        },
+      );
+
+      await _createNotification(
+        userId: userId,
+        title: 'Money Added',
+        message:
+            '${_money(amount)} has been added to your BuyNova Wallet.',
+        type: 'wallet_deposit',
+        orderStatus: 'approved',
+      );
+
+      _showMessage(
+        'Deposit approved successfully.',
+        Colors.green,
+      );
+    } catch (e) {
+      _showMessage(
+        'Deposit approval failed: $e',
+        Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
+  // =========================================================
+  // DEPOSIT REJECT
+  // =========================================================
+
+  Future<void> _rejectDeposit(
+    DocumentSnapshot<Map<String, dynamic>> transactionDoc,
+  ) async {
+    if (_processing) return;
+
+    final data = transactionDoc.data();
+
+    if (data == null) return;
+
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final amount =
+        (data['amount'] as num?)?.toDouble() ?? 0.0;
+
+    if (userId.isEmpty) return;
+
+    final reason =
+        await _askReason(
+      title: 'Reject Deposit',
+      hintText: 'Reason for rejection',
+    );
+
+    if (reason == null) return;
+
+    setState(() {
+      _processing = true;
+    });
+
+    try {
+      await _firestore.runTransaction(
+        (transaction) async {
+          final snapshot =
+              await transaction.get(
+            transactionDoc.reference,
+          );
+
+          if (!snapshot.exists) {
+            throw Exception(
+              'Transaction no longer exists.',
+            );
+          }
+
+          final currentData =
+              snapshot.data() ?? {};
+
+          if (currentData['status'] !=
+              'pending') {
+            throw Exception(
+              'This transaction has already been processed.',
+            );
+          }
+
+          transaction.update(
+            transactionDoc.reference,
+            {
+              'status': 'rejected',
+              'reason': reason,
+              'rejectedAt':
+                  FieldValue.serverTimestamp(),
+              'processedBy':
+                  _auth.currentUser?.uid,
+            },
+          );
+        },
+      );
+
+      await _createNotification(
+        userId: userId,
+        title: 'Add Money Rejected',
+        message:
+            'Your ${_money(amount)} Add Money request was rejected. Reason: $reason',
+        type: 'wallet_deposit_rejected',
+        orderStatus: 'rejected',
+      );
+
+      _showMessage(
+        'Deposit rejected.',
+        Colors.orange,
+      );
+    } catch (e) {
+      _showMessage(
+        'Could not reject deposit: $e',
+        Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
+  // =========================================================
+  // WITHDRAWAL APPROVE
+  // =========================================================
+
+  Future<void> _approveWithdrawal(
+    DocumentSnapshot<Map<String, dynamic>> transactionDoc,
+  ) async {
+    if (_processing) return;
+
+    final data = transactionDoc.data();
+
+    if (data == null) return;
+
+    final transactionRef =
+        transactionDoc.reference;
+
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final amount =
+        (data['amount'] as num?)?.toDouble() ?? 0.0;
+
+    if (userId.isEmpty || amount < 100) {
+      _showMessage(
+        'Invalid withdrawal transaction.',
+        Colors.red,
+      );
+      return;
+    }
+
+    final confirmed =
+        await _confirmAction(
+      title: 'Approve Withdrawal?',
+      message:
+          'Approve ${_money(amount)} withdrawal for this user?',
+      confirmText: 'Approve',
+      confirmColor: Colors.green,
+    );
+
+    if (!confirmed) return;
+
+    setState(() {
+      _processing = true;
+    });
+
+    try {
+      final userRef = _firestore
+          .collection('users')
+          .doc(userId);
+
+      await _firestore.runTransaction(
+        (transaction) async {
+          final txSnapshot =
+              await transaction.get(
+            transactionRef,
+          );
+
+          if (!txSnapshot.exists) {
+            throw Exception(
+              'Transaction no longer exists.',
+            );
+          }
+
+          final txData =
+              txSnapshot.data() ?? {};
+
+          final status =
+              txData['status']?.toString();
+
+          if (status != 'pending') {
+            throw Exception(
+              'This transaction has already been processed.',
+            );
+          }
+
+          final userSnapshot =
+              await transaction.get(userRef);
+
+          if (!userSnapshot.exists) {
+            throw Exception(
+              'User account not found.',
+            );
+          }
+
+          final userData =
+              userSnapshot.data() ?? {};
+
+          final currentBalance =
+              (userData['cashBalance'] as num?)
+                      ?.toDouble() ??
+                  0.0;
+
+          if (amount > currentBalance) {
+            throw Exception(
+              'Insufficient wallet balance. Current balance: ${_money(currentBalance)}',
+            );
+          }
+
+          final newBalance =
+              currentBalance - amount;
+
+          transaction.update(
+            userRef,
+            {
+              'cashBalance': newBalance,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          transaction.update(
+            transactionRef,
+            {
+              'status': 'approved',
+              'approvedAt':
+                  FieldValue.serverTimestamp(),
+              'processedBy':
+                  _auth.currentUser?.uid,
+            },
+          );
+        },
+      );
+
+      final method =
+          _methodName(data);
+
+      await _createNotification(
+        userId: userId,
+        title: 'Withdrawal Approved',
+        message:
+            '${_money(amount)} withdrawal via $method has been approved.',
+        type: 'wallet_withdrawal',
+        orderStatus: 'approved',
+      );
+
+      _showMessage(
+        'Withdrawal approved successfully.',
+        Colors.green,
+      );
+    } catch (e) {
+      _showMessage(
+        'Withdrawal approval failed: $e',
+        Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
+  // =========================================================
+  // WITHDRAWAL REJECT
+  // =========================================================
+
+  Future<void> _rejectWithdrawal(
+    DocumentSnapshot<Map<String, dynamic>> transactionDoc,
+  ) async {
+    if (_processing) return;
+
+    final data = transactionDoc.data();
+
+    if (data == null) return;
+
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final amount =
+        (data['amount'] as num?)?.toDouble() ?? 0.0;
+
+    if (userId.isEmpty) return;
+
+    final reason =
+        await _askReason(
+      title: 'Reject Withdrawal',
+      hintText: 'Reason for rejection',
+    );
+
+    if (reason == null) return;
+
+    setState(() {
+      _processing = true;
+    });
+
+    try {
+      await _firestore.runTransaction(
+        (transaction) async {
+          final snapshot =
+              await transaction.get(
+            transactionDoc.reference,
+          );
+
+          if (!snapshot.exists) {
+            throw Exception(
+              'Transaction no longer exists.',
+            );
+          }
+
+          final currentData =
+              snapshot.data() ?? {};
+
+          if (currentData['status'] !=
+              'pending') {
+            throw Exception(
+              'This transaction has already been processed.',
+            );
+          }
+
+          transaction.update(
+            transactionDoc.reference,
+            {
+              'status': 'rejected',
+              'reason': reason,
+              'rejectedAt':
+                  FieldValue.serverTimestamp(),
+              'processedBy':
+                  _auth.currentUser?.uid,
+            },
+          );
+        },
+      );
+
+      await _createNotification(
+        userId: userId,
+        title: 'Withdrawal Rejected',
+        message:
+            'Your ${_money(amount)} withdrawal request was rejected. Reason: $reason',
+        type: 'wallet_withdrawal_rejected',
+        orderStatus: 'rejected',
+      );
+
+      _showMessage(
+        'Withdrawal rejected.',
+        Colors.orange,
+      );
+    } catch (e) {
+      _showMessage(
+        'Could not reject withdrawal: $e',
+        Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
+  // =========================================================
+  // REASON DIALOG
+  // =========================================================
+
+  Future<String?> _askReason({
+    required String title,
+    required String hintText,
+  }) async {
+    final controller =
+        TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: hintText,
+              border:
+                  const OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final reason =
+                    controller.text.trim();
+
+                if (reason.isEmpty) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please enter a reason.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(
+                  context,
+                  reason,
+                );
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    return result;
+  }
+
+  // =========================================================
+  // CONFIRM DIALOG
+  // =========================================================
+
+  Future<bool> _confirmAction({
+    required String title,
+    required String message,
+    required String confirmText,
+    required Color confirmColor,
+  }) async {
+    final result =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(
+                context,
+                false,
+              ),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    confirmColor,
+                foregroundColor:
+                    Colors.white,
+              ),
+              onPressed: () =>
+                  Navigator.pop(
+                context,
+                true,
+              ),
+              child: Text(confirmText),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  // =========================================================
+  // MESSAGE
+  // =========================================================
+
+  void _showMessage(
+    String message,
+    Color color,
+  ) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+      ),
+    );
+  }
+
+  // =========================================================
+  // TRANSACTION DETAILS
+  // =========================================================
+
+  void _showDetails(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+
+    if (data == null) return;
+
+    final source =
+        data['source']?.toString() ?? '';
+
+    final type =
+        data['type']?.toString() ?? '';
+
+    final isWithdrawal =
+        source == 'withdrawal' ||
+            type == 'debit';
+
+    final amount =
+        (data['amount'] as num?)?.toDouble() ??
+            0.0;
+
+    final status =
+        data['status']?.toString() ??
+            'pending';
+
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final account =
+        data['accountNumber']?.toString() ??
+            '';
+
+    final method =
+        _methodName(data);
+
+    final reason =
+        data['reason']?.toString() ?? '';
+
+    final createdAt =
+        data['createdAt'] as Timestamp?;
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding:
+                const EdgeInsets.fromLTRB(
+              20,
+              10,
+              20,
+              24,
+            ),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isWithdrawal
+                      ? 'Withdrawal Details'
+                      : 'Deposit Details',
+                  style:
+                      const TextStyle(
+                    fontSize: 21,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 18),
+
+                _detailRow(
+                  'User ID',
+                  userId,
+                ),
+
+                _detailRow(
+                  'Amount',
+                  _money(amount),
+                ),
+
+                _detailRow(
+                  'Method',
+                  method,
+                ),
+
+                if (account.isNotEmpty)
+                  _detailRow(
+                    'Account',
+                    account,
+                  ),
+
+                _detailRow(
+                  'Status',
+                  status.toUpperCase(),
+                ),
+
+                if (createdAt != null)
+                  _detailRow(
+                    'Date',
+                    _formatDate(
+                      createdAt,
+                    ),
+                  ),
+
+                if (reason.isNotEmpty)
+                  _detailRow(
+                    'Reason',
+                    reason,
+                  ),
+
+                const SizedBox(height: 12),
+
+                if (status == 'pending')
+                  Row(
+                    children: [
+                      Expanded(
+                        child:
+                            OutlinedButton.icon(
+                          onPressed:
+                              _processing
+                                  ? null
+                                  : () {
+                                      Navigator.pop(
+                                          context);
+
+                                      if (isWithdrawal) {
+                                        _rejectWithdrawal(
+                                          doc,
+                                        );
+                                      } else {
+                                        _rejectDeposit(
+                                          doc,
+                                        );
+                                      }
+                                    },
+                          icon: const Icon(
+                            Icons.close,
+                          ),
+                          label:
+                              const Text(
+                            'Reject',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 10,
+                      ),
+                      Expanded(
+                        child:
+                            ElevatedButton.icon(
+                          style:
+                              ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Colors.green,
+                            foregroundColor:
+                                Colors.white,
+                          ),
+                          onPressed:
+                              _processing
+                                  ? null
+                                  : () {
+                                      Navigator.pop(
+                                          context);
+
+                                      if (isWithdrawal) {
+                                        _approveWithdrawal(
+                                          doc,
+                                        );
+                                      } else {
+                                        _approveDeposit(
+                                          doc,
+                                        );
+                                      }
+                                    },
+                          icon: const Icon(
+                            Icons.check,
+                          ),
+                          label:
+                              const Text(
+                            'Approve',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(
+    String title,
+    String value,
+  ) {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 7,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              title,
+              style:
+                  const TextStyle(
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // =========================================================
   // PENDING DEPOSITS
   // =========================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _depositStream() {
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      _depositStream() {
     return _firestore
-        .collectionGroup('walletTransactions')
-        .where('source', isEqualTo: 'deposit')
-        .where('status', isEqualTo: 'pending')
+        .collectionGroup(
+          'walletTransactions',
+        )
+        .where(
+          'source',
+          isEqualTo: 'deposit',
+        )
+        .where(
+          'status',
+          isEqualTo: 'pending',
+        )
         .snapshots();
   }
 
@@ -33,1631 +1033,483 @@ class _AdminWalletPageState extends State<AdminWalletPage> {
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _withdrawalStream() {
     return _firestore
-        .collectionGroup('walletTransactions')
-        .where('source', isEqualTo: 'withdrawal')
-        .where('status', isEqualTo: 'pending')
+        .collectionGroup(
+          'walletTransactions',
+        )
+        .where(
+          'source',
+          isEqualTo: 'withdrawal',
+        )
+        .where(
+          'status',
+          isEqualTo: 'pending',
+        )
         .snapshots();
   }
 
-  double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
-  }
-
-  String _money(dynamic value) {
-    return '৳${_toDouble(value).toStringAsFixed(2)}';
-  }
-
-  String _date(dynamic value) {
-    if (value is Timestamp) {
-      final date = value.toDate();
-
-      String two(int n) =>
-          n.toString().padLeft(2, '0');
-
-      return '${date.year}-${two(date.month)}-'
-          '${two(date.day)} '
-          '${two(date.hour)}:${two(date.minute)}';
-    }
-
-    return 'Waiting...';
-  }
-
   // =========================================================
-  // PAYMENT / WITHDRAWAL METHOD
+  // TRANSACTION LIST
   // =========================================================
 
-  String _methodName(dynamic value) {
-    final method = value?.toString() ?? '';
+  Widget _transactionList({
+    required Stream<
+            QuerySnapshot<Map<String, dynamic>>>
+        stream,
+    required bool isWithdrawal,
+  }) {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child:
+                CircularProgressIndicator(),
+          );
+        }
 
-    if (method.isEmpty) {
-      return 'Not selected';
-    }
-
-    switch (method) {
-      case 'bkash':
-        return 'bKash';
-
-      case 'nagad':
-        return 'Nagad';
-
-      case 'rocket':
-        return 'Rocket';
-
-      case 'bank':
-        return 'Bank Transfer';
-
-      default:
-        return method;
-    }
-  }
-
-  // =========================================================
-  // DEPOSIT DETAILS
-  // =========================================================
-
-  Future<void> _showDepositDetails(
-    DocumentSnapshot<Map<String, dynamic>> transaction,
-  ) async {
-    final data = transaction.data() ?? {};
-
-    final userId =
-        data['userId']?.toString() ?? '';
-
-    final amount =
-        _toDouble(data['amount']);
-
-    final paymentMethod =
-        _methodName(data['paymentMethod']);
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              10,
-              20,
-              24,
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding:
+                  const EdgeInsets.all(20),
+              child: Text(
+                'Could not load wallet requests.\n\n${snapshot.error}',
+                textAlign:
+                    TextAlign.center,
+              ),
             ),
+          );
+        }
+
+        final docs =
+            snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return Center(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
               children: [
-                const Text(
-                  'Deposit Request',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                Icon(
+                  isWithdrawal
+                      ? Icons.arrow_circle_up
+                      : Icons.add_circle,
+                  size: 60,
+                  color: Colors.grey,
+                ),
+                const SizedBox(
+                  height: 12,
+                ),
+                Text(
+                  isWithdrawal
+                      ? 'No pending withdrawals'
+                      : 'No pending deposits',
+                  style:
+                      const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 16,
                   ),
-                ),
-
-                const SizedBox(height: 20),
-
-                _detailRow(
-                  'Amount',
-                  _money(amount),
-                ),
-
-                _detailRow(
-                  'User ID',
-                  userId,
-                ),
-
-                _detailRow(
-                  'Payment Method',
-                  paymentMethod,
-                ),
-
-                _detailRow(
-                  'Status',
-                  'Pending',
-                ),
-
-                _detailRow(
-                  'Created',
-                  _date(data['createdAt']),
-                ),
-
-                const SizedBox(height: 20),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _processing
-                            ? null
-                            : () async {
-                                Navigator.pop(
-                                  context,
-                                );
-
-                                await _rejectDeposit(
-                                  transaction,
-                                );
-                              },
-                        icon: const Icon(
-                          Icons.close,
-                        ),
-                        label: const Text(
-                          'Reject',
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _processing
-                            ? null
-                            : () async {
-                                Navigator.pop(
-                                  context,
-                                );
-
-                                await _approveDeposit(
-                                  transaction,
-                                );
-                              },
-                        icon: const Icon(
-                          Icons.check,
-                        ),
-                        label: const Text(
-                          'Approve',
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
-          ),
+          );
+        }
+
+        final sortedDocs = [...docs];
+
+        sortedDocs.sort(
+          (a, b) {
+            final aTime =
+                a.data()['createdAt']
+                    as Timestamp?;
+
+            final bTime =
+                b.data()['createdAt']
+                    as Timestamp?;
+
+            if (aTime == null &&
+                bTime == null) {
+              return 0;
+            }
+
+            if (aTime == null) {
+              return 1;
+            }
+
+            if (bTime == null) {
+              return -1;
+            }
+
+            return bTime.compareTo(
+              aTime,
+            );
+          },
         );
-      },
-    );
-  }
 
-  // =========================================================
-  // WITHDRAWAL DETAILS
-  // =========================================================
+        return ListView.builder(
+          padding:
+              const EdgeInsets.all(12),
+          itemCount:
+              sortedDocs.length,
+          itemBuilder:
+              (context, index) {
+            final doc =
+                sortedDocs[index];
 
-  Future<void> _showWithdrawalDetails(
-    DocumentSnapshot<Map<String, dynamic>> transaction,
-  ) async {
-    final data = transaction.data() ?? {};
+            final data =
+                doc.data();
 
-    final userId =
-        data['userId']?.toString() ?? '';
+            final amount =
+                (data['amount'] as num?)
+                        ?.toDouble() ??
+                    0.0;
 
-    final amount =
-        _toDouble(data['amount']);
+            final userId =
+                data['userId']
+                        ?.toString() ??
+                    '';
 
-    final withdrawalMethod =
-        _methodName(
-      data['withdrawalMethod'],
-    );
+            final method =
+                _methodName(data);
 
-    final accountNumber =
-        data['accountNumber']?.toString() ??
-            'Not provided';
+            final account =
+                data['accountNumber']
+                        ?.toString() ??
+                    '';
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              10,
-              20,
-              24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Withdrawal Request',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+            final createdAt =
+                data['createdAt']
+                    as Timestamp?;
+
+            return Card(
+              margin:
+                  const EdgeInsets.only(
+                bottom: 12,
+              ),
+              child: InkWell(
+                borderRadius:
+                    BorderRadius.circular(
+                  12,
                 ),
-
-                const SizedBox(height: 20),
-
-                _detailRow(
-                  'Amount',
-                  _money(amount),
-                ),
-
-                _detailRow(
-                  'User ID',
-                  userId,
-                ),
-
-                _detailRow(
-                  'Method',
-                  withdrawalMethod,
-                ),
-
-                _detailRow(
-                  'Account',
-                  accountNumber,
-                ),
-
-                _detailRow(
-                  'Status',
-                  'Pending',
-                ),
-
-                _detailRow(
-                  'Created',
-                  _date(data['createdAt']),
-                ),
-
-                const SizedBox(height: 10),
-
-                Container(
-                  width: double.infinity,
+                onTap: () =>
+                    _showDetails(doc),
+                child: Padding(
                   padding:
-                      const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    borderRadius:
-                        BorderRadius.circular(12),
-                    color: Colors.orange
-                        .withValues(alpha: 0.10),
+                      const EdgeInsets.all(
+                    14,
                   ),
-                  child: const Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                  child: Column(
                     children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.orange,
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor:
+                                (isWithdrawal
+                                        ? Colors.red
+                                        : Colors.green)
+                                    .withValues(
+                              alpha: 0.10,
+                            ),
+                            child: Icon(
+                              isWithdrawal
+                                  ? Icons
+                                      .arrow_circle_up
+                                  : Icons
+                                      .add_circle,
+                              color:
+                                  isWithdrawal
+                                      ? Colors.red
+                                      : Colors.green,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            width: 12,
+                          ),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment
+                                      .start,
+                              children: [
+                                Text(
+                                  isWithdrawal
+                                      ? 'Withdrawal'
+                                      : 'Add Money',
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight:
+                                        FontWeight
+                                            .bold,
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  height: 4,
+                                ),
+
+                                Text(
+                                  'User: $userId',
+                                  maxLines: 1,
+                                  overflow:
+                                      TextOverflow
+                                          .ellipsis,
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 11,
+                                    color:
+                                        Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          Text(
+                            _money(amount),
+                            style:
+                                TextStyle(
+                              color:
+                                  isWithdrawal
+                                      ? Colors.red
+                                      : Colors.green,
+                              fontWeight:
+                                  FontWeight.bold,
+                              fontSize: 17,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'The wallet balance will be '
-                          'deducted only after the '
-                          'withdrawal is approved.',
-                        ),
+
+                      const SizedBox(
+                        height: 12,
+                      ),
+
+                      const Divider(
+                        height: 1,
+                      ),
+
+                      const SizedBox(
+                        height: 10,
+                      ),
+
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons
+                                .account_balance,
+                            size: 17,
+                            color:
+                                Colors.grey,
+                          ),
+
+                          const SizedBox(
+                            width: 6,
+                          ),
+
+                          Text(
+                            method,
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.w500,
+                            ),
+                          ),
+
+                          if (account
+                              .isNotEmpty) ...[
+                            const SizedBox(
+                              width: 8,
+                            ),
+                            Expanded(
+                              child: Text(
+                                isWithdrawal
+                                    ? _maskedAccount(
+                                        account)
+                                    : '',
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ] else
+                            const Spacer(),
+
+                          Text(
+                            _formatDate(
+                              createdAt,
+                            ),
+                            style:
+                                const TextStyle(
+                              fontSize: 11,
+                              color:
+                                  Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(
+                        height: 12,
+                      ),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child:
+                                OutlinedButton.icon(
+                              onPressed:
+                                  _processing
+                                      ? null
+                                      : () {
+                                          if (isWithdrawal) {
+                                            _rejectWithdrawal(
+                                              doc,
+                                            );
+                                          } else {
+                                            _rejectDeposit(
+                                              doc,
+                                            );
+                                          }
+                                        },
+                              icon:
+                                  const Icon(
+                                Icons.close,
+                              ),
+                              label:
+                                  const Text(
+                                'Reject',
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(
+                            width: 10,
+                          ),
+
+                          Expanded(
+                            child:
+                                ElevatedButton.icon(
+                              style:
+                                  ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    Colors.green,
+                                foregroundColor:
+                                    Colors.white,
+                              ),
+                              onPressed:
+                                  _processing
+                                      ? null
+                                      : () {
+                                          if (isWithdrawal) {
+                                            _approveWithdrawal(
+                                              doc,
+                                            );
+                                          } else {
+                                            _approveDeposit(
+                                              doc,
+                                            );
+                                          }
+                                        },
+                              icon:
+                                  const Icon(
+                                Icons.check,
+                              ),
+                              label:
+                                  const Text(
+                                'Approve',
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 20),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _processing
-                            ? null
-                            : () async {
-                                Navigator.pop(
-                                  context,
-                                );
-
-                                await _rejectWithdrawal(
-                                  transaction,
-                                );
-                              },
-                        icon: const Icon(
-                          Icons.close,
-                        ),
-                        label: const Text(
-                          'Reject',
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _processing
-                            ? null
-                            : () async {
-                                Navigator.pop(
-                                  context,
-                                );
-
-                                await _approveWithdrawal(
-                                  transaction,
-                                );
-                              },
-                        icon: const Icon(
-                          Icons.check,
-                        ),
-                        label: const Text(
-                          'Approve',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
   // =========================================================
-  // DETAIL ROW
+  // MAIN UI
   // =========================================================
 
-  Widget _detailRow(
-    String title,
-    String value,
-  ) {
-    return Padding(
-      padding:
-          const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 125,
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Wallet Management',
+          style:
+              TextStyle(
+            fontWeight:
+                FontWeight.bold,
           ),
-          Expanded(
-            child: Text(value),
+        ),
+        centerTitle: true,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(
+              icon:
+                  Icon(Icons.add_circle),
+              text: 'Deposits',
+            ),
+            Tab(
+              icon: Icon(
+                Icons.arrow_circle_up,
+              ),
+              text: 'Withdrawals',
+            ),
+          ],
+        ),
+      ),
+
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _transactionList(
+            stream:
+                _depositStream(),
+            isWithdrawal: false,
+          ),
+          _transactionList(
+            stream:
+                _withdrawalStream(),
+            isWithdrawal: true,
           ),
         ],
       ),
-    );
-  }
 
-  // =========================================================
-  // APPROVE DEPOSIT
-  // =========================================================
-
-  Future<void> _approveDeposit(
-    DocumentSnapshot<Map<String, dynamic>> transaction,
-  ) async {
-    final data = transaction.data() ?? {};
-
-    final userId =
-        data['userId']?.toString() ?? '';
-
-    final amount =
-        _toDouble(data['amount']);
-
-    if (userId.isEmpty || amount <= 0) {
-      _showMessage(
-        'Invalid deposit request.',
-        error: true,
-      );
-      return;
-    }
-
-    final confirmed =
-        await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Approve Deposit?',
-          ),
-          content: Text(
-            'This will add ${_money(amount)} '
-            'to the user wallet.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              child: const Text(
-                'Approve',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    setState(() {
-      _processing = true;
-    });
-
-    try {
-      final transactionReference =
-          transaction.reference;
-
-      final userReference =
-          _firestore
-              .collection('users')
-              .doc(userId);
-
-      final notificationReference =
-          userReference
-              .collection('notifications')
-              .doc();
-
-      await _firestore.runTransaction(
-        (firestoreTransaction) async {
-          final transactionSnapshot =
-              await firestoreTransaction.get(
-            transactionReference,
-          );
-
-          final userSnapshot =
-              await firestoreTransaction.get(
-            userReference,
-          );
-
-          if (!transactionSnapshot.exists) {
-            throw Exception(
-              'Deposit request no longer exists.',
-            );
-          }
-
-          if (!userSnapshot.exists) {
-            throw Exception(
-              'User account not found.',
-            );
-          }
-
-          final transactionData =
-              transactionSnapshot.data();
-
-          final currentStatus =
-              transactionData?['status']
-                  ?.toString();
-
-          if (currentStatus != 'pending') {
-            throw Exception(
-              'This deposit has already been processed.',
-            );
-          }
-
-          final userData =
-              userSnapshot.data();
-
-          final currentBalance =
-              _toDouble(
-            userData?['cashBalance'],
-          );
-
-          final newBalance =
-              currentBalance + amount;
-
-          firestoreTransaction.update(
-            userReference,
-            {
-              'cashBalance': newBalance,
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          firestoreTransaction.update(
-            transactionReference,
-            {
-              'status': 'approved',
-              'approvedAmount': amount,
-              'approvedAt':
-                  FieldValue.serverTimestamp(),
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          firestoreTransaction.set(
-            notificationReference,
-            {
-              'title': 'Money Added',
-              'message':
-                  '${_money(amount)} has been added '
-                  'to your BuyNova wallet.',
-              'type': 'wallet_deposit',
-              'amount': amount,
-              'currency': 'BDT',
-              'currencySymbol': '৳',
-              'isRead': false,
-              'createdAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-        },
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        '${_money(amount)} added successfully.',
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        e.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-        error: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _processing = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // REJECT DEPOSIT
-  // =========================================================
-
-  Future<void> _rejectDeposit(
-    DocumentSnapshot<Map<String, dynamic>> transaction,
-  ) async {
-    final data = transaction.data() ?? {};
-
-    final amount =
-        _toDouble(data['amount']);
-
-    final reasonController =
-        TextEditingController();
-
-    final result =
-        await showDialog<String?>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Reject Deposit',
-          ),
-          content: TextField(
-            controller: reasonController,
-            maxLines: 3,
-            decoration:
-                const InputDecoration(
-              labelText: 'Reason',
-              hintText:
-                  'Enter rejection reason',
-              border:
-                  OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  reasonController.text.trim(),
-                );
-              },
-              child: const Text(
-                'Reject',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    reasonController.dispose();
-
-    if (result == null) {
-      return;
-    }
-
-    setState(() {
-      _processing = true;
-    });
-
-    try {
-      final userId =
-          data['userId']?.toString() ?? '';
-
-      final notificationReference =
-          userId.isEmpty
-              ? null
-              : _firestore
-                  .collection('users')
-                  .doc(userId)
-                  .collection('notifications')
-                  .doc();
-
-      await _firestore.runTransaction(
-        (firestoreTransaction) async {
-          final transactionSnapshot =
-              await firestoreTransaction.get(
-            transaction.reference,
-          );
-
-          if (!transactionSnapshot.exists) {
-            throw Exception(
-              'Deposit request no longer exists.',
-            );
-          }
-
-          final transactionData =
-              transactionSnapshot.data();
-
-          final currentStatus =
-              transactionData?['status']
-                  ?.toString();
-
-          if (currentStatus != 'pending') {
-            throw Exception(
-              'This deposit has already been processed.',
-            );
-          }
-
-          firestoreTransaction.update(
-            transaction.reference,
-            {
-              'status': 'rejected',
-              'rejectionReason':
-                  result.isEmpty
-                      ? 'Deposit rejected by admin.'
-                      : result,
-              'rejectedAt':
-                  FieldValue.serverTimestamp(),
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          if (notificationReference != null) {
-            firestoreTransaction.set(
-              notificationReference,
-              {
-                'title':
-                    'Deposit Rejected',
-                'message':
-                    result.isEmpty
-                        ? '${_money(amount)} deposit request '
-                          'was rejected.'
-                        : '${_money(amount)} deposit request '
-                          'was rejected. $result',
-                'type':
-                    'wallet_deposit_rejected',
-                'amount': amount,
-                'currency': 'BDT',
-                'currencySymbol': '৳',
-                'isRead': false,
-                'createdAt':
-                    FieldValue.serverTimestamp(),
-              },
-            );
-          }
-        },
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        '${_money(amount)} deposit rejected.',
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        e.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-        error: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _processing = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // APPROVE WITHDRAWAL
-  // =========================================================
-
-  Future<void> _approveWithdrawal(
-    DocumentSnapshot<Map<String, dynamic>> transaction,
-  ) async {
-    final data = transaction.data() ?? {};
-
-    final userId =
-        data['userId']?.toString() ?? '';
-
-    final amount =
-        _toDouble(data['amount']);
-
-    if (userId.isEmpty || amount <= 0) {
-      _showMessage(
-        'Invalid withdrawal request.',
-        error: true,
-      );
-      return;
-    }
-
-    final confirmed =
-        await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Approve Withdrawal?',
-          ),
-          content: Text(
-            'This will deduct ${_money(amount)} '
-            'from the user wallet.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              child: const Text(
-                'Approve',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    setState(() {
-      _processing = true;
-    });
-
-    try {
-      final userReference =
-          _firestore
-              .collection('users')
-              .doc(userId);
-
-      final notificationReference =
-          userReference
-              .collection('notifications')
-              .doc();
-
-      await _firestore.runTransaction(
-        (firestoreTransaction) async {
-          final transactionSnapshot =
-              await firestoreTransaction.get(
-            transaction.reference,
-          );
-
-          final userSnapshot =
-              await firestoreTransaction.get(
-            userReference,
-          );
-
-          if (!transactionSnapshot.exists) {
-            throw Exception(
-              'Withdrawal request no longer exists.',
-            );
-          }
-
-          if (!userSnapshot.exists) {
-            throw Exception(
-              'User account not found.',
-            );
-          }
-
-          final transactionData =
-              transactionSnapshot.data();
-
-          final currentStatus =
-              transactionData?['status']
-                  ?.toString();
-
-          // Prevent double approval.
-          if (currentStatus != 'pending') {
-            throw Exception(
-              'This withdrawal has already been processed.',
-            );
-          }
-
-          final userData =
-              userSnapshot.data();
-
-          final currentBalance =
-              _toDouble(
-            userData?['cashBalance'],
-          );
-
-          // Never allow negative wallet balance.
-          if (amount > currentBalance) {
-            throw Exception(
-              'Insufficient wallet balance. '
-              'Current balance is ${_money(currentBalance)}.',
-            );
-          }
-
-          final newBalance =
-              currentBalance - amount;
-
-          // Deduct money only here.
-          firestoreTransaction.update(
-            userReference,
-            {
-              'cashBalance': newBalance,
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          // Mark withdrawal approved.
-          firestoreTransaction.update(
-            transaction.reference,
-            {
-              'status': 'approved',
-              'approvedAmount': amount,
-              'approvedAt':
-                  FieldValue.serverTimestamp(),
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          // Notify user.
-          firestoreTransaction.set(
-            notificationReference,
-            {
-              'title': 'Withdrawal Approved',
-              'message':
-                  '${_money(amount)} withdrawal has been '
-                  'approved from your BuyNova wallet.',
-              'type': 'wallet_withdrawal',
-              'amount': amount,
-              'currency': 'BDT',
-              'currencySymbol': '৳',
-              'isRead': false,
-              'createdAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-        },
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        '${_money(amount)} withdrawal approved.',
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        e.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-        error: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _processing = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // REJECT WITHDRAWAL
-  // =========================================================
-
-  Future<void> _rejectWithdrawal(
-    DocumentSnapshot<Map<String, dynamic>> transaction,
-  ) async {
-    final data = transaction.data() ?? {};
-
-    final amount =
-        _toDouble(data['amount']);
-
-    final reasonController =
-        TextEditingController();
-
-    final result =
-        await showDialog<String?>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Reject Withdrawal',
-          ),
-          content: TextField(
-            controller: reasonController,
-            maxLines: 3,
-            decoration:
-                const InputDecoration(
-              labelText: 'Reason',
-              hintText:
-                  'Enter rejection reason',
-              border:
-                  OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  reasonController.text.trim(),
-                );
-              },
-              child: const Text(
-                'Reject',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    reasonController.dispose();
-
-    if (result == null) {
-      return;
-    }
-
-    setState(() {
-      _processing = true;
-    });
-
-    try {
-      final userId =
-          data['userId']?.toString() ?? '';
-
-      final notificationReference =
-          userId.isEmpty
-              ? null
-              : _firestore
-                  .collection('users')
-                  .doc(userId)
-                  .collection('notifications')
-                  .doc();
-
-      await _firestore.runTransaction(
-        (firestoreTransaction) async {
-          final transactionSnapshot =
-              await firestoreTransaction.get(
-            transaction.reference,
-          );
-
-          if (!transactionSnapshot.exists) {
-            throw Exception(
-              'Withdrawal request no longer exists.',
-            );
-          }
-
-          final transactionData =
-              transactionSnapshot.data();
-
-          final currentStatus =
-              transactionData?['status']
-                  ?.toString();
-
-          if (currentStatus != 'pending') {
-            throw Exception(
-              'This withdrawal has already been processed.',
-            );
-          }
-
-          // Important:
-          // Rejecting a withdrawal does NOT deduct money.
-          firestoreTransaction.update(
-            transaction.reference,
-            {
-              'status': 'rejected',
-              'rejectionReason':
-                  result.isEmpty
-                      ? 'Withdrawal rejected by admin.'
-                      : result,
-              'rejectedAt':
-                  FieldValue.serverTimestamp(),
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          if (notificationReference != null) {
-            firestoreTransaction.set(
-              notificationReference,
-              {
-                'title':
-                    'Withdrawal Rejected',
-                'message':
-                    result.isEmpty
-                        ? '${_money(amount)} withdrawal request '
-                          'was rejected.'
-                        : '${_money(amount)} withdrawal request '
-                          'was rejected. $result',
-                'type':
-                    'wallet_withdrawal_rejected',
-                'amount': amount,
-                'currency': 'BDT',
-                'currencySymbol': '৳',
-                'isRead': false,
-                'createdAt':
-                    FieldValue.serverTimestamp(),
-              },
-            );
-          }
-        },
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        '${_money(amount)} withdrawal rejected.',
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        e.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-        error: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _processing = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // MESSAGE
-  // =========================================================
-
-  void _showMessage(
-    String message, {
-    bool error = false,
-  }) {
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior:
-            SnackBarBehavior.floating,
-        backgroundColor:
-            error ? Colors.red : null,
-      ),
-    );
-  }
-
-  // =========================================================
-  // DEPOSIT LIST
-  // =========================================================
-
-  Widget _buildDepositList() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
-      stream: _depositStream(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding:
-                  const EdgeInsets.all(24),
-              child: Text(
-                'Unable to load deposit requests.\n\n'
-                '${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
-          return const Center(
-            child:
-                CircularProgressIndicator(),
-          );
-        }
-
-        final documents =
-            snapshot.data?.docs ?? [];
-
-        if (documents.isEmpty) {
-          return _emptyState(
-            icon: Icons
-                .account_balance_wallet_outlined,
-            title:
-                'No pending deposit requests',
-            message:
-                'New Add Money requests '
-                'will appear here.',
-          );
-        }
-
-        return ListView.builder(
-          padding:
-              const EdgeInsets.all(16),
-          itemCount: documents.length,
-          itemBuilder:
-              (context, index) {
-            final transaction =
-                documents[index];
-
-            final data =
-                transaction.data();
-
-            final amount =
-                _toDouble(
-              data['amount'],
-            );
-
-            final userId =
-                data['userId']
-                        ?.toString() ??
-                    'Unknown user';
-
-            final paymentMethod =
-                _methodName(
-              data['paymentMethod'],
-            );
-
-            return Card(
-              margin:
-                  const EdgeInsets.only(
-                bottom: 12,
-              ),
-              child: ListTile(
-                contentPadding:
-                    const EdgeInsets.all(
-                  16,
-                ),
-                leading:
-                    const CircleAvatar(
-                  radius: 25,
-                  child: Icon(
-                    Icons
-                        .account_balance_wallet,
-                  ),
-                ),
-                title: Text(
-                  _money(amount),
-                  style:
-                      const TextStyle(
-                    fontSize: 19,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-                subtitle:
-                    Padding(
-                  padding:
-                      const EdgeInsets.only(
-                    top: 8,
-                  ),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      Text(
-                        'User: $userId',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow
-                                .ellipsis,
-                      ),
+      // -------------------------------------------------------
+      // Processing overlay
+      // -------------------------------------------------------
+
+      floatingActionButton:
+          _processing
+              ? FloatingActionButton(
+                  onPressed: null,
+                  child:
                       const SizedBox(
-                        height: 4,
-                      ),
-                      Text(
-                        'Payment: '
-                        '$paymentMethod',
-                      ),
-                      const SizedBox(
-                        height: 4,
-                      ),
-                      Text(
-                        _date(
-                          data['createdAt'],
-                        ),
-                      ),
-                    ],
+                    width: 22,
+                    height: 22,
+                    child:
+                        CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
                   ),
-                ),
-                trailing:
-                    const Icon(
-                  Icons.chevron_right,
-                ),
-                onTap: _processing
-                    ? null
-                    : () =>
-                        _showDepositDetails(
-                          transaction,
-                        ),
-              ),
-            );
-          },
-        );
-      },
+                )
+              : null,
     );
-  }
-
-  // =========================================================
-  // WITHDRAWAL LIST
-  // =========================================================
-
-  Widget _buildWithdrawalList() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
-      stream: _withdrawalStream(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding:
-                  const EdgeInsets.all(24),
-              child: Text(
-                'Unable to load withdrawal requests.\n\n'
-                '${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
-          return const Center(
-            child:
-                CircularProgressIndicator(),
-          );
-        }
-
-        final documents =
-            snapshot.data?.docs ?? [];
-
-        if (documents.isEmpty) {
-          return _emptyState(
-            icon:
-                Icons.payments_outlined,
-            title:
-                'No pending withdrawal requests',
-            message:
-                'New withdrawal requests '
-                'will appear here.',
-          );
-        }
-
-        return ListView.builder(
-          padding:
-              const EdgeInsets.all(16),
-          itemCount: documents.length,
-          itemBuilder:
-              (context, index) {
-            final transaction =
-                documents[index];
-
-            final data =
-                transaction.data();
-
-            final amount =
-                _toDouble(
-              data['amount'],
-            );
-
-            final userId =
-                data['userId']
-                        ?.toString() ??
-                    'Unknown user';
-
-            final method =
-                _methodName(
-              data['withdrawalMethod'],
-            );
-
-            return Card(
-              margin:
-                  const EdgeInsets.only(
-                bottom: 12,
-              ),
-              child: ListTile(
-                contentPadding:
-                    const EdgeInsets.all(
-                  16,
-                ),
-                leading:
-                    const CircleAvatar(
-                  radius: 25,
-                  child: Icon(
-                    Icons.payments_outlined,
-                  ),
-                ),
-                title: Text(
-                  _money(amount),
-                  style:
-                      const TextStyle(
-                    fontSize: 19,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-                subtitle:
-                    Padding(
-                  padding:
-                      const EdgeInsets.only(
-                    top: 8,
-                  ),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      Text(
-                        'User: $userId',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow
-                                .ellipsis,
-                      ),
-                      const SizedBox(
-                        height: 4,
-                      ),
-                      Text(
-                        'Method: $method',
-                      ),
-                      const SizedBox(
-                        height: 4,
-                      ),
-                      Text(
-                        _date(
-                          data['createdAt'],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                trailing:
-                    const Icon(
-                  Icons.chevron_right,
-                ),
-                onTap: _processing
-                    ? null
-                    : () =>
-                        _showWithdrawalDetails(
-                          transaction,
-                        ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // =========================================================
-  // EMPTY STATE
-  // =========================================================
-
-  Widget _emptyState({
-    required IconData icon,
-    required String title,
-    required String message,
-  }) {
-    return ListView(
-      physics:
-          const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 150),
-        Icon(
-          icon,
-          size: 64,
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style:
-                const TextStyle(
-              fontSize: 18,
-              fontWeight:
-                  FontWeight.w600,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(
-              horizontal: 24,
-            ),
-            child: Text(
-              message,
-              textAlign:
-                  TextAlign.center,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // =========================================================
-  // BUILD
-  // =========================================================
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Wallet Management',
-          ),
-          bottom: const TabBar(
-            tabs: [
-              Tab(
-                icon:
-                    Icon(Icons.add_card),
-                text: 'Deposits',
-              ),
-              Tab(
-                icon:
-                    Icon(Icons.payments_outlined),
-                text: 'Withdrawals',
-              ),
-            ],
-          ),
-        ),
-        body: const TabBarView(
-          children: [
-            _AdminWalletDepositTab(),
-            _AdminWalletWithdrawalTab(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// =========================================================
-// TAB HELPERS
-// =========================================================
-
-class _AdminWalletDepositTab
-    extends StatelessWidget {
-  const _AdminWalletDepositTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final state =
-        context.findAncestorStateOfType<
-            _AdminWalletPageState>();
-
-    if (state == null) {
-      return const SizedBox.shrink();
-    }
-
-    return state._buildDepositList();
-  }
-}
-
-class _AdminWalletWithdrawalTab
-    extends StatelessWidget {
-  const _AdminWalletWithdrawalTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final state =
-        context.findAncestorStateOfType<
-            _AdminWalletPageState>();
-
-    if (state == null) {
-      return const SizedBox.shrink();
-    }
-
-    return state._buildWithdrawalList();
   }
 }
