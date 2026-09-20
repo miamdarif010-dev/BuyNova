@@ -65,7 +65,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _placingOrder = false;
   bool _checkingCoupon = false;
 
-  double _deliveryFee = 3000;
+  bool get _isInsideDhaka {
+    final address = _selectedAddress;
+    if (address == null) return false;
+
+    final text =
+        '${address['city'] ?? ''} ${address['district'] ?? ''}'
+            .toLowerCase();
+
+    return text.contains('dhaka') || text.contains('ঢাকা');
+  }
+
+  // Inside Dhaka: ৳60, outside Dhaka: ৳120
+  double get _deliveryFee {
+    if (_selectedAddress == null) return 60;
+    return _isInsideDhaka ? 60 : 120;
+  }
   double _discount = 0;
 
   String? _couponCode;
