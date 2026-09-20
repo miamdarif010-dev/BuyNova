@@ -7,17 +7,13 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
-// =========================================================
-// GLOBAL SETTINGS
-// =========================================================
-
 setGlobalOptions({
 region: "asia-northeast3",
 maxInstances: 10,
 });
 
 // =========================================================
-// HELPERS
+// ADMIN CHECK
 // =========================================================
 
 function requireAdmin(request) {
@@ -55,12 +51,8 @@ timestamp: new Date().toISOString(),
 });
 
 // =========================================================
-// WALLET TRANSACTION CREATED
+// NEW WALLET TRANSACTION LISTENER
 // =========================================================
-//
-// New wallet transactions created by the Flutter app remain
-// PENDING until an authorized admin processes them.
-//
 
 exports.onWalletTransactionCreated = onDocumentCreated(
 "users/{userId}/walletTransactions/{transactionId}",
@@ -88,15 +80,12 @@ console.log("BuyNova wallet transaction received:", {
 // =========================================================
 // GET WALLET BALANCE
 // =========================================================
-//
-// Securely reads the authenticated user's balance.
-//
 
 exports.getWalletBalance = onCall(async (request) => {
 if (!request.auth) {
 throw new HttpsError(
 "unauthenticated",
-"You must be logged in to access your wallet.",
+"You must be logged in.",
 );
 }
 
@@ -141,27 +130,34 @@ points,
 //
 // ADMIN ONLY.
 //
-// Supports:
+// Deposit:
+// pending credit/deposit -> adds money.
 //
-// 1. Deposit
-//    pending credit/deposit
-//    -> adds money to cashBalance
+// Withdrawal:
+// pending debit/withdrawal -> subtracts money.
 //
-// 2. Withdrawal
-//    pending debit/withdrawal
-//    -> subtracts money from cashBalance
-//
-// All balance changes happen inside a Firestore transaction.
+// Balance and transaction status are changed atomically.
 //
 
 exports.approveWalletTransaction = onCall(async (request) => {
 requireAdmin(request);
 
+const userId = request.data?.userId;
 const transactionId = request.data?.transactionId;
 
 if (
+typeof userId !== "string" ||
+userId.trim().length === 0
+) {
+throw new HttpsError(
+"invalid-argument",
+"A valid user ID is required.",
+);
+}
+
+if (
 typeof transactionId !== "string" ||
-transactionId.trim().isEmpty
+transactionId.trim().length === 0
 ) {
 throw new HttpsError(
 "invalid-argument",
@@ -169,9 +165,11 @@ throw new HttpsError(
 );
 }
 
-const transactionRef = findWalletTransactionReference(
-transactionId.trim(),
-);
+const userRef = db.collection("users").doc(userId);
+
+const transactionRef = userRef
+.collection("walletTransactions")
+.doc(transactionId);
 
 const result = await db.runTransaction(async (transaction) => {
 const transactionSnapshot =
@@ -184,21 +182,20 @@ if (!transactionSnapshot.exists) {
   );
 }
 
-const transactionData = transactionSnapshot.data() || {};
+const transactionData =
+    transactionSnapshot.data() || {};
+
+if (transactionData.userId !== userId) {
+  throw new HttpsError(
+    "permission-denied",
+    "Transaction ownership mismatch.",
+  );
+}
 
 if (transactionData.status !== "pending") {
   throw new HttpsError(
     "failed-precondition",
     "This transaction has already been processed.",
-  );
-}
-
-const userId = transactionData.userId;
-
-if (typeof userId !== "string" || userId.isEmpty) {
-  throw new HttpsError(
-    "invalid-argument",
-    "Transaction user ID is missing.",
   );
 }
 
@@ -218,12 +215,12 @@ if (
 if (transactionData.currency !== "BDT") {
   throw new HttpsError(
     "invalid-argument",
-    "Only BDT wallet transactions are supported.",
+    "Only BDT transactions are supported.",
   );
 }
 
-const userRef = db.collection("users").doc(userId);
-const userSnapshot = await transaction.get(userRef);
+const userSnapshot =
+    await transaction.get(userRef);
 
 if (!userSnapshot.exists) {
   throw new HttpsError(
@@ -235,9 +232,9 @@ if (!userSnapshot.exists) {
 const userData = userSnapshot.data() || {};
 
 const currentBalance =
-  typeof userData.cashBalance === "number"
-    ? userData.cashBalance
-    : 0;
+    typeof userData.cashBalance === "number"
+        ? userData.cashBalance
+        : 0;
 
 let newBalance = currentBalance;
 
@@ -261,7 +258,7 @@ if (
 } else {
   throw new HttpsError(
     "invalid-argument",
-    "Unsupported wallet transaction type.",
+    "Unsupported wallet transaction.",
   );
 }
 
@@ -272,25 +269,25 @@ transaction.update(userRef, {
 
 transaction.update(transactionRef, {
   status: "approved",
-  approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+  approvedAt:
+      admin.firestore.FieldValue.serverTimestamp(),
   processedBy: request.auth.uid,
   processedByEmail:
-    request.auth.token.email || null,
+      request.auth.token.email || null,
 });
 
 return {
+  userId,
+  amount,
+  source: transactionData.source,
   previousBalance: currentBalance,
   newBalance,
-  amount,
-  type: transactionData.type,
-  source: transactionData.source,
-  userId,
 };
 
 });
 
 // =======================================================
-// USER NOTIFICATION
+// NOTIFICATION
 // =======================================================
 
 const notificationRef = db
@@ -299,9 +296,9 @@ const notificationRef = db
 .collection("notifications")
 .doc();
 
-let title = "Wallet Updated";
-let message = "Your wallet has been updated by ৳${result.amount}.";
-let type = "wallet";
+let title;
+let message;
+let type;
 
 if (result.source === "deposit") {
 title = "Deposit Approved";
@@ -309,7 +306,7 @@ message =
 "Your deposit of ৳${result.amount} has been approved. " +
 "Your new wallet balance is ৳${result.newBalance}.";
 type = "wallet_deposit";
-} else if (result.source === "withdrawal") {
+} else {
 title = "Withdrawal Approved";
 message =
 "Your withdrawal of ৳${result.amount} has been approved. " +
@@ -325,7 +322,8 @@ message,
 type,
 orderStatus: "wallet",
 isRead: false,
-createdAt: admin.firestore.FieldValue.serverTimestamp(),
+createdAt:
+admin.firestore.FieldValue.serverTimestamp(),
 });
 
 return {
@@ -343,14 +341,25 @@ newBalance: result.newBalance,
 //
 // ADMIN ONLY.
 //
-// Rejection NEVER changes the user's wallet balance.
+// Rejecting a transaction never changes cashBalance.
 //
 
 exports.rejectWalletTransaction = onCall(async (request) => {
 requireAdmin(request);
 
+const userId = request.data?.userId;
 const transactionId = request.data?.transactionId;
 const reason = request.data?.reason;
+
+if (
+typeof userId !== "string" ||
+userId.trim().length === 0
+) {
+throw new HttpsError(
+"invalid-argument",
+"A valid user ID is required.",
+);
+}
 
 if (
 typeof transactionId !== "string" ||
@@ -363,13 +372,16 @@ throw new HttpsError(
 }
 
 const cleanReason =
-typeof reason === "string" && reason.trim().length > 0
+typeof reason === "string" &&
+reason.trim().length > 0
 ? reason.trim()
 : "Transaction rejected by BuyNova administration.";
 
-const transactionRef = findWalletTransactionReference(
-transactionId.trim(),
-);
+const transactionRef = db
+.collection("users")
+.doc(userId)
+.collection("walletTransactions")
+.doc(transactionId);
 
 const result = await db.runTransaction(async (transaction) => {
 const transactionSnapshot =
@@ -382,7 +394,15 @@ if (!transactionSnapshot.exists) {
   );
 }
 
-const transactionData = transactionSnapshot.data() || {};
+const transactionData =
+    transactionSnapshot.data() || {};
+
+if (transactionData.userId !== userId) {
+  throw new HttpsError(
+    "permission-denied",
+    "Transaction ownership mismatch.",
+  );
+}
 
 if (transactionData.status !== "pending") {
   throw new HttpsError(
@@ -391,22 +411,14 @@ if (transactionData.status !== "pending") {
   );
 }
 
-const userId = transactionData.userId;
-
-if (typeof userId !== "string") {
-  throw new HttpsError(
-    "invalid-argument",
-    "Transaction user ID is missing.",
-  );
-}
-
 transaction.update(transactionRef, {
   status: "rejected",
   rejectionReason: cleanReason,
-  rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+  rejectedAt:
+      admin.firestore.FieldValue.serverTimestamp(),
   processedBy: request.auth.uid,
   processedByEmail:
-    request.auth.token.email || null,
+      request.auth.token.email || null,
 });
 
 return {
@@ -418,7 +430,7 @@ return {
 });
 
 // =======================================================
-// USER NOTIFICATION
+// NOTIFICATION
 // =======================================================
 
 const notificationRef = db
@@ -427,13 +439,13 @@ const notificationRef = db
 .collection("notifications")
 .doc();
 
-let title = "Wallet Transaction Rejected";
-let type = "wallet_rejected";
+let title;
+let type;
 
 if (result.source === "deposit") {
 title = "Deposit Rejected";
 type = "wallet_deposit_rejected";
-} else if (result.source === "withdrawal") {
+} else {
 title = "Withdrawal Rejected";
 type = "wallet_withdrawal_rejected";
 }
@@ -448,7 +460,8 @@ message:
 type,
 orderStatus: "wallet",
 isRead: false,
-createdAt: admin.firestore.FieldValue.serverTimestamp(),
+createdAt:
+admin.firestore.FieldValue.serverTimestamp(),
 });
 
 return {
@@ -457,44 +470,3 @@ message: "Wallet transaction rejected successfully.",
 transactionId,
 };
 });
-
-// =========================================================
-// FIND WALLET TRANSACTION
-// =========================================================
-//
-// Wallet transactions are stored inside:
-// users/{userId}/walletTransactions/{transactionId}
-//
-// Because transactionId alone does not tell us the user ID,
-// we search the walletTransactions collection group.
-//
-
-function findWalletTransactionReference(transactionId) {
-const query = db
-.collectionGroup("walletTransactions")
-.where(
-admin.firestore.FieldPath.documentId(),
-"==",
-transactionId,
-)
-.limit(1);
-
-// This helper cannot return a document reference directly from
-// an async query. The actual lookup is handled below.
-//
-// The placeholder is intentionally replaced by the async helper.
-return {
-async get() {
-const snapshot = await query.get();
-
-  if (snapshot.empty) {
-    return {
-      exists: false,
-    };
-  }
-
-  return snapshot.docs[0];
-},
-
-};
-}
