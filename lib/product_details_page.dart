@@ -1287,7 +1287,7 @@ class _ProductDetailsPageState
                   const SizedBox(height: 12),
 
                   Text(
-                    '₩${price.toStringAsFixed(0)}',
+                    'ট${price.toStringAsFixed(0)}',
                     style:
                         const TextStyle(
                       fontSize: 25,
@@ -1400,7 +1400,7 @@ class _ProductDetailsPageState
                       ),
 
                       Text(
-                        'Total: ₩${subtotal.toStringAsFixed(0)}',
+                        'Total: ট${subtotal.toStringAsFixed(0)}',
                         style:
                             const TextStyle(
                           fontSize: 18,
