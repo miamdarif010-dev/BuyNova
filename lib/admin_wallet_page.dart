@@ -263,9 +263,7 @@ class _AdminWalletPageState extends State<AdminWalletPage>
     final transactionId =
         transactionDoc.id;
 
-    final amount =
-        (data['amount'] as num?)?.toDouble() ?? 0.0;
-
+    
     final source =
         data['source']?.toString() ?? '';
 
