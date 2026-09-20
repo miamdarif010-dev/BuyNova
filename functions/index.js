@@ -12,757 +12,743 @@ setGlobalOptions({
   maxInstances: 10,
 });
 
-// =========================================================
-// ADMIN CHECK
-// =========================================================
+// ============================================================
+// HELPERS
+// ============================================================
 
-function requireAdmin(request) {
-  if (!request.auth) {
+function requireAuth(request) {
+  if (!request.auth || !request.auth.uid) {
     throw new HttpsError(
       "unauthenticated",
-      "You must be logged in.",
+      "You must be logged in."
     );
   }
 
-  const adminEmail = "miamdarif010@gmail.com";
-  const email = request.auth.token.email;
-
-  if (email !== adminEmail) {
-    throw new HttpsError(
-      "permission-denied",
-      "Admin permission is required.",
-    );
-  }
+  return request.auth.uid;
 }
 
-// =========================================================
+function requireAdmin(request) {
+  const uid = requireAuth(request);
+
+  const email =
+    request.auth.token.email || "";
+
+  if (email.toLowerCase() !== "miamdarif010@gmail.com") {
+    throw new HttpsError(
+      "permission-denied",
+      "Admin access required."
+    );
+  }
+
+  return uid;
+}
+
+// ============================================================
 // HEALTH CHECK
-// =========================================================
+// ============================================================
 
 exports.healthCheck = onCall(async () => {
   return {
     success: true,
-    service: "BuyNova Cloud Functions",
-    status: "online",
-    currency: "BDT",
-    currencySymbol: "৳",
+    message: "BuyNova Functions are working.",
+    region: "asia-northeast3",
     timestamp: new Date().toISOString(),
   };
 });
 
-// =========================================================
+// ============================================================
 // WALLET TRANSACTION LISTENER
-// =========================================================
+// ============================================================
 
-exports.onWalletTransactionCreated = onDocumentCreated(
-  "users/{userId}/walletTransactions/{transactionId}",
-  async (event) => {
-    const snapshot = event.data;
+exports.onWalletTransactionCreated =
+  onDocumentCreated(
+    "users/{userId}/walletTransactions/{transactionId}",
+    async (event) => {
+      const snapshot = event.data;
 
-    if (!snapshot) {
-      return;
-    }
-
-    const data = snapshot.data();
-
-    console.log("BuyNova wallet transaction received:", {
-      userId: event.params.userId,
-      transactionId: event.params.transactionId,
-      type: data.type || null,
-      source: data.source || null,
-      status: data.status || null,
-      amount: data.amount || null,
-    });
-  },
-);
-
-// =========================================================
-// GET WALLET BALANCE
-// =========================================================
-
-exports.getWalletBalance = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "You must be logged in.",
-    );
-  }
-
-  const userId = request.auth.uid;
-
-  const userSnapshot = await db
-      .collection("users")
-      .doc(userId)
-      .get();
-
-  if (!userSnapshot.exists) {
-    throw new HttpsError(
-      "not-found",
-      "BuyNova user account was not found.",
-    );
-  }
-
-  const userData = userSnapshot.data() || {};
-
-  const cashBalance =
-      typeof userData.cashBalance === "number"
-          ? userData.cashBalance
-          : 0;
-
-  const points =
-      typeof userData.points === "number"
-          ? userData.points
-          : 0;
-
-  return {
-    success: true,
-    currency: "BDT",
-    currencySymbol: "৳",
-    cashBalance,
-    points,
-  };
-});
-
-// =========================================================
-// APPROVE WALLET TRANSACTION
-// =========================================================
-//
-// ADMIN ONLY.
-//
-// Deposit:
-// pending credit/deposit -> adds money.
-//
-// Withdrawal:
-// pending debit/withdrawal -> subtracts money.
-//
-// Balance and transaction status are changed atomically.
-//
-
-exports.approveWalletTransaction = onCall(async (request) => {
-  requireAdmin(request);
-
-  const userId = request.data?.userId;
-  const transactionId = request.data?.transactionId;
-
-  if (
-    typeof userId !== "string" ||
-    userId.trim().length === 0
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "A valid user ID is required.",
-    );
-  }
-
-  if (
-    typeof transactionId !== "string" ||
-    transactionId.trim().length === 0
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "A valid transaction ID is required.",
-    );
-  }
-
-  const userRef = db.collection("users").doc(userId);
-
-  const transactionRef = userRef
-      .collection("walletTransactions")
-      .doc(transactionId);
-
-  const result = await db.runTransaction(async (transaction) => {
-    const transactionSnapshot =
-        await transaction.get(transactionRef);
-
-    if (!transactionSnapshot.exists) {
-      throw new HttpsError(
-        "not-found",
-        "Wallet transaction was not found.",
-      );
-    }
-
-    const transactionData =
-        transactionSnapshot.data() || {};
-
-    if (transactionData.userId !== userId) {
-      throw new HttpsError(
-        "permission-denied",
-        "Transaction ownership mismatch.",
-      );
-    }
-
-    if (transactionData.status !== "pending") {
-      throw new HttpsError(
-        "failed-precondition",
-        "This transaction has already been processed.",
-      );
-    }
-
-    const amount = transactionData.amount;
-
-    if (
-      typeof amount !== "number" ||
-      !Number.isFinite(amount) ||
-      amount < 100
-    ) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Invalid wallet amount.",
-      );
-    }
-
-    if (transactionData.currency !== "BDT") {
-      throw new HttpsError(
-        "invalid-argument",
-        "Only BDT transactions are supported.",
-      );
-    }
-
-    const userSnapshot =
-        await transaction.get(userRef);
-
-    if (!userSnapshot.exists) {
-      throw new HttpsError(
-        "not-found",
-        "User account was not found.",
-      );
-    }
-
-    const userData = userSnapshot.data() || {};
-
-    const currentBalance =
-        typeof userData.cashBalance === "number"
-            ? userData.cashBalance
-            : 0;
-
-    let newBalance = currentBalance;
-
-    if (
-      transactionData.type === "credit" &&
-      transactionData.source === "deposit"
-    ) {
-      newBalance = currentBalance + amount;
-    } else if (
-      transactionData.type === "debit" &&
-      transactionData.source === "withdrawal"
-    ) {
-      if (amount > currentBalance) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Insufficient wallet balance.",
-        );
+      if (!snapshot) {
+        return;
       }
 
-      newBalance = currentBalance - amount;
-    } else {
-      throw new HttpsError(
-        "invalid-argument",
-        "Unsupported wallet transaction.",
+      const data = snapshot.data();
+
+      console.log(
+        "Wallet transaction created:",
+        event.params.userId,
+        event.params.transactionId,
+        data
       );
+
+      return null;
     }
+  );
 
-    transaction.update(userRef, {
-      cashBalance: newBalance,
-      updatedAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-    });
+// ============================================================
+// GET WALLET BALANCE
+// ============================================================
 
-    transaction.update(transactionRef, {
-      status: "approved",
-      approvedAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-      processedBy: request.auth.uid,
-      processedByEmail:
-          request.auth.token.email || null,
-    });
+exports.getWalletBalance = onCall(
+  async (request) => {
+    const uid = requireAuth(request);
 
-    return {
-      userId,
-      amount,
-      source: transactionData.source,
-      previousBalance: currentBalance,
-      newBalance,
-    };
-  });
-
-  // =======================================================
-  // NOTIFICATION
-  // =======================================================
-
-  const notificationRef = db
-      .collection("users")
-      .doc(result.userId)
-      .collection("notifications")
-      .doc();
-
-  let title;
-  let message;
-  let type;
-
-  if (result.source === "deposit") {
-    title = "Deposit Approved";
-
-    message =
-        `Your deposit of ৳${result.amount} has been approved. ` +
-        `Your new wallet balance is ৳${result.newBalance}.`;
-
-    type = "wallet_deposit";
-  } else {
-    title = "Withdrawal Approved";
-
-    message =
-        `Your withdrawal of ৳${result.amount} has been approved. ` +
-        `Your remaining wallet balance is ৳${result.newBalance}.`;
-
-    type = "wallet_withdrawal";
-  }
-
-  await notificationRef.set({
-    customerId: result.userId,
-    sellerId: request.auth.uid,
-    title,
-    message,
-    type,
-    orderStatus: "wallet",
-    isRead: false,
-    createdAt:
-        admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  return {
-    success: true,
-    message: "Wallet transaction approved successfully.",
-    transactionId,
-    previousBalance: result.previousBalance,
-    newBalance: result.newBalance,
-  };
-});
-
-// =========================================================
-// REJECT WALLET TRANSACTION
-// =========================================================
-//
-// ADMIN ONLY.
-//
-// Rejecting a transaction never changes cashBalance.
-//
-
-exports.rejectWalletTransaction = onCall(async (request) => {
-  requireAdmin(request);
-
-  const userId = request.data?.userId;
-  const transactionId = request.data?.transactionId;
-  const reason = request.data?.reason;
-
-  if (
-    typeof userId !== "string" ||
-    userId.trim().length === 0
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "A valid user ID is required.",
-    );
-  }
-
-  if (
-    typeof transactionId !== "string" ||
-    transactionId.trim().length === 0
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "A valid transaction ID is required.",
-    );
-  }
-
-  const cleanReason =
-      typeof reason === "string" &&
-      reason.trim().length > 0
-          ? reason.trim()
-          : "Transaction rejected by BuyNova administration.";
-
-  const transactionRef = db
-      .collection("users")
-      .doc(userId)
-      .collection("walletTransactions")
-      .doc(transactionId);
-
-  const result = await db.runTransaction(async (transaction) => {
-    const transactionSnapshot =
-        await transaction.get(transactionRef);
-
-    if (!transactionSnapshot.exists) {
-      throw new HttpsError(
-        "not-found",
-        "Wallet transaction was not found.",
-      );
-    }
-
-    const transactionData =
-        transactionSnapshot.data() || {};
-
-    if (transactionData.userId !== userId) {
-      throw new HttpsError(
-        "permission-denied",
-        "Transaction ownership mismatch.",
-      );
-    }
-
-    if (transactionData.status !== "pending") {
-      throw new HttpsError(
-        "failed-precondition",
-        "This transaction has already been processed.",
-      );
-    }
-
-    transaction.update(transactionRef, {
-      status: "rejected",
-      rejectionReason: cleanReason,
-      rejectedAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-      processedBy: request.auth.uid,
-      processedByEmail:
-          request.auth.token.email || null,
-    });
-
-    return {
-      userId,
-      amount: transactionData.amount,
-      source: transactionData.source,
-    };
-  });
-
-  // =======================================================
-  // NOTIFICATION
-  // =======================================================
-
-  const notificationRef = db
-      .collection("users")
-      .doc(result.userId)
-      .collection("notifications")
-      .doc();
-
-  let title;
-  let type;
-
-  if (result.source === "deposit") {
-    title = "Deposit Rejected";
-    type = "wallet_deposit_rejected";
-  } else {
-    title = "Withdrawal Rejected";
-    type = "wallet_withdrawal_rejected";
-  }
-
-  await notificationRef.set({
-    customerId: result.userId,
-    sellerId: request.auth.uid,
-    title,
-    message:
-        `Your wallet transaction of ৳${result.amount} was rejected. ` +
-        `Reason: ${cleanReason}`,
-    type,
-    orderStatus: "wallet",
-    isRead: false,
-    createdAt:
-        admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  return {
-    success: true,
-    message: "Wallet transaction rejected successfully.",
-    transactionId,
-  };
-});
-
-// =========================================================
-// BUYNOVA WALLET ORDER PAYMENT
-// =========================================================
-//
-// USER ONLY.
-//
-// This securely pays an existing order using the common
-// BuyNova Wallet.
-//
-// The following happen atomically:
-// 1. Wallet balance is checked.
-// 2. Wallet balance is reduced.
-// 3. Wallet transaction is created.
-// 4. Order is marked paid.
-// 5. Payment information is stored.
-// 6. User notification is created.
-//
-// =========================================================
-
-exports.placeWalletOrder = onCall(async (request) => {
-  // -------------------------------------------------------
-  // 1. Authentication
-  // -------------------------------------------------------
-
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "You must be logged in to use BuyNova Wallet.",
-    );
-  }
-
-  const uid = request.auth.uid;
-
-  const orderId = request.data?.orderId;
-
-  if (
-    typeof orderId !== "string" ||
-    orderId.trim().length === 0
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "A valid order ID is required.",
-    );
-  }
-
-  // -------------------------------------------------------
-  // 2. References
-  // -------------------------------------------------------
-
-  const userRef = db
+    const userRef = db
       .collection("users")
       .doc(uid);
 
-  const orderRef = db
-      .collection("orders")
-      .doc(orderId);
-
-  // -------------------------------------------------------
-  // 3. Atomic transaction
-  // -------------------------------------------------------
-
-  const result = await db.runTransaction(async (transaction) => {
     const userSnapshot =
-        await transaction.get(userRef);
-
-    const orderSnapshot =
-        await transaction.get(orderRef);
-
-    // -----------------------------------------------------
-    // User check
-    // -----------------------------------------------------
+      await userRef.get();
 
     if (!userSnapshot.exists) {
       throw new HttpsError(
         "not-found",
-        "BuyNova user account was not found.",
-      );
-    }
-
-    // -----------------------------------------------------
-    // Order check
-    // -----------------------------------------------------
-
-    if (!orderSnapshot.exists) {
-      throw new HttpsError(
-        "not-found",
-        "Order was not found.",
+        "User account not found."
       );
     }
 
     const userData =
-        userSnapshot.data() || {};
-
-    const orderData =
-        orderSnapshot.data() || {};
-
-    // -----------------------------------------------------
-    // 4. Verify order ownership
-    // -----------------------------------------------------
-
-    if (orderData.userId !== uid) {
-      throw new HttpsError(
-        "permission-denied",
-        "You are not allowed to pay this order.",
-      );
-    }
-
-    // -----------------------------------------------------
-    // 5. Prevent duplicate payment
-    // -----------------------------------------------------
-
-    if (orderData.paymentStatus === "paid") {
-      return {
-        success: true,
-        alreadyPaid: true,
-        orderId,
-        message: "This order has already been paid.",
-      };
-    }
-
-    // -----------------------------------------------------
-    // 6. Verify payment method
-    // -----------------------------------------------------
-
-    if (orderData.paymentMethod !== "BuyNova Wallet") {
-      throw new HttpsError(
-        "failed-precondition",
-        "This order is not configured for BuyNova Wallet.",
-      );
-    }
-
-    // -----------------------------------------------------
-    // 7. Get order amount
-    // -----------------------------------------------------
-
-    const rawTotal =
-        orderData.grandTotal ??
-        orderData.total ??
-        orderData.totalAmount ??
-        0;
-
-    const orderTotal = Number(rawTotal);
-
-    if (
-      !Number.isFinite(orderTotal) ||
-      orderTotal <= 0
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Invalid order amount.",
-      );
-    }
-
-    // -----------------------------------------------------
-    // 8. Get wallet balance
-    // -----------------------------------------------------
+      userSnapshot.data() || {};
 
     const rawBalance =
-        userData.cashBalance ?? 0;
+      userData.cashBalance ??
+      userData.walletBalance ??
+      0;
 
-    const walletBalance = Number(rawBalance);
-
-    if (
-      !Number.isFinite(walletBalance) ||
-      walletBalance < 0
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Invalid wallet balance.",
-      );
-    }
-
-    // -----------------------------------------------------
-    // 9. Check balance
-    // -----------------------------------------------------
-
-    if (walletBalance < orderTotal) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Insufficient BuyNova Wallet balance.",
-      );
-    }
-
-    // -----------------------------------------------------
-    // 10. Calculate new balance
-    // -----------------------------------------------------
-
-    const newBalance = Number(
-      (walletBalance - orderTotal).toFixed(2),
-    );
-
-    // -----------------------------------------------------
-    // 11. Create wallet transaction
-    // -----------------------------------------------------
-    //
-    // IMPORTANT:
-    // Existing BuyNova wallet system uses:
-    //
-    // users/{uid}/walletTransactions/{transactionId}
-    //
-    // So order payment uses the SAME structure.
-    //
-
-    const walletTransactionRef = userRef
-        .collection("walletTransactions")
-        .doc();
-
-    transaction.set(walletTransactionRef, {
-      userId: uid,
-      type: "debit",
-      amount: orderTotal,
-      currency: "BDT",
-      source: "order_payment",
-      status: "approved",
-      orderId,
-      description:
-          `Payment for BuyNova order ${orderId}`,
-      balanceBefore: walletBalance,
-      balanceAfter: newBalance,
-      createdAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // -----------------------------------------------------
-    // 12. Deduct wallet balance
-    // -----------------------------------------------------
-
-    transaction.update(userRef, {
-      cashBalance: newBalance,
-      walletUpdatedAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // -----------------------------------------------------
-    // 13. Mark order paid
-    // -----------------------------------------------------
-
-    transaction.update(orderRef, {
-      paymentMethod: "BuyNova Wallet",
-      paymentStatus: "paid",
-      walletPaid: true,
-      walletTransactionId:
-          walletTransactionRef.id,
-      walletPaidAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // -----------------------------------------------------
-    // 14. Create notification
-    // -----------------------------------------------------
-
-    const notificationRef = userRef
-        .collection("notifications")
-        .doc();
-
-    transaction.set(notificationRef, {
-      customerId: uid,
-      title: "Payment Successful",
-      message:
-          `৳${orderTotal.toFixed(2)} was paid ` +
-          `from your BuyNova Wallet.`,
-      type: "wallet_order_payment",
-      orderId,
-      amount: orderTotal,
-      currency: "BDT",
-      orderStatus: "paid",
-      isRead: false,
-      createdAt:
-          admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // -----------------------------------------------------
-    // Return transaction result
-    // -----------------------------------------------------
+    const balance =
+      Number(rawBalance) || 0;
 
     return {
       success: true,
-      alreadyPaid: false,
-      orderId,
-      transactionId:
-          walletTransactionRef.id,
-      amount: orderTotal,
-      previousBalance: walletBalance,
-      newBalance,
+      balance: balance,
+      cashBalance: balance,
+      currency: "BDT",
+    };
+  }
+);
+
+// ============================================================
+// APPROVE WALLET TRANSACTION
+// ============================================================
+
+exports.approveWalletTransaction =
+  onCall(async (request) => {
+    requireAdmin(request);
+
+    const {
+      userId,
+      transactionId,
+    } = request.data || {};
+
+    if (!userId || !transactionId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "userId and transactionId are required."
+      );
+    }
+
+    const transactionRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("walletTransactions")
+      .doc(transactionId);
+
+    const result =
+      await db.runTransaction(
+        async (transaction) => {
+          const transactionSnapshot =
+            await transaction.get(
+              transactionRef
+            );
+
+          if (!transactionSnapshot.exists) {
+            throw new HttpsError(
+              "not-found",
+              "Wallet transaction not found."
+            );
+          }
+
+          const transactionData =
+            transactionSnapshot.data() || {};
+
+          if (
+            transactionData.status ===
+            "approved"
+          ) {
+            return {
+              alreadyApproved: true,
+            };
+          }
+
+          if (
+            transactionData.status ===
+            "rejected"
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "This transaction has already been rejected."
+            );
+          }
+
+          const userRef = db
+            .collection("users")
+            .doc(userId);
+
+          const userSnapshot =
+            await transaction.get(
+              userRef
+            );
+
+          if (!userSnapshot.exists) {
+            throw new HttpsError(
+              "not-found",
+              "User account not found."
+            );
+          }
+
+          const userData =
+            userSnapshot.data() || {};
+
+          const currentBalance =
+            Number(
+              userData.cashBalance ??
+              userData.walletBalance ??
+              0
+            );
+
+          const amount =
+            Number(
+              transactionData.amount ?? 0
+            );
+
+          if (amount <= 0) {
+            throw new HttpsError(
+              "invalid-argument",
+              "Invalid wallet transaction amount."
+            );
+          }
+
+          const newBalance =
+            currentBalance + amount;
+
+          transaction.update(
+            userRef,
+            {
+              cashBalance: newBalance,
+              walletBalance: newBalance,
+              updatedAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+            }
+          );
+
+          transaction.update(
+            transactionRef,
+            {
+              status: "approved",
+              balanceBefore:
+                currentBalance,
+              balanceAfter:
+                newBalance,
+              approvedAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+              updatedAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+            }
+          );
+
+          return {
+            alreadyApproved: false,
+            newBalance,
+          };
+        }
+      );
+
+    await db
+      .collection("users")
+      .doc(userId)
+      .collection("notifications")
+      .add({
+        title: "Wallet Updated",
+        message:
+          "Your BuyNova Wallet transaction has been approved.",
+        type: "wallet",
+        read: false,
+        createdAt:
+          admin.firestore.FieldValue
+            .serverTimestamp(),
+      });
+
+    return {
+      success: true,
+      ...result,
     };
   });
 
-  return result;
-});
+// ============================================================
+// REJECT WALLET TRANSACTION
+// ============================================================
+
+exports.rejectWalletTransaction =
+  onCall(async (request) => {
+    requireAdmin(request);
+
+    const {
+      userId,
+      transactionId,
+      reason,
+    } = request.data || {};
+
+    if (!userId || !transactionId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "userId and transactionId are required."
+      );
+    }
+
+    const transactionRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("walletTransactions")
+      .doc(transactionId);
+
+    await db.runTransaction(
+      async (transaction) => {
+        const snapshot =
+          await transaction.get(
+            transactionRef
+          );
+
+        if (!snapshot.exists) {
+          throw new HttpsError(
+            "not-found",
+            "Wallet transaction not found."
+          );
+        }
+
+        const data =
+          snapshot.data() || {};
+
+        if (data.status === "rejected") {
+          return;
+        }
+
+        if (data.status === "approved") {
+          throw new HttpsError(
+            "failed-precondition",
+            "An approved transaction cannot be rejected."
+          );
+        }
+
+        transaction.update(
+          transactionRef,
+          {
+            status: "rejected",
+            rejectionReason:
+              reason || "Rejected by admin.",
+            rejectedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+            updatedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+          }
+        );
+      }
+    );
+
+    await db
+      .collection("users")
+      .doc(userId)
+      .collection("notifications")
+      .add({
+        title: "Wallet Transaction Rejected",
+        message:
+          reason ||
+          "Your BuyNova Wallet transaction was rejected.",
+        type: "wallet",
+        read: false,
+        createdAt:
+          admin.firestore.FieldValue
+            .serverTimestamp(),
+      });
+
+    return {
+      success: true,
+      message:
+        "Wallet transaction rejected.",
+    };
+  });
+
+// ============================================================
+// PLACE WALLET ORDER
+// ============================================================
+
+exports.placeWalletOrder = onCall(
+  async (request) => {
+    const uid = requireAuth(request);
+
+    const {
+      orderId,
+    } = request.data || {};
+
+    if (!orderId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "orderId is required."
+      );
+    }
+
+    const userRef = db
+      .collection("users")
+      .doc(uid);
+
+    const orderRef = db
+      .collection("orders")
+      .doc(orderId);
+
+    const result =
+      await db.runTransaction(
+        async (transaction) => {
+          // ----------------------------------------------------
+          // READ USER
+          // ----------------------------------------------------
+
+          const userSnapshot =
+            await transaction.get(
+              userRef
+            );
+
+          if (!userSnapshot.exists) {
+            throw new HttpsError(
+              "not-found",
+              "User account not found."
+            );
+          }
+
+          // ----------------------------------------------------
+          // READ ORDER
+          // ----------------------------------------------------
+
+          const orderSnapshot =
+            await transaction.get(
+              orderRef
+            );
+
+          if (!orderSnapshot.exists) {
+            throw new HttpsError(
+              "not-found",
+              "Order not found."
+            );
+          }
+
+          const orderData =
+            orderSnapshot.data() || {};
+
+          // ----------------------------------------------------
+          // VERIFY ORDER OWNER
+          // ----------------------------------------------------
+
+          const orderUserId =
+            orderData.userId ??
+            orderData.customerId;
+
+          if (orderUserId !== uid) {
+            throw new HttpsError(
+              "permission-denied",
+              "You cannot pay for this order."
+            );
+          }
+
+          // ----------------------------------------------------
+          // VERIFY PAYMENT METHOD
+          // ----------------------------------------------------
+
+          if (
+            orderData.paymentMethod !==
+            "BuyNova Wallet"
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "This order is not using BuyNova Wallet."
+            );
+          }
+
+          // ----------------------------------------------------
+          // ALREADY PAID
+          // ----------------------------------------------------
+
+          if (
+            orderData.paymentStatus ===
+            "paid"
+          ) {
+            return {
+              alreadyPaid: true,
+              transactionId:
+                orderData.walletTransactionId ||
+                null,
+              newBalance: null,
+            };
+          }
+
+          // ----------------------------------------------------
+          // ORDER AMOUNT
+          // ----------------------------------------------------
+
+          const totalAmount = Number(
+            orderData.grandTotal ??
+            orderData.total ??
+            orderData.totalAmount ??
+            0
+          );
+
+          if (
+            !Number.isFinite(totalAmount) ||
+            totalAmount <= 0
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "Invalid order amount."
+            );
+          }
+
+          // ----------------------------------------------------
+          // WALLET BALANCE
+          // ----------------------------------------------------
+
+          const userData =
+            userSnapshot.data() || {};
+
+          const balanceBefore =
+            Number(
+              userData.cashBalance ??
+              userData.walletBalance ??
+              0
+            );
+
+          if (
+            !Number.isFinite(balanceBefore)
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "Invalid wallet balance."
+            );
+          }
+
+          if (
+            balanceBefore < totalAmount
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "Insufficient wallet balance."
+            );
+          }
+
+          // ----------------------------------------------------
+          // NEW BALANCE
+          // ----------------------------------------------------
+
+          const balanceAfter =
+            balanceBefore - totalAmount;
+
+          // ----------------------------------------------------
+          // WALLET TRANSACTION
+          // ----------------------------------------------------
+
+          const walletTransactionRef =
+            userRef
+              .collection("walletTransactions")
+              .doc();
+
+          transaction.set(
+            walletTransactionRef,
+            {
+              type: "debit",
+              source: "order_payment",
+              status: "approved",
+
+              amount: totalAmount,
+              currency: "BDT",
+
+              orderId: orderId,
+
+              balanceBefore:
+                balanceBefore,
+              balanceAfter:
+                balanceAfter,
+
+              description:
+                `Payment for BuyNova order ${orderId}`,
+
+              createdAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+
+              updatedAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+            }
+          );
+
+          // ----------------------------------------------------
+          // UPDATE USER WALLET
+          // ----------------------------------------------------
+
+          transaction.update(
+            userRef,
+            {
+              cashBalance:
+                balanceAfter,
+              walletBalance:
+                balanceAfter,
+              updatedAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+            }
+          );
+
+          // ----------------------------------------------------
+          // UPDATE MAIN ORDER
+          // ----------------------------------------------------
+
+          transaction.update(
+            orderRef,
+            {
+              paymentStatus: "paid",
+              paymentMethod:
+                "BuyNova Wallet",
+
+              walletPaid: true,
+
+              walletTransactionId:
+                walletTransactionRef.id,
+
+              walletPaidAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+
+              updatedAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+            }
+          );
+
+          // ----------------------------------------------------
+          // FIND SELLER ORDERS
+          // ----------------------------------------------------
+
+          const sellerOrdersQuery =
+            db
+              .collection("seller_orders")
+              .where(
+                "orderId",
+                "==",
+                orderId
+              );
+
+          const sellerOrdersSnapshot =
+            await transaction.get(
+              sellerOrdersQuery
+            );
+
+          for (
+            const sellerDoc of
+              sellerOrdersSnapshot.docs
+          ) {
+            transaction.update(
+              sellerDoc.ref,
+              {
+                paymentStatus: "paid",
+                paymentMethod:
+                  "BuyNova Wallet",
+                walletTransactionId:
+                  walletTransactionRef.id,
+                updatedAt:
+                  admin.firestore.FieldValue
+                    .serverTimestamp(),
+              }
+            );
+          }
+
+          // ----------------------------------------------------
+          // FIND RESELLER ORDERS
+          // ----------------------------------------------------
+
+          const resellerOrdersQuery =
+            db
+              .collection("reseller_orders")
+              .where(
+                "orderId",
+                "==",
+                orderId
+              );
+
+          const resellerOrdersSnapshot =
+            await transaction.get(
+              resellerOrdersQuery
+            );
+
+          for (
+            const resellerDoc of
+              resellerOrdersSnapshot.docs
+          ) {
+            transaction.update(
+              resellerDoc.ref,
+              {
+                paymentStatus: "paid",
+                paymentMethod:
+                  "BuyNova Wallet",
+                walletTransactionId:
+                  walletTransactionRef.id,
+                updatedAt:
+                  admin.firestore.FieldValue
+                    .serverTimestamp(),
+              }
+            );
+          }
+
+          // ----------------------------------------------------
+          // NOTIFICATION
+          // ----------------------------------------------------
+
+          const notificationRef =
+            userRef
+              .collection("notifications")
+              .doc();
+
+          transaction.set(
+            notificationRef,
+            {
+              title:
+                "Payment Successful",
+              message:
+                `৳${totalAmount.toFixed(2)} was paid from your BuyNova Wallet for order ${orderId}.`,
+              type: "order_payment",
+              orderId: orderId,
+              amount: totalAmount,
+              currency: "BDT",
+              read: false,
+              createdAt:
+                admin.firestore.FieldValue
+                  .serverTimestamp(),
+            }
+          );
+
+          return {
+            alreadyPaid: false,
+            transactionId:
+              walletTransactionRef.id,
+            newBalance:
+              balanceAfter,
+            amountPaid:
+              totalAmount,
+          };
+        }
+      );
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+);
