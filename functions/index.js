@@ -470,3 +470,220 @@ message: "Wallet transaction rejected successfully.",
 transactionId,
 };
 });
+// =========================================================
+// BUYNOVA WALLET ORDER PAYMENT
+// Securely pays an order using the user's common BuyNova Wallet.
+// =========================================================
+
+exports.placeWalletOrder = onCall(async (request) => {
+  // -------------------------------------------------------
+  // 1. Authentication check
+  // -------------------------------------------------------
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "You must be logged in to use BuyNova Wallet."
+    );
+  }
+
+  const uid = request.auth.uid;
+  const orderId = request.data?.orderId;
+
+  if (!orderId || typeof orderId !== "string") {
+    throw new HttpsError(
+      "invalid-argument",
+      "A valid orderId is required."
+    );
+  }
+
+  // -------------------------------------------------------
+  // References
+  // -------------------------------------------------------
+  const userRef = db.collection("users").doc(uid);
+  const orderRef = db.collection("orders").doc(orderId);
+
+  // -------------------------------------------------------
+  // 2. Firestore transaction
+  // -------------------------------------------------------
+  const result = await db.runTransaction(async (transaction) => {
+    const userSnap = await transaction.get(userRef);
+    const orderSnap = await transaction.get(orderRef);
+
+    if (!userSnap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "User account was not found."
+      );
+    }
+
+    if (!orderSnap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "Order was not found."
+      );
+    }
+
+    const userData = userSnap.data() || {};
+    const orderData = orderSnap.data() || {};
+
+    // -----------------------------------------------------
+    // 3. Verify order ownership
+    // -----------------------------------------------------
+    if (orderData.userId !== uid) {
+      throw new HttpsError(
+        "permission-denied",
+        "You are not allowed to pay this order."
+      );
+    }
+
+    // -----------------------------------------------------
+    // 4. Prevent duplicate payment
+    // -----------------------------------------------------
+    if (orderData.paymentStatus === "paid") {
+      return {
+        success: true,
+        alreadyPaid: true,
+        orderId: orderId,
+        message: "This order has already been paid.",
+      };
+    }
+
+    // -----------------------------------------------------
+    // 5. Verify payment method
+    // -----------------------------------------------------
+    if (orderData.paymentMethod !== "BuyNova Wallet") {
+      throw new HttpsError(
+        "failed-precondition",
+        "This order is not configured for BuyNova Wallet."
+      );
+    }
+
+    // -----------------------------------------------------
+    // 6. Read order total
+    // -----------------------------------------------------
+    const rawTotal =
+      orderData.grandTotal ??
+      orderData.total ??
+      orderData.totalAmount ??
+      0;
+
+    const orderTotal = Number(rawTotal);
+
+    if (!Number.isFinite(orderTotal) || orderTotal <= 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Invalid order amount."
+      );
+    }
+
+    // -----------------------------------------------------
+    // 7. Read wallet balance
+    // -----------------------------------------------------
+    const rawBalance =
+      userData.cashBalance ??
+      userData.walletBalance ??
+      0;
+
+    const walletBalance = Number(rawBalance);
+
+    if (!Number.isFinite(walletBalance) || walletBalance < 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Invalid wallet balance."
+      );
+    }
+
+    // -----------------------------------------------------
+    // 8. Check sufficient balance
+    // -----------------------------------------------------
+    if (walletBalance < orderTotal) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Insufficient BuyNova Wallet balance."
+      );
+    }
+
+    // -----------------------------------------------------
+    // 9. Calculate new balance
+    // -----------------------------------------------------
+    const newBalance = Number(
+      (walletBalance - orderTotal).toFixed(2)
+    );
+
+    // -----------------------------------------------------
+    // 10. Create wallet transaction
+    // -----------------------------------------------------
+    const walletTransactionRef = db
+      .collection("walletTransactions")
+      .doc();
+
+    transaction.set(walletTransactionRef, {
+      userId: uid,
+      type: "debit",
+      amount: orderTotal,
+      currency: "BDT",
+      source: "order_payment",
+      status: "approved",
+      orderId: orderId,
+      description: `Payment for BuyNova order ${orderId}`,
+      balanceBefore: walletBalance,
+      balanceAfter: newBalance,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // -----------------------------------------------------
+    // 11. Deduct wallet balance
+    // -----------------------------------------------------
+    transaction.update(userRef, {
+      cashBalance: newBalance,
+      walletUpdatedAt:
+        admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // -----------------------------------------------------
+    // 12. Mark order as paid
+    // -----------------------------------------------------
+    transaction.update(orderRef, {
+      paymentMethod: "BuyNova Wallet",
+      paymentStatus: "paid",
+      walletPaid: true,
+      walletTransactionId: walletTransactionRef.id,
+      walletPaidAt:
+        admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt:
+        admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // -----------------------------------------------------
+    // 13. Create notification
+    // -----------------------------------------------------
+    const notificationRef = db
+      .collection("notifications")
+      .doc();
+
+    transaction.set(notificationRef, {
+      userId: uid,
+      type: "wallet_order_payment",
+      title: "Payment Successful",
+      message:
+        `৳${orderTotal.toFixed(2)} was paid from your BuyNova Wallet.`,
+      orderId: orderId,
+      amount: orderTotal,
+      currency: "BDT",
+      read: false,
+      createdAt:
+        admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      alreadyPaid: false,
+      orderId: orderId,
+      transactionId: walletTransactionRef.id,
+      amount: orderTotal,
+      newBalance: newBalance,
+    };
+  });
+
+  return result;
+});
