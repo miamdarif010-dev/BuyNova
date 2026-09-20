@@ -11,14 +11,17 @@ class AdminWalletPage extends StatefulWidget {
 
 class _AdminWalletPageState extends State<AdminWalletPage>
     with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
-  late TabController _tabController;
+  final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(
+    region: 'asia-northeast3',
+  );
 
   bool _processing = false;
-
-  late final FirebaseFunctions _functions;
 
   @override
   void initState() {
@@ -27,10 +30,6 @@ class _AdminWalletPageState extends State<AdminWalletPage>
     _tabController = TabController(
       length: 2,
       vsync: this,
-    );
-
-    _functions = FirebaseFunctions.instanceFor(
-      region: 'asia-northeast3',
     );
   }
 
@@ -41,153 +40,61 @@ class _AdminWalletPageState extends State<AdminWalletPage>
   }
 
   // =========================================================
-  // HELPERS
+  // ACCOUNT MASKING
   // =========================================================
-
-  String _money(dynamic value) {
-    final amount =
-        value is num ? value.toDouble() : 0.0;
-
-    if (amount == amount.roundToDouble()) {
-      return '৳${amount.toInt()}';
-    }
-
-    return '৳${amount.toStringAsFixed(2)}';
-  }
-
-  String _formatDate(Timestamp? timestamp) {
-    if (timestamp == null) {
-      return 'Processing...';
-    }
-
-    final date = timestamp.toDate();
-
-    final hour = date.hour == 0
-        ? 12
-        : date.hour > 12
-            ? date.hour - 12
-            : date.hour;
-
-    final minute =
-        date.minute.toString().padLeft(2, '0');
-
-    final period =
-        date.hour >= 12 ? 'PM' : 'AM';
-
-    return '${date.day}/${date.month}/${date.year} '
-        '$hour:$minute $period';
-  }
-
-  String _methodName(
-    Map<String, dynamic> data,
-  ) {
-    return data['withdrawalMethodName']?.toString() ??
-        data['paymentMethodName']?.toString() ??
-        data['withdrawalMethod']?.toString() ??
-        data['paymentMethod']?.toString() ??
-        'Unknown';
-  }
 
   String _maskedAccount(String account) {
-    if (account.length <= 4) {
-      return account;
+    final clean = account.trim();
+
+    if (clean.isEmpty) {
+      return '';
     }
 
-    return '•••• ${account.substring(account.length - 4)}';
+    if (clean.length <= 4) {
+      return '****';
+    }
+
+    if (clean.length <= 7) {
+      return '****${clean.substring(clean.length - 2)}';
+    }
+
+    return '**** **** ${clean.substring(clean.length - 4)}';
   }
 
   // =========================================================
-  // CLOUD FUNCTIONS ERROR
+  // METHOD NAME
   // =========================================================
 
-  String _functionErrorMessage(Object error) {
-    if (error is FirebaseFunctionsException) {
-      switch (error.code) {
-        case 'unauthenticated':
-          return 'Please login again.';
-        case 'permission-denied':
-          return 'Admin permission is required.';
-        case 'not-found':
-          return error.message ??
-              'Wallet transaction was not found.';
-        case 'failed-precondition':
-          return error.message ??
-              'This transaction cannot be processed.';
-        case 'invalid-argument':
-          return error.message ??
-              'Invalid wallet transaction.';
-        case 'already-exists':
-          return error.message ??
-              'This transaction has already been processed.';
-        case 'unavailable':
-          return 'Wallet service is temporarily unavailable.';
-        case 'deadline-exceeded':
-          return 'Wallet service took too long to respond.';
-        default:
-          return error.message ??
-              'Wallet operation failed.';
-      }
-    }
+  String _methodName(String? method) {
+    switch (method?.toLowerCase()) {
+      case 'bkash':
+        return 'bKash';
 
-    return error
-        .toString()
-        .replaceFirst('Exception: ', '');
+      case 'nagad':
+        return 'Nagad';
+
+      case 'rocket':
+        return 'Rocket';
+
+      case 'bank':
+        return 'Bank Transfer';
+
+      default:
+        return method ?? 'Unknown';
+    }
   }
 
   // =========================================================
-  // APPROVE WALLET TRANSACTION
+  // APPROVE TRANSACTION
   // =========================================================
 
   Future<void> _approveTransaction(
-    DocumentSnapshot<Map<String, dynamic>> transactionDoc,
+    String userId,
+    String transactionId,
   ) async {
-    if (_processing) return;
-
-    final data = transactionDoc.data();
-
-    if (data == null) return;
-
-    final userId =
-        data['userId']?.toString() ?? '';
-
-    final transactionId =
-        transactionDoc.id;
-
-    final amount =
-        (data['amount'] as num?)?.toDouble() ?? 0.0;
-
-    final source =
-        data['source']?.toString() ?? '';
-
-    if (userId.isEmpty ||
-        transactionId.isEmpty ||
-        amount < 100 ||
-        (source != 'deposit' &&
-            source != 'withdrawal')) {
-      _showMessage(
-        'Invalid wallet transaction.',
-        Colors.red,
-      );
+    if (_processing) {
       return;
     }
-
-    final isWithdrawal =
-        source == 'withdrawal';
-
-    final confirmed = await _confirmAction(
-      title: isWithdrawal
-          ? 'Approve Withdrawal?'
-          : 'Approve Deposit?',
-      message: isWithdrawal
-          ? 'Approve ${_money(amount)} withdrawal for this user?'
-          : 'Approve ${_money(amount)} deposit for this user?',
-      confirmText: 'Approve',
-      confirmColor: Colors.green,
-    );
-
-    if (!confirmed) return;
-
-    if (!mounted) return;
 
     setState(() {
       _processing = true;
@@ -199,41 +106,57 @@ class _AdminWalletPageState extends State<AdminWalletPage>
         'approveWalletTransaction',
       );
 
-      final result =
-          await callable.call({
+      final result = await callable.call({
         'userId': userId,
         'transactionId': transactionId,
       });
 
-      final resultData =
-          result.data is Map
-              ? Map<String, dynamic>.from(
-                  result.data as Map,
-                )
-              : <String, dynamic>{};
+      if (!mounted) {
+        return;
+      }
+
+      final data =
+          Map<String, dynamic>.from(
+        result.data as Map,
+      );
 
       final newBalance =
-          resultData['newBalance'];
+          data['newBalance'] ?? 0;
 
-      if (isWithdrawal) {
-        _showMessage(
-          newBalance is num
-              ? 'Withdrawal approved. New balance: ${_money(newBalance)}'
-              : 'Withdrawal approved successfully.',
-          Colors.green,
-        );
-      } else {
-        _showMessage(
-          newBalance is num
-              ? 'Deposit approved. New balance: ${_money(newBalance)}'
-              : 'Deposit approved successfully.',
-          Colors.green,
-        );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Transaction approved. New balance: ৳$newBalance',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) {
+        return;
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message ??
+                'Could not approve transaction.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     } catch (e) {
-      _showMessage(
-        _functionErrorMessage(e),
-        Colors.red,
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Something went wrong: $e',
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) {
@@ -245,54 +168,17 @@ class _AdminWalletPageState extends State<AdminWalletPage>
   }
 
   // =========================================================
-  // REJECT WALLET TRANSACTION
+  // REJECT TRANSACTION
   // =========================================================
 
   Future<void> _rejectTransaction(
-    DocumentSnapshot<Map<String, dynamic>> transactionDoc,
+    String userId,
+    String transactionId,
+    String reason,
   ) async {
-    if (_processing) return;
-
-    final data = transactionDoc.data();
-
-    if (data == null) return;
-
-    final userId =
-        data['userId']?.toString() ?? '';
-
-    final transactionId =
-        transactionDoc.id;
-
-    
-    final source =
-        data['source']?.toString() ?? '';
-
-    if (userId.isEmpty ||
-        transactionId.isEmpty ||
-        (source != 'deposit' &&
-            source != 'withdrawal')) {
-      _showMessage(
-        'Invalid wallet transaction.',
-        Colors.red,
-      );
+    if (_processing) {
       return;
     }
-
-    final isWithdrawal =
-        source == 'withdrawal';
-
-    final reason = await _askReason(
-      title: isWithdrawal
-          ? 'Reject Withdrawal'
-          : 'Reject Deposit',
-      hintText: isWithdrawal
-          ? 'Reason for withdrawal rejection'
-          : 'Reason for deposit rejection',
-    );
-
-    if (reason == null) return;
-
-    if (!mounted) return;
 
     setState(() {
       _processing = true;
@@ -310,16 +196,44 @@ class _AdminWalletPageState extends State<AdminWalletPage>
         'reason': reason,
       });
 
-      _showMessage(
-        isWithdrawal
-            ? 'Withdrawal rejected.'
-            : 'Deposit rejected.',
-        Colors.orange,
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Transaction rejected successfully.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message ??
+                'Could not reject transaction.',
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     } catch (e) {
-      _showMessage(
-        _functionErrorMessage(e),
-        Colors.red,
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Something went wrong: $e',
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) {
@@ -331,60 +245,53 @@ class _AdminWalletPageState extends State<AdminWalletPage>
   }
 
   // =========================================================
-  // REASON DIALOG
+  // ASK REJECTION REASON
   // =========================================================
 
-  Future<String?> _askReason({
-    required String title,
-    required String hintText,
-  }) async {
-    final controller =
-        TextEditingController();
+  Future<void> _askReason(
+    String userId,
+    String transactionId,
+  ) async {
+    final controller = TextEditingController();
 
-    final result = await showDialog<String>(
+    final reason = await showDialog<String>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
-          title: Text(title),
+          title: const Text(
+            'Reject Transaction',
+          ),
           content: TextField(
             controller: controller,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: hintText,
-              border:
-                  const OutlineInputBorder(),
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText:
+                  'Enter rejection reason',
+              border: OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () =>
-                  Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
-                final reason =
+                final value =
                     controller.text.trim();
 
-                if (reason.isEmpty) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Please enter a reason.',
-                      ),
-                    ),
-                  );
+                if (value.isEmpty) {
                   return;
                 }
 
                 Navigator.pop(
-                  context,
-                  reason,
+                  dialogContext,
+                  value,
                 );
               },
-              child: const Text('Confirm'),
+              child: const Text('Reject'),
             ),
           ],
         );
@@ -393,115 +300,112 @@ class _AdminWalletPageState extends State<AdminWalletPage>
 
     controller.dispose();
 
-    return result;
+    if (reason == null ||
+        reason.trim().isEmpty) {
+      return;
+    }
+
+    await _rejectTransaction(
+      userId,
+      transactionId,
+      reason.trim(),
+    );
   }
 
   // =========================================================
-  // CONFIRM DIALOG
+  // CONFIRM ACTION
   // =========================================================
 
-  Future<bool> _confirmAction({
-    required String title,
-    required String message,
-    required String confirmText,
-    required Color confirmColor,
+  Future<void> _confirmAction({
+    required bool approve,
+    required String userId,
+    required String transactionId,
   }) async {
-    final result =
-        await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(
-                context,
-                false,
-              ),
-              child: const Text('Cancel'),
+    if (approve) {
+      final confirmed =
+          await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text(
+              'Approve Transaction?',
             ),
-            ElevatedButton(
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    confirmColor,
-                foregroundColor:
-                    Colors.white,
-              ),
-              onPressed: () =>
-                  Navigator.pop(
-                context,
-                true,
-              ),
-              child: Text(confirmText),
+            content: const Text(
+              'Are you sure you want to approve this wallet transaction?',
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(
+                    dialogContext,
+                    false,
+                  );
+                },
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(
+                    dialogContext,
+                    true,
+                  );
+                },
+                child: const Text('Approve'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed == true) {
+        await _approveTransaction(
+          userId,
+          transactionId,
         );
-      },
-    );
-
-    return result ?? false;
+      }
+    } else {
+      await _askReason(
+        userId,
+        transactionId,
+      );
+    }
   }
 
   // =========================================================
-  // MESSAGE
-  // =========================================================
-
-  void _showMessage(
-    String message,
-    Color color,
-  ) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-      ),
-    );
-  }
-
-  // =========================================================
-  // TRANSACTION DETAILS
+  // SHOW DETAILS
   // =========================================================
 
   void _showDetails(
-    DocumentSnapshot<Map<String, dynamic>> doc,
+    DocumentSnapshot snapshot,
   ) {
-    final data = doc.data();
-
-    if (data == null) return;
-
-    final source =
-        data['source']?.toString() ?? '';
-
-    final type =
-        data['type']?.toString() ?? '';
-
-    final isWithdrawal =
-        source == 'withdrawal' ||
-            type == 'debit';
+    final data =
+        snapshot.data()
+            as Map<String, dynamic>? ??
+            {};
 
     final amount =
-        (data['amount'] as num?)?.toDouble() ??
-            0.0;
+        data['amount'] ?? 0;
 
-    final status =
-        data['status']?.toString() ??
-            'pending';
+    final type =
+        data['type']?.toString() ??
+            '';
 
-    final userId =
-        data['userId']?.toString() ?? '';
+    final source =
+        data['source']?.toString() ??
+            '';
+
+    final method =
+        data['paymentMethod']?.toString() ??
+            data['withdrawalMethod']?.toString() ??
+            '';
 
     final account =
         data['accountNumber']?.toString() ??
             '';
 
-    final method =
-        _methodName(data);
+    final status =
+        data['status']?.toString() ??
+            '';
 
     final reason =
         data['reason']?.toString() ??
@@ -511,157 +415,89 @@ class _AdminWalletPageState extends State<AdminWalletPage>
     final createdAt =
         data['createdAt'] as Timestamp?;
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding:
-                const EdgeInsets.fromLTRB(
-              20,
-              10,
-              20,
-              24,
-            ),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Transaction Details',
+          ),
+          content: SingleChildScrollView(
             child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
-                Text(
-                  isWithdrawal
-                      ? 'Withdrawal Details'
-                      : 'Deposit Details',
-                  style:
-                      const TextStyle(
-                    fontSize: 21,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(
-                  height: 18,
-                ),
-                _detailRow(
-                  'User ID',
-                  userId,
-                ),
                 _detailRow(
                   'Amount',
-                  _money(amount),
+                  '৳$amount',
+                ),
+                _detailRow(
+                  'Type',
+                  type,
+                ),
+                _detailRow(
+                  'Source',
+                  source,
                 ),
                 _detailRow(
                   'Method',
-                  method,
+                  _methodName(method),
                 ),
+                _detailRow(
+                  'Status',
+                  status,
+                ),
+
+                // -------------------------------------------------
+                // MASKED ACCOUNT NUMBER
+                // -------------------------------------------------
+
                 if (account.isNotEmpty)
                   _detailRow(
                     'Account',
-                    account,
+                    _maskedAccount(account),
                   ),
-                _detailRow(
-                  'Status',
-                  status.toUpperCase(),
-                ),
-                if (createdAt != null)
-                  _detailRow(
-                    'Date',
-                    _formatDate(
-                      createdAt,
-                    ),
-                  ),
+
                 if (reason.isNotEmpty)
                   _detailRow(
                     'Reason',
                     reason,
                   ),
-                const SizedBox(
-                  height: 12,
-                ),
-                if (status == 'pending')
-                  Row(
-                    children: [
-                      Expanded(
-                        child:
-                            OutlinedButton.icon(
-                          onPressed:
-                              _processing
-                                  ? null
-                                  : () {
-                                      Navigator.pop(
-                                        context,
-                                      );
 
-                                      _rejectTransaction(
-                                        doc,
-                                      );
-                                    },
-                          icon:
-                              const Icon(
-                            Icons.close,
-                          ),
-                          label:
-                              const Text(
-                            'Reject',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(
-                        width: 10,
-                      ),
-                      Expanded(
-                        child:
-                            ElevatedButton.icon(
-                          style:
-                              ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Colors.green,
-                            foregroundColor:
-                                Colors.white,
-                          ),
-                          onPressed:
-                              _processing
-                                  ? null
-                                  : () {
-                                      Navigator.pop(
-                                        context,
-                                      );
-
-                                      _approveTransaction(
-                                        doc,
-                                      );
-                                    },
-                          icon:
-                              const Icon(
-                            Icons.check,
-                          ),
-                          label:
-                              const Text(
-                            'Approve',
-                          ),
-                        ),
-                      ),
-                    ],
+                if (createdAt != null)
+                  _detailRow(
+                    'Created',
+                    createdAt
+                        .toDate()
+                        .toString(),
                   ),
               ],
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                );
+              },
+              child: const Text('Close'),
+            ),
+          ],
         );
       },
     );
   }
 
   Widget _detailRow(
-    String title,
+    String label,
     String value,
   ) {
     return Padding(
       padding:
-          const EdgeInsets.symmetric(
-        vertical: 7,
+          const EdgeInsets.only(
+        bottom: 10,
       ),
       child: Row(
         crossAxisAlignment:
@@ -670,22 +506,15 @@ class _AdminWalletPageState extends State<AdminWalletPage>
           SizedBox(
             width: 90,
             child: Text(
-              title,
-              style:
-                  const TextStyle(
-                color: Colors.grey,
+              label,
+              style: const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style:
-                  const TextStyle(
-                fontWeight:
-                    FontWeight.w600,
-              ),
-            ),
+            child: Text(value),
           ),
         ],
       ),
@@ -693,43 +522,252 @@ class _AdminWalletPageState extends State<AdminWalletPage>
   }
 
   // =========================================================
-  // PENDING DEPOSITS
+  // TRANSACTION CARD
   // =========================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      _depositStream() {
-    return _firestore
-        .collectionGroup(
-          'walletTransactions',
-        )
-        .where(
-          'source',
-          isEqualTo: 'deposit',
-        )
-        .where(
-          'status',
-          isEqualTo: 'pending',
-        )
-        .snapshots();
+  Widget _transactionCard(
+    DocumentSnapshot snapshot,
+  ) {
+    final data =
+        snapshot.data()
+            as Map<String, dynamic>? ??
+            {};
+
+    final userId =
+        data['userId']?.toString() ??
+            '';
+
+    final transactionId =
+        snapshot.id;
+
+    final amount =
+        data['amount'] ?? 0;
+
+    final method =
+        data['paymentMethod']?.toString() ??
+            data['withdrawalMethod']?.toString() ??
+            '';
+
+    final account =
+        data['accountNumber']?.toString() ??
+            '';
+
+    final createdAt =
+        data['createdAt'] as Timestamp?;
+
+    final createdText =
+        createdAt == null
+            ? 'Processing...'
+            : createdAt
+                .toDate()
+                .toString();
+
+    return Card(
+      margin:
+          const EdgeInsets.only(
+        bottom: 12,
+      ),
+      child: Padding(
+        padding:
+            const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  child: Icon(
+                    data['source'] ==
+                            'deposit'
+                        ? Icons
+                            .account_balance_wallet
+                        : Icons
+                            .payments,
+                  ),
+                ),
+                const SizedBox(
+                  width: 12,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '৳$amount',
+                        style:
+                            const TextStyle(
+                          fontSize: 20,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 3,
+                      ),
+                      Text(
+                        _methodName(
+                          method,
+                        ),
+                        style:
+                            TextStyle(
+                          color: Colors
+                              .grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    _showDetails(
+                      snapshot,
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.info_outline,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(
+              height: 10,
+            ),
+
+            if (account.isNotEmpty)
+              Row(
+                children: [
+                  const Icon(
+                    Icons.phone,
+                    size: 18,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Text(
+                    _maskedAccount(
+                      account,
+                    ),
+                  ),
+                ],
+              ),
+
+            const SizedBox(
+              height: 6,
+            ),
+
+            Row(
+              children: [
+                const Icon(
+                  Icons.access_time,
+                  size: 18,
+                ),
+                const SizedBox(
+                  width: 8,
+                ),
+                Expanded(
+                  child: Text(
+                    createdText,
+                    style:
+                        TextStyle(
+                      color: Colors
+                          .grey[700],
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(
+              height: 14,
+            ),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed:
+                        _processing
+                            ? null
+                            : () {
+                                _confirmAction(
+                                  approve:
+                                      false,
+                                  userId:
+                                      userId,
+                                  transactionId:
+                                      transactionId,
+                                );
+                              },
+                    icon: const Icon(
+                      Icons.close,
+                    ),
+                    label:
+                        const Text(
+                      'Reject',
+                    ),
+                  ),
+                ),
+                const SizedBox(
+                  width: 10,
+                ),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed:
+                        _processing
+                            ? null
+                            : () {
+                                _confirmAction(
+                                  approve:
+                                      true,
+                                  userId:
+                                      userId,
+                                  transactionId:
+                                      transactionId,
+                                );
+                              },
+                    icon: const Icon(
+                      Icons.check,
+                    ),
+                    label:
+                        const Text(
+                      'Approve',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // =========================================================
-  // PENDING WITHDRAWALS
+  // TRANSACTION STREAM
   // =========================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      _withdrawalStream() {
+  Stream<QuerySnapshot> _transactionStream(
+    String source,
+  ) {
     return _firestore
         .collectionGroup(
           'walletTransactions',
         )
         .where(
           'source',
-          isEqualTo: 'withdrawal',
+          isEqualTo: source,
         )
         .where(
           'status',
           isEqualTo: 'pending',
+        )
+        .orderBy(
+          'createdAt',
+          descending: true,
         )
         .snapshots();
   }
@@ -738,16 +776,16 @@ class _AdminWalletPageState extends State<AdminWalletPage>
   // TRANSACTION LIST
   // =========================================================
 
-  Widget _transactionList({
-    required Stream<
-        QuerySnapshot<Map<String, dynamic>>>
-        stream,
-    required bool isWithdrawal,
-  }) {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
-      stream: stream,
-      builder: (context, snapshot) {
+  Widget _transactionList(
+    String source,
+  ) {
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          _transactionStream(source),
+      builder: (
+        context,
+        snapshot,
+      ) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Center(
@@ -762,7 +800,7 @@ class _AdminWalletPageState extends State<AdminWalletPage>
               padding:
                   const EdgeInsets.all(20),
               child: Text(
-                'Could not load wallet requests.\n\n${snapshot.error}',
+                'Could not load transactions.\n\n${snapshot.error}',
                 textAlign:
                     TextAlign.center,
               ),
@@ -770,33 +808,38 @@ class _AdminWalletPageState extends State<AdminWalletPage>
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final documents =
+            snapshot.data?.docs ??
+                [];
 
-        if (docs.isEmpty) {
+        if (documents.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment:
                   MainAxisAlignment.center,
               children: [
                 Icon(
-                  isWithdrawal
-                      ? Icons.arrow_circle_up
-                      : Icons.add_circle,
+                  source == 'deposit'
+                      ? Icons
+                          .account_balance_wallet_outlined
+                      : Icons
+                          .payments_outlined,
                   size: 60,
-                  color: Colors.grey,
+                  color:
+                      Colors.grey[500],
                 ),
                 const SizedBox(
                   height: 12,
                 ),
                 Text(
-                  isWithdrawal
-                      ? 'No pending withdrawals'
-                      : 'No pending deposits',
+                  source == 'deposit'
+                      ? 'No pending deposits'
+                      : 'No pending withdrawals',
                   style:
-                      const TextStyle(
-                    color: Colors.grey,
+                      TextStyle(
                     fontSize: 16,
+                    color:
+                        Colors.grey[700],
                   ),
                 ),
               ],
@@ -804,302 +847,35 @@ class _AdminWalletPageState extends State<AdminWalletPage>
           );
         }
 
-        final sortedDocs = [...docs];
-
-        sortedDocs.sort(
-          (a, b) {
-            final aTime =
-                a.data()['createdAt']
-                    as Timestamp?;
-
-            final bTime =
-                b.data()['createdAt']
-                    as Timestamp?;
-
-            if (aTime == null &&
-                bTime == null) {
-              return 0;
-            }
-
-            if (aTime == null) {
-              return 1;
-            }
-
-            if (bTime == null) {
-              return -1;
-            }
-
-            return bTime.compareTo(
-              aTime,
-            );
-          },
-        );
-
-        return ListView.builder(
-          padding:
-              const EdgeInsets.all(12),
-          itemCount:
-              sortedDocs.length,
-          itemBuilder:
-              (context, index) {
-            final doc =
-                sortedDocs[index];
-
-            final data =
-                doc.data();
-
-            final amount =
-                (data['amount'] as num?)
-                        ?.toDouble() ??
-                    0.0;
-
-            final userId =
-                data['userId']
-                        ?.toString() ??
-                    '';
-
-            final method =
-                _methodName(data);
-
-            final account =
-                data['accountNumber']
-                        ?.toString() ??
-                    '';
-
-            final createdAt =
-                data['createdAt']
-                    as Timestamp?;
-
-            return Card(
-              margin:
-                  const EdgeInsets.only(
-                bottom: 12,
-              ),
-              child: InkWell(
-                borderRadius:
-                    BorderRadius.circular(
-                  12,
-                ),
-                onTap: () =>
-                    _showDetails(doc),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.all(
-                    14,
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor:
-                                (isWithdrawal
-                                        ? Colors.red
-                                        : Colors.green)
-                                    .withValues(
-                              alpha: 0.10,
-                            ),
-                            child: Icon(
-                              isWithdrawal
-                                  ? Icons
-                                      .arrow_circle_up
-                                  : Icons
-                                      .add_circle,
-                              color:
-                                  isWithdrawal
-                                      ? Colors.red
-                                      : Colors.green,
-                            ),
-                          ),
-                          const SizedBox(
-                            width: 12,
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment
-                                      .start,
-                              children: [
-                                Text(
-                                  isWithdrawal
-                                      ? 'Withdrawal'
-                                      : 'Add Money',
-                                  style:
-                                      const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight:
-                                        FontWeight
-                                            .bold,
-                                  ),
-                                ),
-                                const SizedBox(
-                                  height: 4,
-                                ),
-                                Text(
-                                  'User: $userId',
-                                  maxLines: 1,
-                                  overflow:
-                                      TextOverflow
-                                          .ellipsis,
-                                  style:
-                                      const TextStyle(
-                                    fontSize: 11,
-                                    color:
-                                        Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            _money(amount),
-                            style:
-                                TextStyle(
-                              color:
-                                  isWithdrawal
-                                      ? Colors.red
-                                      : Colors.green,
-                              fontWeight:
-                                  FontWeight.bold,
-                              fontSize: 17,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(
-                        height: 12,
-                      ),
-                      const Divider(
-                        height: 1,
-                      ),
-                      const SizedBox(
-                        height: 10,
-                      ),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons
-                                .account_balance,
-                            size: 17,
-                            color:
-                                Colors.grey,
-                          ),
-                          const SizedBox(
-                            width: 6,
-                          ),
-                          Text(
-                            method,
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight.w500,
-                            ),
-                          ),
-                          if (account
-                              .isNotEmpty) ...[
-                            const SizedBox(
-                              width: 8,
-                            ),
-                            Expanded(
-                              child: Text(
-                                isWithdrawal
-                                    ? _maskedAccount(
-                                        account)
-                                    : '',
-                                style:
-                                    const TextStyle(
-                                  color:
-                                      Colors.grey,
-                                ),
-                              ),
-                            ),
-                          ] else
-                            const Spacer(),
-                          Text(
-                            _formatDate(
-                              createdAt,
-                            ),
-                            style:
-                                const TextStyle(
-                              fontSize: 11,
-                              color:
-                                  Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(
-                        height: 12,
-                      ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child:
-                                OutlinedButton.icon(
-                              onPressed:
-                                  _processing
-                                      ? null
-                                      : () {
-                                          _rejectTransaction(
-                                            doc,
-                                          );
-                                        },
-                              icon:
-                                  const Icon(
-                                Icons.close,
-                              ),
-                              label:
-                                  const Text(
-                                'Reject',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(
-                            width: 10,
-                          ),
-                          Expanded(
-                            child:
-                                ElevatedButton.icon(
-                              style:
-                                  ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Colors.green,
-                                foregroundColor:
-                                    Colors.white,
-                              ),
-                              onPressed:
-                                  _processing
-                                      ? null
-                                      : () {
-                                          _approveTransaction(
-                                            doc,
-                                          );
-                                        },
-                              icon:
-                                  const Icon(
-                                Icons.check,
-                              ),
-                              label:
-                                  const Text(
-                                'Approve',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+        return RefreshIndicator(
+          onRefresh: () async {
+            await Future<void>.delayed(
+              const Duration(
+                milliseconds: 500,
               ),
             );
           },
+          child: ListView.builder(
+            padding:
+                const EdgeInsets.all(12),
+            itemCount:
+                documents.length,
+            itemBuilder: (
+              context,
+              index,
+            ) {
+              return _transactionCard(
+                documents[index],
+              );
+            },
+          ),
         );
       },
     );
   }
 
   // =========================================================
-  // MAIN UI
+  // BUILD
   // =========================================================
 
   @override
@@ -1108,60 +884,38 @@ class _AdminWalletPageState extends State<AdminWalletPage>
       appBar: AppBar(
         title: const Text(
           'Wallet Management',
-          style:
-              TextStyle(
-            fontWeight:
-                FontWeight.bold,
-          ),
         ),
         centerTitle: true,
         bottom: TabBar(
-          controller: _tabController,
+          controller:
+              _tabController,
           tabs: const [
             Tab(
               icon:
-                  Icon(Icons.add_circle),
+                  Icon(Icons.add_card),
               text: 'Deposits',
             ),
             Tab(
-              icon: Icon(
-                Icons.arrow_circle_up,
-              ),
+              icon:
+                  Icon(Icons.payments),
               text: 'Withdrawals',
             ),
           ],
         ),
       ),
       body: TabBarView(
-        controller: _tabController,
+        controller:
+            _tabController,
         children: [
           _transactionList(
-            stream:
-                _depositStream(),
-            isWithdrawal: false,
+            'deposit',
           ),
           _transactionList(
-            stream:
-                _withdrawalStream(),
-            isWithdrawal: true,
+            'withdrawal',
           ),
         ],
       ),
-      floatingActionButton:
-          _processing
-              ? FloatingActionButton(
-                  onPressed: null,
-                  child:
-                      const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child:
-                        CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
-                  ),
-                )
-              : null,
     );
   }
 }
+
