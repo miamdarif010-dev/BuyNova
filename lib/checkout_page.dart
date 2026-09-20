@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import 'my_orders_page.dart';
 import 'address_book_page.dart';
 
 class CheckoutItem {
-  final String productId;
-  final String productName;
+  final String id;
+  final String name;
   final double price;
-  final String? imageUrl;
   final int quantity;
-
-  // =========================================================
-  // RESELLER / ENTREPRENEUR DATA
-  // =========================================================
+  final String? imageUrl;
 
   final bool isResellerProduct;
   final String? entrepreneurUid;
@@ -23,12 +20,12 @@ class CheckoutItem {
   final double? supplierPrice;
   final double? resellerProfit;
 
-  const CheckoutItem({
-    required this.productId,
-    required this.productName,
+  CheckoutItem({
+    required this.id,
+    required this.name,
     required this.price,
-    this.imageUrl,
     required this.quantity,
+    this.imageUrl,
     this.isResellerProduct = false,
     this.entrepreneurUid,
     this.sellerId,
@@ -38,1535 +35,669 @@ class CheckoutItem {
   });
 
   double get total => price * quantity;
-
-  double get supplierTotal =>
-      (supplierPrice ?? 0) * quantity;
-
-  double get profitTotal {
-    if (supplierPrice != null) {
-      return (price - supplierPrice!) * quantity;
-    }
-
-    if (resellerProfit != null) {
-      return resellerProfit! * quantity;
-    }
-
-    return 0;
-  }
 }
 
 class CheckoutPage extends StatefulWidget {
   final List<CheckoutItem> items;
-
-  final String? productId;
-  final String? productName;
-  final double? price;
-  final String? imageUrl;
-  final int? quantity;
-
   final bool clearCartOnSuccess;
 
   const CheckoutPage({
     super.key,
-    this.items = const [],
-    this.productId,
-    this.productName,
-    this.price,
-    this.imageUrl,
-    this.quantity,
-    this.clearCartOnSuccess = false,
+    required this.items,
+    this.clearCartOnSuccess = true,
   });
-
-  List<CheckoutItem> get checkoutItems {
-    if (items.isNotEmpty) {
-      return items;
-    }
-
-    if (productId != null &&
-        productName != null &&
-        price != null &&
-        quantity != null) {
-      return [
-        CheckoutItem(
-          productId: productId!,
-          productName: productName!,
-          price: price!,
-          imageUrl: imageUrl,
-          quantity: quantity!,
-        ),
-      ];
-    }
-
-    return const [];
-  }
 
   @override
   State<CheckoutPage> createState() => _CheckoutPageState();
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
-  final TextEditingController _nameController =
-      TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final TextEditingController _phoneController =
-      TextEditingController();
-
-  final TextEditingController _addressController =
-      TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _couponController =
       TextEditingController();
 
-  bool _placingOrder = false;
-  bool _loadingAddresses = true;
-  bool _checkingCoupon = false;
-
   String _paymentMethod = 'Cash on Delivery';
 
-  static const double deliveryFee = 3000;
+  bool _placingOrder = false;
+  bool _checkingCoupon = false;
 
-  List<Map<String, dynamic>> _savedAddresses = [];
+  double _deliveryFee = 3000;
+  double _discount = 0;
 
-  String? _selectedAddressId;
+  String? _couponCode;
+  String? _couponMessage;
 
-  // =========================================================
-  // COUPON
-  // =========================================================
+  double _walletBalance = 0;
+  bool _loadingWalletBalance = false;
 
-  Map<String, dynamic>? _appliedCoupon;
+  Map<String, dynamic>? _selectedAddress;
 
-  double _discountAmount = 0;
-
-  String? get _couponCode {
-    final code =
-        _couponController.text.trim().toUpperCase();
-
-    if (code.isEmpty) {
-      return null;
-    }
-
-    return code;
-  }
-
-  // =========================================================
-  // SUBTOTAL
-  // =========================================================
+  final List<String> _paymentMethods = [
+    'Cash on Delivery',
+    'BuyNova Wallet',
+  ];
 
   double get subtotal {
-    double total = 0;
-
-    for (final item in widget.checkoutItems) {
-      total += item.total;
-    }
-
-    return total;
+    return widget.items.fold(
+      0,
+      (sum, item) => sum + item.total,
+    );
   }
-
-  // =========================================================
-  // TOTAL QUANTITY
-  // =========================================================
-
-  int get totalQuantity {
-    int quantity = 0;
-
-    for (final item in widget.checkoutItems) {
-      quantity += item.quantity;
-    }
-
-    return quantity;
-  }
-
-  // =========================================================
-  // DISCOUNT
-  // =========================================================
-
-  double get discountAmount {
-    if (_appliedCoupon == null) {
-      return 0;
-    }
-
-    return _discountAmount;
-  }
-
-  // =========================================================
-  // GRAND TOTAL
-  // =========================================================
 
   double get grandTotal {
-    final total =
-        subtotal + deliveryFee - discountAmount;
-
-    if (total < 0) {
-      return 0;
-    }
-
-    return total;
+    final value = subtotal + _deliveryFee - _discount;
+    return value < 0 ? 0 : value;
   }
-
-  // =========================================================
-  // INIT
-  // =========================================================
 
   @override
   void initState() {
     super.initState();
-
-    _loadUserInformation();
-    _loadSavedAddresses();
+    _loadDefaultAddress();
+    _loadWalletBalance();
   }
 
-  // =========================================================
-  // LOAD USER INFORMATION
-  // =========================================================
+  @override
+  void dispose() {
+    _couponController.dispose();
+    super.dispose();
+  }
 
-  Future<void> _loadUserInformation() async {
-    final user =
-        FirebaseAuth.instance.currentUser;
+  // ============================================================
+  // WALLET
+  // ============================================================
+
+  Future<void> _loadWalletBalance() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loadingWalletBalance = true;
+    });
+
+    try {
+      final user = _auth.currentUser;
+
+      if (user == null) {
+        return;
+      }
+
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'asia-northeast3',
+      ).httpsCallable('getWalletBalance');
+
+      final result = await callable.call();
+
+      final data = Map<String, dynamic>.from(
+        result.data as Map,
+      );
+
+      final dynamic balanceValue =
+          data['balance'] ?? data['cashBalance'] ?? 0;
+
+      final balance =
+          (balanceValue as num).toDouble();
+
+      if (!mounted) return;
+
+      setState(() {
+        _walletBalance = balance;
+      });
+    } catch (e) {
+      // Wallet balance is only a display/UX value.
+      // Final payment validation happens securely in Cloud Functions.
+      if (!mounted) return;
+
+      setState(() {
+        _walletBalance = 0;
+      });
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _loadingWalletBalance = false;
+      });
+    }
+  }
+
+  bool get _walletHasEnoughBalance {
+    return _walletBalance >= grandTotal;
+  }
+
+  // ============================================================
+  // ADDRESS
+  // ============================================================
+
+  Future<void> _loadDefaultAddress() async {
+    final user = _auth.currentUser;
 
     if (user == null) return;
 
     try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('addresses')
+          .where('isDefault', isEqualTo: true)
+          .limit(1)
+          .get();
 
-      if (!mounted) return;
+      if (snapshot.docs.isNotEmpty) {
+        if (!mounted) return;
 
-      final data = snapshot.data();
-
-      if (data != null) {
-        _nameController.text =
-            data['name']?.toString() ?? '';
-
-        _phoneController.text =
-            data['phone']?.toString() ?? '';
-      }
-    } catch (_) {
-      // Keep checkout usable.
-    }
-  }
-
-  // =========================================================
-  // LOAD SAVED ADDRESSES
-  // =========================================================
-
-  Future<void> _loadSavedAddresses() async {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      if (mounted) {
         setState(() {
-          _loadingAddresses = false;
+          _selectedAddress = snapshot.docs.first.data();
         });
-      }
 
-      return;
-    }
-
-    try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .collection('addresses')
-              .get();
-
-      final addresses =
-          snapshot.docs.map((document) {
-        final data = document.data();
-
-        return {
-          'id': document.id,
-          'name':
-              data['name']?.toString() ?? '',
-          'phone':
-              data['phone']?.toString() ?? '',
-          'address':
-              data['address']?.toString() ?? '',
-          'isDefault':
-              data['isDefault'] == true,
-        };
-      }).toList();
-
-      addresses.sort((a, b) {
-        final aDefault =
-            a['isDefault'] == true;
-
-        final bDefault =
-            b['isDefault'] == true;
-
-        if (aDefault && !bDefault) {
-          return -1;
-        }
-
-        if (!aDefault && bDefault) {
-          return 1;
-        }
-
-        return 0;
-      });
-
-      if (!mounted) return;
-
-      setState(() {
-        _savedAddresses = addresses;
-        _loadingAddresses = false;
-      });
-
-      if (addresses.isNotEmpty) {
-        Map<String, dynamic>? defaultAddress;
-
-        for (final address in addresses) {
-          if (address['isDefault'] == true) {
-            defaultAddress = address;
-            break;
-          }
-        }
-
-        defaultAddress ??= addresses.first;
-
-        _selectSavedAddress(defaultAddress);
-      }
-    } catch (_) {
-      if (!mounted) return;
-
-      setState(() {
-        _loadingAddresses = false;
-      });
-    }
-  }
-
-  // =========================================================
-  // SELECT SAVED ADDRESS
-  // =========================================================
-
-  void _selectSavedAddress(
-    Map<String, dynamic> address,
-  ) {
-    if (!mounted) return;
-
-    setState(() {
-      _selectedAddressId =
-          address['id']?.toString();
-
-      _nameController.text =
-          address['name']?.toString() ?? '';
-
-      _phoneController.text =
-          address['phone']?.toString() ?? '';
-
-      _addressController.text =
-          address['address']?.toString() ?? '';
-    });
-  }
-
-  // =========================================================
-  // SELECT ADDRESS BY ID
-  // =========================================================
-
-  void _selectAddressById(
-    String? addressId,
-  ) {
-    if (addressId == null) return;
-
-    for (final address in _savedAddresses) {
-      if (address['id']?.toString() ==
-          addressId) {
-        _selectSavedAddress(address);
         return;
       }
-    }
-  }
 
-  // =========================================================
-  // OPEN ADDRESS BOOK
-  // =========================================================
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = userDoc.data();
+
+      if (data == null) return;
+
+      final address = data['address'];
+
+      if (address is Map) {
+        if (!mounted) return;
+
+        setState(() {
+          _selectedAddress =
+              Map<String, dynamic>.from(address);
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _openAddressBook() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            const AddressBookPage(),
+        builder: (_) => const AddressBookPage(),
       ),
     );
 
-    if (!mounted) return;
-
-    await _loadSavedAddresses();
+    await _loadDefaultAddress();
   }
 
-  // =========================================================
-  // USE MANUAL ADDRESS
-  // =========================================================
-
-  void _useManualAddress() {
-    setState(() {
-      _selectedAddressId = null;
-    });
-  }
-
-  // =========================================================
-  // CLEAR CART
-  // =========================================================
-
-  Future<void> _clearCart(
-    String uid,
-  ) async {
-    final snapshot =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('cart')
-            .get();
-
-    if (snapshot.docs.isEmpty) return;
-
-    final batch =
-        FirebaseFirestore.instance.batch();
-
-    for (final document in snapshot.docs) {
-      batch.delete(document.reference);
-    }
-
-    await batch.commit();
-  }
-
-  // =========================================================
-  // VALIDATE FORM
-  // =========================================================
-
-  bool _validateForm() {
-    final name =
-        _nameController.text.trim();
-
-    final phone =
-        _phoneController.text.trim();
-
-    final address =
-        _addressController.text.trim();
-
-    if (name.isEmpty) {
-      _showMessage(
-        'Please enter your full name.',
-      );
-      return false;
-    }
-
-    if (phone.isEmpty) {
-      _showMessage(
-        'Please enter your phone number.',
-      );
-      return false;
-    }
-
-    if (address.isEmpty) {
-      _showMessage(
-        'Please enter your delivery address.',
-      );
-      return false;
-    }
-
-    if (phone.length < 7) {
-      _showMessage(
-        'Please enter a valid phone number.',
-      );
-      return false;
-    }
-
-    if (widget.checkoutItems.isEmpty) {
-      _showMessage(
-        'No products selected.',
-      );
-      return false;
-    }
-
-    for (final item in widget.checkoutItems) {
-      if (!item.isResellerProduct) {
-        continue;
-      }
-
-      if (item.entrepreneurUid == null ||
-          item.entrepreneurUid!.trim().isEmpty) {
-        _showMessage(
-          'Entrepreneur information is missing for '
-          '${item.productName}.',
-        );
-        return false;
-      }
-
-      if (item.sellerId == null ||
-          item.sellerId!.trim().isEmpty) {
-        _showMessage(
-          'Seller information is missing for '
-          '${item.productName}.',
-        );
-        return false;
-      }
-
-      if (item.supplierPrice == null ||
-          item.supplierPrice! < 0) {
-        _showMessage(
-          'Supplier price is invalid for '
-          '${item.productName}.',
-        );
-        return false;
-      }
-
-      final calculatedProfit =
-          item.price - item.supplierPrice!;
-
-      if (calculatedProfit <= 0) {
-        _showMessage(
-          'Selling price must be higher than supplier price '
-          'for ${item.productName}.',
-        );
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  // =========================================================
-  // CHECK COUPON
-  // =========================================================
+  // ============================================================
+  // COUPON
+  // ============================================================
 
   Future<void> _checkCoupon() async {
-    if (_checkingCoupon) return;
-
-    final code =
-        _couponController.text.trim().toUpperCase();
+    final code = _couponController.text.trim().toUpperCase();
 
     if (code.isEmpty) {
-      _showMessage(
-        'Please enter a coupon code.',
-      );
-      return;
-    }
-
-    if (subtotal <= 0) {
-      _showMessage(
-        'Your order subtotal is invalid.',
-      );
+      setState(() {
+        _couponMessage = 'Please enter a coupon code.';
+        _discount = 0;
+        _couponCode = null;
+      });
       return;
     }
 
     setState(() {
       _checkingCoupon = true;
+      _couponMessage = null;
     });
 
     try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('coupons')
-              .where(
-                'code',
-                isEqualTo: code,
-              )
-              .limit(1)
-              .get();
+      final snapshot = await _firestore
+          .collection('coupons')
+          .where('code', isEqualTo: code)
+          .limit(1)
+          .get();
 
       if (snapshot.docs.isEmpty) {
-        _removeCoupon(
-          showMessage: false,
-        );
+        setState(() {
+          _discount = 0;
+          _couponCode = null;
+          _couponMessage = 'Invalid coupon code.';
+        });
 
-        _showMessage(
-          'Invalid coupon code.',
-        );
         return;
       }
 
-      final data =
-          snapshot.docs.first.data();
+      final data = snapshot.docs.first.data();
 
-      final isActive =
-          data['isActive'] == true;
+      final bool active =
+          data['active'] == true;
 
-      if (!isActive) {
-        _removeCoupon(
-          showMessage: false,
-        );
+      if (!active) {
+        setState(() {
+          _discount = 0;
+          _couponCode = null;
+          _couponMessage = 'This coupon is not active.';
+        });
 
-        _showMessage(
-          'This coupon is not active.',
-        );
         return;
       }
 
-      final expiresAtValue =
-          data['expiresAt'];
+      final String discountType =
+          (data['discountType'] ?? 'fixed').toString();
 
-      DateTime? expiresAt;
-
-      if (expiresAtValue is Timestamp) {
-        expiresAt =
-            expiresAtValue.toDate();
-      } else if (expiresAtValue
-          is DateTime) {
-        expiresAt = expiresAtValue;
-      }
-
-      if (expiresAt != null &&
-          DateTime.now().isAfter(expiresAt)) {
-        _removeCoupon(
-          showMessage: false,
-        );
-
-        _showMessage(
-          'This coupon has expired.',
-        );
-        return;
-      }
-
-      final minimumOrder =
-          _toDouble(
-        data['minimumOrder'],
-      );
-
-      if (minimumOrder > 0 &&
-          subtotal < minimumOrder) {
-        _removeCoupon(
-          showMessage: false,
-        );
-
-        _showMessage(
-          'Minimum order for this coupon is '
-          '৳${minimumOrder.toStringAsFixed(0)}.',
-        );
-        return;
-      }
-
-      final discountType =
-          data['discountType']
-                  ?.toString()
-                  .toLowerCase() ??
-              'percentage';
-
-      final discountValue =
-          _toDouble(
-        data['discountValue'],
-      );
-
-      if (discountValue <= 0) {
-        _removeCoupon(
-          showMessage: false,
-        );
-
-        _showMessage(
-          'This coupon has no valid discount.',
-        );
-        return;
-      }
+      final double discountValue =
+          ((data['discountValue'] ?? 0) as num).toDouble();
 
       double calculatedDiscount = 0;
 
-      if (discountType ==
-          'percentage') {
+      if (discountType == 'percentage') {
         calculatedDiscount =
-            subtotal *
-                discountValue /
-                100;
-
-        final maximumDiscount =
-            _toDouble(
-          data['maximumDiscount'],
-        );
-
-        if (maximumDiscount > 0 &&
-            calculatedDiscount >
-                maximumDiscount) {
-          calculatedDiscount =
-              maximumDiscount;
-        }
+            subtotal * discountValue / 100;
       } else {
-        calculatedDiscount =
-            discountValue;
+        calculatedDiscount = discountValue;
       }
 
-      if (calculatedDiscount >
-          subtotal) {
+      if (calculatedDiscount > subtotal) {
         calculatedDiscount = subtotal;
       }
 
-      if (calculatedDiscount <= 0) {
-        _removeCoupon(
-          showMessage: false,
-        );
-
-        _showMessage(
-          'This coupon cannot be applied.',
-        );
-        return;
-      }
-
+      setState(() {
+        _discount = calculatedDiscount;
+        _couponCode = code;
+        _couponMessage =
+            'Coupon applied. Discount: ৳${calculatedDiscount.toStringAsFixed(2)}';
+      });
+    } catch (e) {
+      setState(() {
+        _discount = 0;
+        _couponCode = null;
+        _couponMessage =
+            'Could not validate coupon. Please try again.';
+      });
+    } finally {
       if (!mounted) return;
 
       setState(() {
-        _appliedCoupon = {
-          ...data,
-          'id':
-              snapshot.docs.first.id,
-          'code': code,
-        };
-
-        _discountAmount =
-            calculatedDiscount;
+        _checkingCoupon = false;
       });
+    }
+  }
 
-      _showMessage(
-        'Coupon applied successfully.',
+  // ============================================================
+  // PAYMENT
+  // ============================================================
+
+  Future<bool> _validateWalletBeforeOrder() async {
+    await _loadWalletBalance();
+
+    if (!_walletHasEnoughBalance) {
+      if (!mounted) return false;
+
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Insufficient Wallet Balance'),
+          content: Text(
+            'Your BuyNova Wallet balance is '
+            '৳${_walletBalance.toStringAsFixed(2)}, '
+            'but this order requires '
+            '৳${grandTotal.toStringAsFixed(2)}.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
-    } catch (e) {
-      _showMessage(
-        'Could not check coupon.\n$e',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _checkingCoupon = false;
-        });
-      }
-    }
-  }
 
-  // =========================================================
-  // REMOVE COUPON
-  // =========================================================
-
-  void _removeCoupon({
-    bool showMessage = true,
-  }) {
-    if (!mounted) return;
-
-    setState(() {
-      _appliedCoupon = null;
-      _discountAmount = 0;
-    });
-
-    if (showMessage) {
-      _showMessage(
-        'Coupon removed.',
-      );
-    }
-  }
-
-  // =========================================================
-  // DOUBLE CONVERTER
-  // =========================================================
-
-  double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
+      return false;
     }
 
-    return double.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
+    return true;
   }
 
-  // =========================================================
-  // GET SELLER INFORMATION
-  // =========================================================
-
-  Future<Map<String, dynamic>?>
-      _getProductSellerData(
-    String productId,
-  ) async {
-    try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('products')
-              .doc(productId)
-              .get();
-
-      if (!snapshot.exists) {
-        return null;
-      }
-
-      final data =
-          snapshot.data();
-
-      if (data == null) {
-        return null;
-      }
-
-      final sellerId =
-          data['sellerId']?.toString();
-
-      if (sellerId == null ||
-          sellerId.isEmpty) {
-        return null;
-      }
-
-      return {
-        'sellerId': sellerId,
-        'sellerCode':
-            data['sellerCode']
-                    ?.toString() ??
-                '',
-        'sellerEmail':
-            data['sellerEmail']
-                    ?.toString() ??
-                '',
-      };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // =========================================================
-  // GET SELLER INFORMATION FOR NORMAL ITEM
-  // =========================================================
-
-  Future<Map<String, dynamic>>
-      _getSellerInformationForNormalItem(
-    CheckoutItem item,
-  ) async {
-    final sellerData =
-        await _getProductSellerData(
-      item.productId,
-    );
-
-    if (sellerData == null) {
-      throw Exception(
-        'Seller information not found for '
-        '${item.productName}.',
-      );
-    }
-
-    return sellerData;
-  }
-
-  // =========================================================
-  // RESELLER SELLING TOTAL
-  // =========================================================
-
-  double _resellerSellingTotal(
-    List<CheckoutItem> items,
-  ) {
-    double total = 0;
-
-    for (final item in items) {
-      total += item.total;
-    }
-
-    return total;
-  }
-
-  // =========================================================
-  // RESELLER SUPPLIER TOTAL
-  // =========================================================
-
-  
-
-  // =========================================================
+  // ============================================================
   // PLACE ORDER
-  // =========================================================
+  // ============================================================
 
   Future<void> _placeOrder() async {
     if (_placingOrder) return;
 
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
-      _showMessage(
-        'Please login before placing an order.',
-      );
+      _showMessage('Please login first.');
       return;
     }
 
-    if (!_validateForm()) return;
+    if (widget.items.isEmpty) {
+      _showMessage('Your cart is empty.');
+      return;
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_selectedAddress == null) {
+      _showMessage(
+        'Please select a delivery address.',
+      );
+      return;
+    }
 
     setState(() {
       _placingOrder = true;
     });
 
     try {
-      // =====================================================
-      // RECHECK COUPON
-      // =====================================================
-
-      if (_couponCode != null &&
-          _appliedCoupon != null) {
+      // Revalidate coupon before placing order.
+      if (_couponController.text.trim().isNotEmpty) {
         await _checkCoupon();
 
-        if (_appliedCoupon == null) {
+        if (_couponController.text.trim().isNotEmpty &&
+            _couponCode == null) {
           return;
         }
       }
 
-      final firestore =
-          FirebaseFirestore.instance;
+      // Wallet balance is checked for UX only.
+      // Actual deduction happens securely on Cloud Functions.
+      if (_paymentMethod == 'BuyNova Wallet') {
+        final enough =
+            await _validateWalletBeforeOrder();
 
-      final allItems =
-          widget.checkoutItems;
-
-      final normalItems =
-          allItems
-              .where(
-                (item) =>
-                    !item.isResellerProduct,
-              )
-              .toList();
-
-      final resellerItems =
-          allItems
-              .where(
-                (item) =>
-                    item.isResellerProduct,
-              )
-              .toList();
-
-      // =====================================================
-      // SELLER INFORMATION FOR NORMAL PRODUCTS
-      // =====================================================
-
-      final Map<String,
-              Map<String, dynamic>>
-          sellerInformation = {};
-
-      for (final item in normalItems) {
-        final sellerData =
-            await _getSellerInformationForNormalItem(
-          item,
-        );
-
-        sellerInformation[item.productId] =
-            sellerData;
-      }
-
-      // =====================================================
-      // SELLER INFORMATION FOR RESELLER PRODUCTS
-      // =====================================================
-
-      final Map<String,
-              Map<String, dynamic>>
-          resellerSellerInformation = {};
-
-      for (final item in resellerItems) {
-        final sellerId =
-            item.sellerId?.trim();
-
-        if (sellerId == null ||
-            sellerId.isEmpty) {
-          throw Exception(
-            'Seller information missing for '
-            '${item.productName}.',
-          );
-        }
-
-        resellerSellerInformation[
-            sellerId] = {
-          'sellerId': sellerId,
-        };
-      }
-
-      // =====================================================
-      // ALL CUSTOMER ORDER ITEMS
-      //
-      // This keeps reseller products inside the main
-      // customer order too, so My Orders can see them.
-      // =====================================================
-
-      final List<Map<String, dynamic>>
-          allOrderItemsData = [];
-
-      for (final item in normalItems) {
-        final sellerData =
-            sellerInformation[item.productId]!;
-
-        allOrderItemsData.add({
-          'productId':
-              item.productId,
-          'productName':
-              item.productName,
-          'imageUrl':
-              item.imageUrl ?? '',
-          'price':
-              item.price,
-          'quantity':
-              item.quantity,
-          'total':
-              item.total,
-          'sellerId':
-              sellerData['sellerId'],
-          'sellerCode':
-              sellerData['sellerCode'],
-          'sellerEmail':
-              sellerData['sellerEmail'],
-          'isResellerProduct':
-              false,
-        });
-      }
-
-      for (final item in resellerItems) {
-        final sellerId =
-            item.sellerId!.trim();
-
-        final supplierPrice =
-            item.supplierPrice!;
-
-        final calculatedProfit =
-            item.price -
-                supplierPrice;
-
-        allOrderItemsData.add({
-          'productId':
-              item.productId,
-          'supplierProductId':
-              item.supplierProductId ??
-                  item.productId,
-          'productName':
-              item.productName,
-          'imageUrl':
-              item.imageUrl ?? '',
-          'price':
-              item.price,
-          'sellingPrice':
-              item.price,
-          'supplierPrice':
-              supplierPrice,
-          'quantity':
-              item.quantity,
-          'total':
-              item.total,
-          'sellerId':
-              sellerId,
-          'entrepreneurUid':
-              item.entrepreneurUid,
-          'profit':
-              calculatedProfit *
-                  item.quantity,
-          'isResellerProduct':
-              true,
-        });
-      }
-
-      // =====================================================
-      // SUBTOTALS
-      // =====================================================
-
-      double normalSubtotal = 0;
-
-      for (final item in normalItems) {
-        normalSubtotal += item.total;
-      }
-
-      final resellerSubtotal =
-          _resellerSellingTotal(
-        resellerItems,
-      );
-
-      final normalAndResellerSubtotal =
-          normalSubtotal +
-              resellerSubtotal;
-
-      // =====================================================
-      // DISCOUNT ALLOCATION
-      // =====================================================
-
-      double resellerDiscount = 0;
-
-      if (discountAmount > 0 &&
-          normalAndResellerSubtotal > 0) {
-        if (resellerSubtotal > 0) {
-          resellerDiscount =
-              discountAmount *
-                  resellerSubtotal /
-                  normalAndResellerSubtotal;
+        if (!enough) {
+          return;
         }
       }
 
-      // =====================================================
-      // COUPON
-      // =====================================================
-
-      final couponData =
-          _appliedCoupon;
-
-      final savedCouponCode =
-          couponData?['code']
-                  ?.toString() ??
-              '';
-
-      // =====================================================
-      // MAIN CUSTOMER ORDER
-      // =====================================================
+      // ----------------------------------------------------------
+      // MAIN ORDER
+      // ----------------------------------------------------------
 
       final orderRef =
-          firestore.collection('orders').doc();
+          _firestore.collection('orders').doc();
 
-      final customerOrderTotal =
-          normalAndResellerSubtotal +
-              deliveryFee -
-              discountAmount;
+      final orderId = orderRef.id;
 
-      final safeCustomerOrderTotal =
-          customerOrderTotal < 0
-              ? 0
-              : customerOrderTotal;
+      final List<Map<String, dynamic>> orderItems = [];
 
-      final batch =
-          firestore.batch();
+      for (final item in widget.items) {
+        orderItems.add({
+          'productId': item.id,
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+          'total': item.total,
+          'imageUrl': item.imageUrl,
+          'isResellerProduct': item.isResellerProduct,
+          'entrepreneurUid': item.entrepreneurUid,
+          'sellerId': item.sellerId,
+          'supplierProductId': item.supplierProductId,
+          'supplierPrice': item.supplierPrice,
+          'resellerProfit': item.resellerProfit,
+        });
+      }
 
-      batch.set(
-        orderRef,
-        {
-          'orderId':
-              orderRef.id,
-          'userId':
-              user.uid,
-          'userEmail':
-              user.email ?? '',
-          'customerName':
-              _nameController.text.trim(),
-          'phone':
-              _phoneController.text.trim(),
-          'address':
-              _addressController.text.trim(),
-          'addressId':
-              _selectedAddressId ?? '',
-          'items':
-              allOrderItemsData,
-          'itemCount':
-              allItems.length,
-          'totalQuantity':
-              totalQuantity,
-          'subtotal':
-              normalAndResellerSubtotal,
-          'deliveryFee':
-              deliveryFee,
-          'discount':
-              discountAmount,
-          'couponCode':
-              savedCouponCode,
-          'total':
-              safeCustomerOrderTotal,
-          'paymentMethod':
-              _paymentMethod,
-          'paymentStatus':
-              'pending',
-          'orderStatus':
-              'placed',
-          'currency':
-              'BDT',
-          'currencySymbol':
-              '৳',
-          'hasResellerProduct':
-              resellerItems.isNotEmpty,
-          'hasNormalProduct':
-              normalItems.isNotEmpty,
-          'createdAt':
-              FieldValue
-                  .serverTimestamp(),
-          'updatedAt':
-              FieldValue
-                  .serverTimestamp(),
-        },
-      );
+      final Map<String, dynamic> orderData = {
+        'orderId': orderId,
+        'userId': user.uid,
+        'customerId': user.uid,
+        'items': orderItems,
+        'subtotal': subtotal,
+        'deliveryFee': _deliveryFee,
+        'discount': _discount,
+        'total': grandTotal,
+        'grandTotal': grandTotal,
+        'currency': 'BDT',
+        'couponCode': _couponCode,
+        'paymentMethod': _paymentMethod,
+        'paymentStatus': 'pending',
+        'orderStatus': 'placed',
+        'address': _selectedAddress,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
-      // =====================================================
-      // NORMAL SELLER ORDERS
-      // =====================================================
+      // ----------------------------------------------------------
+      // GROUP SELLER ORDERS
+      // ----------------------------------------------------------
 
-      final Map<String,
-              List<CheckoutItem>>
-          sellerItems = {};
+      final Map<String, List<CheckoutItem>> sellerGroups = {};
 
-      final Map<String,
-              Map<String, dynamic>>
-          sellerDataMap = {};
+      for (final item in widget.items) {
+        if (item.isResellerProduct) continue;
 
-      for (final item in normalItems) {
-        final sellerData =
-            sellerInformation[item.productId]!;
+        String? sellerId = item.sellerId;
 
-        final sellerId =
-            sellerData['sellerId']
-                .toString();
+        if (sellerId == null || sellerId.isEmpty) {
+          try {
+            final productDoc = await _firestore
+                .collection('products')
+                .doc(item.id)
+                .get();
 
-        sellerItems.putIfAbsent(
+            if (productDoc.exists) {
+              final productData = productDoc.data();
+
+              sellerId =
+                  productData?['sellerId']?.toString() ??
+                  productData?['ownerId']?.toString();
+            }
+          } catch (_) {}
+        }
+
+        if (sellerId == null || sellerId.isEmpty) {
+          sellerId = 'unknown_seller';
+        }
+
+        sellerGroups.putIfAbsent(
           sellerId,
           () => [],
         );
 
-        sellerItems[sellerId]!.add(item);
-
-        sellerDataMap[sellerId] =
-            sellerData;
+        sellerGroups[sellerId]!.add(item);
       }
 
-      for (final sellerEntry
-          in sellerItems.entries) {
+      // ----------------------------------------------------------
+      // GROUP RESELLER ORDERS
+      // ----------------------------------------------------------
+
+      final Map<String, List<CheckoutItem>> resellerGroups = {};
+
+      for (final item in widget.items) {
+        if (!item.isResellerProduct) continue;
+
+        final entrepreneurUid =
+            item.entrepreneurUid ?? user.uid;
+
         final sellerId =
-            sellerEntry.key;
+            item.sellerId ?? 'unknown_seller';
 
-        final sellerProducts =
-            sellerEntry.value;
+        final groupKey =
+            '${entrepreneurUid}_$sellerId';
 
-        final sellerInfo =
-            sellerDataMap[sellerId]!;
+        resellerGroups.putIfAbsent(
+          groupKey,
+          () => [],
+        );
 
-        double sellerSubtotal = 0;
+        resellerGroups[groupKey]!.add(item);
+      }
 
-        int sellerQuantity = 0;
+      final WriteBatch batch =
+          _firestore.batch();
 
-        final List<
-                Map<String, dynamic>>
-            sellerItemsData = [];
+      // Main order
+      batch.set(
+        orderRef,
+        orderData,
+      );
 
-        for (final item
-            in sellerProducts) {
-          sellerSubtotal +=
-              item.total;
+      // ----------------------------------------------------------
+      // SELLER ORDERS
+      // ----------------------------------------------------------
 
-          sellerQuantity +=
-              item.quantity;
+      for (final entry in sellerGroups.entries) {
+        final sellerId = entry.key;
+        final items = entry.value;
 
-          sellerItemsData.add({
-            'productId':
-                item.productId,
-            'productName':
-                item.productName,
-            'imageUrl':
-                item.imageUrl ?? '',
-            'price':
-                item.price,
-            'quantity':
-                item.quantity,
-            'total':
-                item.total,
-          });
-        }
+        final sellerSubtotal = items.fold<double>(
+          0,
+          (sum, item) => sum + item.total,
+        );
 
         final sellerOrderRef =
-            firestore
-                .collection(
-                  'seller_orders',
-                )
-                .doc();
+            _firestore.collection('seller_orders').doc();
 
         batch.set(
           sellerOrderRef,
           {
-            'sellerOrderId':
-                sellerOrderRef.id,
-            'orderId':
-                orderRef.id,
-            'customerId':
-                user.uid,
-            'customerEmail':
-                user.email ?? '',
-            'customerName':
-                _nameController.text.trim(),
-            'phone':
-                _phoneController.text.trim(),
-            'address':
-                _addressController.text.trim(),
-            'addressId':
-                _selectedAddressId ?? '',
-            'sellerId':
-                sellerId,
-            'sellerCode':
-                sellerInfo[
-                        'sellerCode'] ??
-                    '',
-            'sellerEmail':
-                sellerInfo[
-                        'sellerEmail'] ??
-                    '',
-            'items':
-                sellerItemsData,
-            'itemCount':
-                sellerProducts.length,
-            'totalQuantity':
-                sellerQuantity,
-            'sellerSubtotal':
-                sellerSubtotal,
-            'couponCode':
-                savedCouponCode,
-            'paymentMethod':
-                _paymentMethod,
-            'paymentStatus':
-                'pending',
-            'orderStatus':
-                'placed',
-            'currency':
-                'BDT',
-            'currencySymbol':
-                '৳',
-            'createdAt':
-                FieldValue
-                    .serverTimestamp(),
-            'updatedAt':
-                FieldValue
-                    .serverTimestamp(),
+            'orderId': orderId,
+            'sellerOrderId': sellerOrderRef.id,
+            'sellerId': sellerId,
+            'buyerId': user.uid,
+            'userId': user.uid,
+            'items': items.map((item) {
+              return {
+                'productId': item.id,
+                'name': item.name,
+                'price': item.price,
+                'quantity': item.quantity,
+                'total': item.total,
+                'imageUrl': item.imageUrl,
+              };
+            }).toList(),
+            'subtotal': sellerSubtotal,
+            'currency': 'BDT',
+            'paymentMethod': _paymentMethod,
+            'paymentStatus': 'pending',
+            'orderStatus': 'placed',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           },
         );
       }
 
-      // =====================================================
-      // RESELLER ORDERS
-      //
-      // Group by Entrepreneur + Seller.
-      // =====================================================
+      // ----------------------------------------------------------
+      // RESELLER / ENTREPRENEUR ORDERS
+      // ----------------------------------------------------------
 
-      final Map<String,
-              List<CheckoutItem>>
-          resellerGroups = {};
+      for (final entry in resellerGroups.entries) {
+        final items = entry.value;
 
-      for (final item in resellerItems) {
-        final entrepreneurUid =
-            item.entrepreneurUid
-                ?.trim();
-
-        final sellerId =
-            item.sellerId?.trim();
-
-        if (entrepreneurUid == null ||
-            entrepreneurUid.isEmpty) {
-          throw Exception(
-            'Entrepreneur information is missing for '
-            '${item.productName}.',
-          );
-        }
-
-        if (sellerId == null ||
-            sellerId.isEmpty) {
-          throw Exception(
-            'Seller information is missing for '
-            '${item.productName}.',
-          );
-        }
-
-        final groupKey =
-            '$entrepreneurUid|$sellerId';
-
-        resellerGroups
-            .putIfAbsent(
-              groupKey,
-              () => [],
-            )
-            .add(item);
-      }
-
-      for (final entry
-          in resellerGroups.entries) {
-        final groupItems =
-            entry.value;
-
-        if (groupItems.isEmpty) {
-          continue;
-        }
+        if (items.isEmpty) continue;
 
         final entrepreneurUid =
-            groupItems.first
-                .entrepreneurUid!
-                .trim();
+            items.first.entrepreneurUid ?? user.uid;
 
         final sellerId =
-            groupItems.first
-                .sellerId!
-                .trim();
+            items.first.sellerId ?? 'unknown_seller';
 
-        double sellingTotal = 0;
+        final sellingTotal = items.fold<double>(
+          0,
+          (sum, item) => sum + item.total,
+        );
 
-        double supplierTotal = 0;
+        final supplierTotal = items.fold<double>(
+          0,
+          (sum, item) {
+            final supplierPrice =
+                item.supplierPrice ?? 0;
 
-        int resellerQuantity = 0;
+            return sum +
+                (supplierPrice * item.quantity);
+          },
+        );
 
-        final List<
-                Map<String, dynamic>>
-            resellerItemsData = [];
-
-        for (final item in groupItems) {
-          final supplierPrice =
-              item.supplierPrice;
-
-          if (supplierPrice == null) {
-            throw Exception(
-              'Supplier price is missing for '
-              '${item.productName}.',
-            );
-          }
-
-          final calculatedProfit =
-              item.price -
-                  supplierPrice;
-
-          if (calculatedProfit <= 0) {
-            throw Exception(
-              'Invalid reseller price for '
-              '${item.productName}.',
-            );
-          }
-
-          sellingTotal +=
-              item.total;
-
-          supplierTotal +=
-              item.supplierTotal;
-
-          resellerQuantity +=
-              item.quantity;
-
-          resellerItemsData.add({
-            'productId':
-                item.productId,
-            'supplierProductId':
-                item.supplierProductId ??
-                    item.productId,
-            'productName':
-                item.productName,
-            'imageUrl':
-                item.imageUrl ?? '',
-            'sellingPrice':
-                item.price,
-            'supplierPrice':
-                supplierPrice,
-            'quantity':
-                item.quantity,
-            'sellingTotal':
-                item.total,
-            'supplierTotal':
-                item.supplierTotal,
-            'profit':
-                calculatedProfit *
-                    item.quantity,
-            'sellerId':
-                sellerId,
-            'entrepreneurUid':
-                entrepreneurUid,
-          });
-        }
-
-        // -----------------------------------------------------
-        // ALLOCATE COUPON DISCOUNT TO THIS RESELLER GROUP
-        // -----------------------------------------------------
-
-        double groupDiscount = 0;
-
-        if (resellerSubtotal > 0 &&
-            resellerDiscount > 0) {
-          groupDiscount =
-              resellerDiscount *
-                  (sellingTotal /
-                      resellerSubtotal);
-        }
-
-        final adjustedSellingTotal =
-            sellingTotal -
-                groupDiscount;
-
-        final profit =
-            adjustedSellingTotal -
-                supplierTotal;
+        final resellerProfit =
+            sellingTotal - supplierTotal;
 
         final resellerOrderRef =
-            firestore
-                .collection(
-                  'reseller_orders',
-                )
-                .doc();
+            _firestore.collection('reseller_orders').doc();
 
         batch.set(
           resellerOrderRef,
           {
+            'orderId': orderId,
             'resellerOrderId':
                 resellerOrderRef.id,
-
-            // Customer
-            'customerId':
-                user.uid,
-            'customerEmail':
-                user.email ?? '',
-            'customerName':
-                _nameController.text.trim(),
-            'phone':
-                _phoneController.text.trim(),
-            'address':
-                _addressController.text.trim(),
-            'addressId':
-                _selectedAddressId ?? '',
-
-            // Entrepreneur ↔ Seller connection
             'entrepreneurUid':
                 entrepreneurUid,
-            'sellerId':
-                sellerId,
-
-            // Main customer order
-            'orderId':
-                orderRef.id,
-
-            // Products
-            'items':
-                resellerItemsData,
-            'itemCount':
-                groupItems.length,
-            'totalQuantity':
-                resellerQuantity,
-
-            // Financial
-            'sellingTotal':
-                sellingTotal,
-            'supplierTotal':
-                supplierTotal,
-            'discount':
-                groupDiscount,
-            'profit':
-                profit,
-            'deliveryFee':
-                0,
-            'total':
-                adjustedSellingTotal,
-
-            // Coupon
-            'couponCode':
-                savedCouponCode,
-
-            // Payment
-            'paymentMethod':
-                _paymentMethod,
-            'paymentStatus':
-                'pending',
-
-            // Order
-            'orderStatus':
-                'placed',
-
-            // Currency
-            'currency':
-                'BDT',
-            'currencySymbol':
-                '৳',
-
-            'createdAt':
-                FieldValue
-                    .serverTimestamp(),
-            'updatedAt':
-                FieldValue
-                    .serverTimestamp(),
+            'buyerId': user.uid,
+            'userId': user.uid,
+            'sellerId': sellerId,
+            'items': items.map((item) {
+              return {
+                'productId': item.id,
+                'name': item.name,
+                'price': item.price,
+                'quantity': item.quantity,
+                'total': item.total,
+                'imageUrl': item.imageUrl,
+                'supplierProductId':
+                    item.supplierProductId,
+                'supplierPrice':
+                    item.supplierPrice,
+                'resellerProfit':
+                    item.resellerProfit,
+              };
+            }).toList(),
+            'sellingTotal': sellingTotal,
+            'supplierTotal': supplierTotal,
+            'resellerProfit': resellerProfit,
+            'currency': 'BDT',
+            'paymentMethod': _paymentMethod,
+            'paymentStatus': 'pending',
+            'orderStatus': 'placed',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           },
         );
       }
 
-      // =====================================================
-      // COMMIT EVERYTHING
-      // =====================================================
+      // ----------------------------------------------------------
+      // COMMIT ORDER
+      // ----------------------------------------------------------
 
       await batch.commit();
 
-      // =====================================================
+      // ----------------------------------------------------------
+      // BUY NOVA WALLET PAYMENT
+      // ----------------------------------------------------------
+
+      if (_paymentMethod == 'BuyNova Wallet') {
+        final callable =
+            FirebaseFunctions.instanceFor(
+          region: 'asia-northeast3',
+        ).httpsCallable(
+          'placeWalletOrder',
+        );
+
+        final result = await callable.call({
+          'orderId': orderId,
+        });
+
+        final resultData =
+            Map<String, dynamic>.from(
+          result.data as Map,
+        );
+
+        final bool success =
+            resultData['success'] == true ||
+            resultData['alreadyPaid'] == true;
+
+        if (!success) {
+          throw Exception(
+            'Wallet payment could not be completed.',
+          );
+        }
+      }
+
+      // ----------------------------------------------------------
       // CLEAR CART
-      // =====================================================
+      // ----------------------------------------------------------
 
       if (widget.clearCartOnSuccess) {
         await _clearCart(user.uid);
@@ -1574,1416 +705,674 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (!mounted) return;
 
-      final successOrderId =
-          orderRef.id;
-
-      // =====================================================
-      // SUCCESS DIALOG
-      // =====================================================
-
-      await showDialog<void>(
+      await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) {
-          return AlertDialog(
-            shape:
-                RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(18),
-            ),
-            title: const Row(
-              children: [
-                Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
-                  size: 30,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Order Placed',
-                  ),
-                ),
-              ],
-            ),
-            content: Text(
-              'Your order has been placed successfully.\n\n'
-              'Order ID:\n$successOrderId',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child:
-                    const Text('OK'),
+        builder: (_) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: Colors.green,
               ),
+              SizedBox(width: 10),
+              Text('Order Placed'),
             ],
-          );
-        },
+          ),
+          content: Text(
+            _paymentMethod == 'BuyNova Wallet'
+                ? 'Your order has been placed and paid successfully using BuyNova Wallet.'
+                : 'Your order has been placed successfully.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
       );
 
       if (!mounted) return;
 
-      // =====================================================
-      // GO TO MY ORDERS
-      // =====================================================
-
-      Navigator.pushAndRemoveUntil(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              const MyOrdersPage(),
+          builder: (_) => const MyOrdersPage(),
         ),
-        (route) => route.isFirst,
       );
     } catch (e) {
       if (!mounted) return;
 
-      _showMessage(
-        'Could not place order.\n$e',
+      String message =
+          'Something went wrong. Please try again.';
+
+      final errorText = e.toString();
+
+      if (errorText.contains('insufficient') ||
+          errorText.contains('Insufficient')) {
+        message =
+            'Your BuyNova Wallet balance is not enough for this order.';
+      } else if (errorText.contains('unauthenticated')) {
+        message = 'Please login again.';
+      } else if (errorText.contains('not-found')) {
+        message = 'Order or Wallet service was not found.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+        ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _placingOrder = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _placingOrder = false;
+      });
     }
   }
 
-  // =========================================================
-  // MESSAGE
-  // =========================================================
+  // ============================================================
+  // CLEAR CART
+  // ============================================================
 
-  void _showMessage(
-    String message,
-  ) {
+  Future<void> _clearCart(String uid) async {
+    try {
+      final cartSnapshot = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('cart')
+          .get();
+
+      if (cartSnapshot.docs.isEmpty) {
+        return;
+      }
+
+      final batch = _firestore.batch();
+
+      for (final doc in cartSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+    } catch (_) {
+      // Order has already been successfully placed.
+      // Cart cleanup failure should not cancel the order.
+    }
+  }
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
+  void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        behavior:
-            SnackBarBehavior.floating,
       ),
     );
   }
 
-  // =========================================================
-  // PRODUCT IMAGE
-  // =========================================================
-
-  Widget _productImage(
-    CheckoutItem item,
-  ) {
-    final imageUrl =
-        item.imageUrl ?? '';
-
-    if (imageUrl.isEmpty) {
-      return Container(
-        width: 75,
-        height: 75,
-        decoration:
-            BoxDecoration(
-          color:
-              Colors.grey.shade200,
-          borderRadius:
-              BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.image_outlined,
-          color: Colors.grey,
-          size: 35,
-        ),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius:
-          BorderRadius.circular(10),
-      child: Image.network(
-        imageUrl,
-        width: 75,
-        height: 75,
-        fit: BoxFit.cover,
-        errorBuilder:
-            (context, error, stackTrace) {
-          return Container(
-            width: 75,
-            height: 75,
-            color:
-                Colors.grey.shade200,
-            child: const Icon(
-              Icons.image_outlined,
-              color: Colors.grey,
-              size: 35,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // =========================================================
-  // PRODUCT CARD
-  // =========================================================
-
-  Widget _productCard(
-    CheckoutItem item,
-  ) {
+  Widget _buildAddressCard() {
     return Card(
-      margin:
-          const EdgeInsets.only(
-        bottom: 10,
-      ),
-      elevation: 1,
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(14),
-      ),
       child: Padding(
-        padding:
-            const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            _productImage(item),
-
-            const SizedBox(width: 12),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.productName,
-                          maxLines: 2,
-                          overflow:
-                              TextOverflow.ellipsis,
-                          style:
-                              const TextStyle(
-                            fontSize: 16,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      if (item
-                          .isResellerProduct)
-                        Container(
-                          margin:
-                              const EdgeInsets.only(
-                            left: 6,
-                          ),
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal: 7,
-                            vertical: 4,
-                          ),
-                          decoration:
-                              BoxDecoration(
-                            color: Colors
-                                .blue
-                                .withValues(
-                              alpha: 0.08,
-                            ),
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              20,
-                            ),
-                          ),
-                          child:
-                              const Text(
-                            'Reseller',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.blue,
-                              fontSize:
-                                  10,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(
-                    height: 6,
-                  ),
-
-                  Text(
-                    '৳${item.price.toStringAsFixed(0)} × ${item.quantity}',
-                    style: TextStyle(
-                      color:
-                          Colors.grey.shade700,
-                      fontSize: 14,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 5,
-                  ),
-
-                  Text(
-                    '৳${item.total.toStringAsFixed(0)}',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.redAccent,
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  if (item
-                      .isResellerProduct) ...[
-                    const SizedBox(
-                      height: 6,
-                    ),
-                    Text(
-                      'Estimated Profit: '
-                      '৳${item.profitTotal.toStringAsFixed(0)}',
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.green,
-                        fontSize: 13,
-                        fontWeight:
-                            FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // ADDRESS CARD
-  // =========================================================
-
-  Widget _addressBookCard() {
-    if (_loadingAddresses) {
-      return Card(
-        elevation: 0,
-        shape:
-            RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(14),
-        ),
-        child: const Padding(
-          padding:
-              EdgeInsets.all(18),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 22,
-                height: 22,
-                child:
-                    CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                ),
-              ),
-              SizedBox(width: 12),
-              Text(
-                'Loading saved addresses...',
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_savedAddresses.isEmpty) {
-      return Card(
-        elevation: 0,
-        shape:
-            RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(14),
-          side: BorderSide(
-            color:
-                Colors.grey.shade300,
-          ),
-        ),
-        child: Padding(
-          padding:
-              const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(
-                    Icons.location_on_outlined,
-                    color:
-                        Colors.redAccent,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'No saved address',
-                      style:
-                          TextStyle(
-                        fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(
-                height: 8,
-              ),
-
-              Text(
-                'You can add an address to your Address Book for faster checkout.',
-                style: TextStyle(
-                  color:
-                      Colors.grey.shade700,
-                ),
-              ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              OutlinedButton.icon(
-                onPressed:
-                    _openAddressBook,
-                icon: const Icon(
-                  Icons
-                      .add_location_alt_outlined,
-                ),
-                label: const Text(
-                  'Add Address',
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      elevation: 0,
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(14),
-        side: BorderSide(
-          color:
-              Colors.grey.shade300,
-        ),
-      ),
-      child: Padding(
-        padding:
-            const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            RadioGroup<String>(
-              groupValue:
-                  _selectedAddressId,
-              onChanged:
-                  _selectAddressById,
-              child: Column(
-                children: [
-                  for (final address
-                      in _savedAddresses)
-                    _savedAddressTile(
-                      address,
-                    ),
-                ],
-              ),
-            ),
-
-            const Divider(
-              height: 20,
-            ),
-
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed:
-                        _openAddressBook,
-                    icon:
-                        const Icon(
-                      Icons
-                          .manage_accounts_outlined,
-                    ),
-                    label:
-                        const Text(
-                      'Manage Addresses',
-                    ),
-                  ),
-                ),
-
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed:
-                        _useManualAddress,
-                    icon:
-                        const Icon(
-                      Icons.edit_outlined,
-                    ),
-                    label:
-                        const Text(
-                      'Enter Manually',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // SAVED ADDRESS TILE
-  // =========================================================
-
-  Widget _savedAddressTile(
-    Map<String, dynamic> address,
-  ) {
-    final addressId =
-        address['id']?.toString() ?? '';
-
-    final isSelected =
-        _selectedAddressId ==
-            addressId;
-
-    final isDefault =
-        address['isDefault'] == true;
-
-    final name =
-        address['name']?.toString() ??
-            '';
-
-    final phone =
-        address['phone']?.toString() ??
-            '';
-
-    final fullAddress =
-        address['address']?.toString() ??
-            '';
-
-    return InkWell(
-      borderRadius:
-          BorderRadius.circular(12),
-      onTap: () {
-        _selectSavedAddress(address);
-      },
-      child: Container(
-        margin:
-            const EdgeInsets.only(
-          bottom: 8,
-        ),
-        padding:
-            const EdgeInsets.all(12),
-        decoration:
-            BoxDecoration(
-          color: isSelected
-              ? Colors.redAccent
-                  .withValues(
-                  alpha: 0.06,
-                )
-              : Colors.transparent,
-          borderRadius:
-              BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? Colors.redAccent
-                : Colors.grey.shade300,
-            width:
-                isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Radio<String>(
-              value: addressId,
-              activeColor:
-                  Colors.redAccent,
-            ),
-
-            const SizedBox(width: 4),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name.isEmpty
-                              ? 'Saved Address'
-                              : name,
-                          style:
-                              const TextStyle(
-                            fontSize: 15,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      if (isDefault) ...[
-                        const SizedBox(
-                          width: 7,
-                        ),
-                        Container(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
-                          decoration:
-                              BoxDecoration(
-                            color: Colors
-                                .green
-                                .withValues(
-                              alpha: 0.10,
-                            ),
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              20,
-                            ),
-                          ),
-                          child:
-                              const Text(
-                            'Default',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.green,
-                              fontSize:
-                                  11,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-
-                  if (phone.isNotEmpty) ...[
-                    const SizedBox(
-                      height: 4,
-                    ),
-                    Text(
-                      phone,
-                      style: TextStyle(
-                        color:
-                            Colors.grey.shade700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-
-                  if (fullAddress.isNotEmpty) ...[
-                    const SizedBox(
-                      height: 4,
-                    ),
-                    Text(
-                      fullAddress,
-                      maxLines: 3,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color:
-                            Colors.grey.shade700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // COUPON CARD
-  // =========================================================
-
-  Widget _couponCard() {
-    final applied =
-        _appliedCoupon != null;
-
-    return Card(
-      elevation: 0,
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(14),
-        side: BorderSide(
-          color:
-              Colors.grey.shade300,
-        ),
-      ),
-      child: Padding(
-        padding:
-            const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(
-                  Icons.local_offer_outlined,
-                  color:
-                      Colors.redAccent,
-                ),
+                const Icon(Icons.location_on),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Coupon',
+                    'Delivery Address',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                if (applied)
-                  TextButton(
-                    onPressed:
-                        _placingOrder
-                            ? null
-                            : () =>
-                                _removeCoupon(),
-                    child:
-                        const Text(
-                      'Remove',
-                    ),
+                TextButton(
+                  onPressed: _openAddressBook,
+                  child: Text(
+                    _selectedAddress == null
+                        ? 'Add'
+                        : 'Change',
                   ),
+                ),
               ],
             ),
-
-            const SizedBox(height: 10),
-
-            if (applied)
-              Container(
-                width:
-                    double.infinity,
-                padding:
-                    const EdgeInsets.all(
-                  12,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color: Colors.green
-                      .withValues(
-                    alpha: 0.08,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    12,
-                  ),
-                  border: Border.all(
-                    color: Colors.green
-                        .withValues(
-                      alpha: 0.30,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.check_circle,
-                      color:
-                          Colors.green,
-                    ),
-                    const SizedBox(
-                        width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          Text(
-                            _couponCode ??
-                                '',
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                              color:
-                                  Colors.green,
-                            ),
-                          ),
-                          const SizedBox(
-                              height: 3),
-                          Text(
-                            'You saved '
-                            '৳${discountAmount.toStringAsFixed(0)}',
-                            style:
-                                const TextStyle(
-                              color:
-                                  Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 8),
+            if (_selectedAddress == null)
+              const Text(
+                'No delivery address selected.',
+                style: TextStyle(
+                  color: Colors.grey,
                 ),
               )
             else
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller:
-                          _couponController,
-                      textCapitalization:
-                          TextCapitalization
-                              .characters,
-                      enabled:
-                          !_checkingCoupon &&
-                              !_placingOrder,
-                      decoration:
-                          InputDecoration(
-                        hintText:
-                            'Enter coupon code',
-                        prefixIcon:
-                            const Icon(
-                          Icons
-                              .confirmation_number_outlined,
-                        ),
-                        border:
-                            OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            12,
-                          ),
-                        ),
-                      ),
-                      onChanged: (_) {
-                        if (_appliedCoupon !=
-                            null) {
-                          _removeCoupon(
-                            showMessage:
-                                false,
-                          );
-                        }
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(
-                    width: 8,
-                  ),
-
-                  SizedBox(
-                    height: 52,
-                    child:
-                        ElevatedButton(
-                      onPressed:
-                          _checkingCoupon ||
-                                  _placingOrder
-                              ? null
-                              : _checkCoupon,
-                      style:
-                          ElevatedButton
-                              .styleFrom(
-                        backgroundColor:
-                            Colors
-                                .redAccent,
-                        foregroundColor:
-                            Colors.white,
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            12,
-                          ),
-                        ),
-                      ),
-                      child:
-                          _checkingCoupon
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child:
-                                      CircularProgressIndicator(
-                                    strokeWidth:
-                                        2,
-                                    color:
-                                        Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Apply',
-                                ),
-                    ),
-                  ),
-                ],
-              ),
+              _buildAddressText(),
           ],
         ),
       ),
     );
   }
 
-  // =========================================================
-  // SUMMARY ROW
-  // =========================================================
+  Widget _buildAddressText() {
+    final address = _selectedAddress!;
 
-  Widget _summaryRow(
-    String title,
-    String value, {
-    bool bold = false,
-    Color? valueColor,
-  }) {
-    return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 5,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: bold
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          ),
+    final name =
+        address['name']?.toString() ?? '';
+
+    final phone =
+        address['phone']?.toString() ?? '';
+
+    final line1 =
+        address['address']?.toString() ??
+        address['addressLine1']?.toString() ??
+        '';
+
+    final city =
+        address['city']?.toString() ?? '';
+
+    final postalCode =
+        address['postalCode']?.toString() ??
+        address['zipCode']?.toString() ??
+        '';
+
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        if (name.isNotEmpty)
           Text(
-            value,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: bold
-                  ? FontWeight.bold
-                  : FontWeight.normal,
-              color: valueColor,
+            name,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
             ),
           ),
-        ],
-      ),
+        if (phone.isNotEmpty)
+          Padding(
+            padding:
+                const EdgeInsets.only(top: 3),
+            child: Text(phone),
+          ),
+        if (line1.isNotEmpty)
+          Padding(
+            padding:
+                const EdgeInsets.only(top: 3),
+            child: Text(line1),
+          ),
+        if (city.isNotEmpty ||
+            postalCode.isNotEmpty)
+          Padding(
+            padding:
+                const EdgeInsets.only(top: 3),
+            child: Text(
+              '$city ${postalCode.isNotEmpty ? postalCode : ''}'
+                  .trim(),
+            ),
+          ),
+      ],
     );
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final items =
-        widget.checkoutItems;
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor:
-            Colors.redAccent,
-        foregroundColor:
-            Colors.white,
-        title: const Text(
-          'Checkout',
-          style: TextStyle(
-            fontWeight:
-                FontWeight.bold,
-          ),
-        ),
-      ),
-
-      body: items.isEmpty
-          ? const Center(
-              child: Text(
-                'No products selected.',
-                style: TextStyle(
-                  fontSize: 17,
-                  color:
-                      Colors.grey,
-                ),
+  Widget _buildPaymentSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Payment Method',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
-            )
-          : SingleChildScrollView(
-              padding:
-                  const EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                120,
-              ),
+            ),
+            const SizedBox(height: 10),
+
+            RadioGroup<String>(
+              groupValue: _paymentMethod,
+              onChanged: (value) async {
+                if (value == null) return;
+
+                setState(() {
+                  _paymentMethod = value;
+                });
+
+                if (value == 'BuyNova Wallet') {
+                  await _loadWalletBalance();
+                }
+              },
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Order Items',
-                    style:
-                        TextStyle(
-                      fontSize: 20,
-                      fontWeight:
-                          FontWeight.bold,
+                  RadioListTile<String>(
+                    value: 'Cash on Delivery',
+                    title: const Text(
+                      'Cash on Delivery',
+                    ),
+                    subtitle: const Text(
+                      'Pay when your order arrives.',
+                    ),
+                    secondary: const Icon(
+                      Icons.local_shipping,
                     ),
                   ),
-
-                  const SizedBox(
-                    height: 10,
-                  ),
-
-                  ...items.map(
-                    (item) =>
-                        _productCard(item),
-                  ),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  const Text(
-                    'Delivery Information',
-                    style:
-                        TextStyle(
-                      fontSize: 20,
-                      fontWeight:
-                          FontWeight.bold,
+                  RadioListTile<String>(
+                    value: 'BuyNova Wallet',
+                    title: const Text(
+                      'BuyNova Wallet',
                     ),
-                  ),
-
-                  const SizedBox(
-                    height: 12,
-                  ),
-
-                  const Text(
-                    'Saved Addresses',
-                    style:
-                        TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 8,
-                  ),
-
-                  _addressBookCard(),
-
-                  const SizedBox(
-                    height: 14,
-                  ),
-
-                  TextField(
-                    controller:
-                        _nameController,
-                    textInputAction:
-                        TextInputAction
-                            .next,
-                    decoration:
-                        InputDecoration(
-                      labelText:
-                          'Full Name',
-                      hintText:
-                          'Enter your full name',
-                      prefixIcon:
-                          const Icon(
-                        Icons.person,
-                      ),
-                      border:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          12,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 12,
-                  ),
-
-                  TextField(
-                    controller:
-                        _phoneController,
-                    keyboardType:
-                        TextInputType.phone,
-                    textInputAction:
-                        TextInputAction
-                            .next,
-                    decoration:
-                        InputDecoration(
-                      labelText:
-                          'Phone Number',
-                      hintText:
-                          'Enter your phone number',
-                      prefixIcon:
-                          const Icon(
-                        Icons.phone,
-                      ),
-                      border:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          12,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 12,
-                  ),
-
-                  TextField(
-                    controller:
-                        _addressController,
-                    keyboardType:
-                        TextInputType
-                            .streetAddress,
-                    maxLines: 3,
-                    decoration:
-                        InputDecoration(
-                      labelText:
-                          'Delivery Address',
-                      hintText:
-                          'Enter your complete delivery address',
-                      prefixIcon:
-                          const Padding(
-                        padding:
-                            EdgeInsets.only(
-                          bottom: 45,
-                        ),
-                        child: Icon(
-                          Icons
-                              .location_on,
-                        ),
-                      ),
-                      border:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          12,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  const Text(
-                    'Payment Method',
-                    style:
-                        TextStyle(
-                      fontSize: 20,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 10,
-                  ),
-
-                  Card(
-                    elevation: 0,
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        12,
-                      ),
-                      side: BorderSide(
-                        color: Colors
-                            .grey
-                            .shade300,
-                      ),
-                    ),
-                    child:
-                        RadioGroup<String>(
-                      groupValue:
-                          _paymentMethod,
-                      onChanged:
-                          (value) {
-                        if (value ==
-                            null) {
-                          return;
-                        }
-
-                        setState(() {
-                          _paymentMethod =
-                              value;
-                        });
-                      },
-                      child:
-                          const RadioListTile<
-                              String>(
-                        value:
-                            'Cash on Delivery',
-                        title: Text(
-                          'Cash on Delivery',
-                          style:
-                              TextStyle(
-                            fontWeight:
-                                FontWeight
-                                    .w600,
-                          ),
-                        ),
-                        subtitle:
-                            Text(
-                          'Pay when your order arrives',
-                        ),
-                        secondary:
-                            Icon(
-                          Icons
-                              .payments_outlined,
-                          color:
-                              Colors
-                                  .redAccent,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  _couponCard(),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  const Text(
-                    'Order Summary',
-                    style:
-                        TextStyle(
-                      fontSize: 20,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 10,
-                  ),
-
-                  Card(
-                    child:
-                        Padding(
-                      padding:
-                          const EdgeInsets
-                              .all(
-                        16,
-                      ),
-                      child:
-                          Column(
-                        children: [
-                          _summaryRow(
-                            'Products',
-                            '${items.length}',
-                          ),
-
-                          _summaryRow(
-                            'Total Quantity',
-                            '$totalQuantity',
-                          ),
-
-                          _summaryRow(
-                            'Subtotal',
-                            '৳${subtotal.toStringAsFixed(0)}',
-                          ),
-
-                          _summaryRow(
-                            'Delivery Fee',
-                            '৳${deliveryFee.toStringAsFixed(0)}',
-                          ),
-
-                          if (discountAmount >
-                              0)
-                            _summaryRow(
-                              'Coupon Discount',
-                              '-৳${discountAmount.toStringAsFixed(0)}',
-                              valueColor:
+                    subtitle: _loadingWalletBalance
+                        ? const Text(
+                            'Checking wallet balance...',
+                          )
+                        : Text(
+                            'Balance: '
+                            '৳${_walletBalance.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color:
                                   Colors.green,
+                              fontWeight:
+                                  FontWeight.w600,
                             ),
-
-                          const Divider(
-                            height: 20,
                           ),
-
-                          _summaryRow(
-                            'Total',
-                            '৳${grandTotal.toStringAsFixed(0)}',
-                            bold:
-                                true,
-                            valueColor:
-                                Colors
-                                    .redAccent,
-                          ),
-                        ],
-                      ),
+                    secondary: const Icon(
+                      Icons.account_balance_wallet,
                     ),
                   ),
                 ],
               ),
             ),
 
-      // =======================================================
-      // PLACE ORDER BUTTON
-      // =======================================================
-
-      bottomNavigationBar:
-          items.isEmpty
-              ? null
-              : SafeArea(
-                  child:
-                      Container(
-                    padding:
-                        const EdgeInsets
-                            .all(
-                      12,
-                    ),
-                    decoration:
-                        const BoxDecoration(
+            if (_paymentMethod ==
+                'BuyNova Wallet') ...[
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius:
+                      BorderRadius.circular(12),
+                  color: _walletHasEnoughBalance
+                      ? Colors.green
+                          .withValues(alpha: 0.08)
+                      : Colors.red
+                          .withValues(alpha: 0.08),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _walletHasEnoughBalance
+                          ? Icons.check_circle
+                          : Icons.warning,
                       color:
-                          Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              Colors.black12,
-                          blurRadius:
-                              8,
-                          offset:
-                              Offset(
-                            0,
-                            -2,
-                          ),
-                        ),
-                      ],
+                          _walletHasEnoughBalance
+                              ? Colors.green
+                              : Colors.red,
                     ),
-                    child:
-                        SizedBox(
-                      width:
-                          double.infinity,
-                      height:
-                          54,
-                      child:
-                          ElevatedButton(
-                        onPressed:
-                            _placingOrder
-                                ? null
-                                : _placeOrder,
-                        style:
-                            ElevatedButton
-                                .styleFrom(
-                          backgroundColor:
-                              Colors
-                                  .redAccent,
-                          foregroundColor:
-                              Colors.white,
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              12,
-                            ),
-                          ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _walletHasEnoughBalance
+                            ? 'Wallet balance is enough for this order.'
+                            : 'Insufficient Wallet balance. Please add money before paying.',
+                        style: TextStyle(
+                          color:
+                              _walletHasEnoughBalance
+                                  ? Colors.green
+                                  : Colors.red,
+                          fontWeight:
+                              FontWeight.w600,
                         ),
-                        child:
-                            _placingOrder
-                                ? const SizedBox(
-                                    width:
-                                        25,
-                                    height:
-                                        25,
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth:
-                                          2.5,
-                                      color:
-                                          Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    'Place Order • ৳${grandTotal.toStringAsFixed(0)}',
-                                    style:
-                                        const TextStyle(
-                                      fontSize:
-                                          16,
-                                      fontWeight:
-                                          FontWeight.bold,
-                                    ),
-                                  ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
-  // =========================================================
-  // DISPOSE
-  // =========================================================
+  Widget _buildCouponSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Coupon',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller:
+                        _couponController,
+                    textCapitalization:
+                        TextCapitalization.characters,
+                    decoration:
+                        const InputDecoration(
+                      hintText:
+                          'Enter coupon code',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed:
+                      _checkingCoupon
+                          ? null
+                          : _checkCoupon,
+                  child: _checkingCoupon
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Apply'),
+                ),
+              ],
+            ),
+            if (_couponMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _couponMessage!,
+                style: TextStyle(
+                  color:
+                      _discount > 0
+                          ? Colors.green
+                          : Colors.red,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderItems() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Order Items',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...widget.items.map(
+              (item) {
+                return Padding(
+                  padding:
+                      const EdgeInsets.only(
+                    bottom: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration:
+                            BoxDecoration(
+                          borderRadius:
+                              BorderRadius.circular(
+                            10,
+                          ),
+                          color:
+                              Colors.grey.shade200,
+                        ),
+                        child: item.imageUrl !=
+                                    null &&
+                                item.imageUrl!
+                                    .isNotEmpty
+                            ? ClipRRect(
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  10,
+                                ),
+                                child:
+                                    Image.network(
+                                  item.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (_, __, ___) {
+                                    return const Icon(
+                                      Icons
+                                          .image_not_supported,
+                                    );
+                                  },
+                                ),
+                              )
+                            : const Icon(
+                                Icons.shopping_bag,
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            Text(
+                              item.name,
+                              maxLines: 2,
+                              overflow:
+                                  TextOverflow
+                                      .ellipsis,
+                              style:
+                                  const TextStyle(
+                                fontWeight:
+                                    FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(
+                              height: 4,
+                            ),
+                            Text(
+                              'Qty: ${item.quantity}',
+                              style:
+                                  const TextStyle(
+                                color:
+                                    Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '৳${item.total.toStringAsFixed(2)}',
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummary() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _summaryRow(
+              'Subtotal',
+              subtotal,
+            ),
+            const SizedBox(height: 8),
+            _summaryRow(
+              'Delivery Fee',
+              _deliveryFee,
+            ),
+            if (_discount > 0) ...[
+              const SizedBox(height: 8),
+              _summaryRow(
+                'Discount',
+                -_discount,
+                color: Colors.green,
+              ),
+            ],
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Grand Total',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '৳${grandTotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryRow(
+    String title,
+    double value, {
+    Color? color,
+  }) {
+    final prefix = value < 0 ? '- ' : '';
+
+    return Row(
+      mainAxisAlignment:
+          MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title),
+        Text(
+          '$prefix৳${value.abs().toStringAsFixed(2)}',
+          style: TextStyle(
+            color: color,
+            fontWeight:
+                color != null
+                    ? FontWeight.w600
+                    : null,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
-    _couponController.dispose();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Checkout'),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
+            _buildAddressCard(),
+            const SizedBox(height: 12),
 
-    super.dispose();
+            _buildOrderItems(),
+            const SizedBox(height: 12),
+
+            _buildCouponSection(),
+            const SizedBox(height: 12),
+
+            _buildPaymentSection(),
+            const SizedBox(height: 12),
+
+            _buildSummary(),
+            const SizedBox(height: 20),
+
+            SizedBox(
+              height: 54,
+              child: ElevatedButton(
+                onPressed:
+                    _placingOrder
+                        ? null
+                        : _placeOrder,
+                child: _placingOrder
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        _paymentMethod ==
+                                'BuyNova Wallet'
+                            ? 'Pay ৳${grandTotal.toStringAsFixed(2)} with Wallet'
+                            : 'Place Order',
+                        style:
+                            const TextStyle(
+                          fontSize: 16,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
+
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
   }
 }
