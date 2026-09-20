@@ -70,7 +70,7 @@ class CartItem {
 
 class CartService {
   // BuyNova Bangladesh currency
-  static const double deliveryFeeAmount = 3000;
+  static const double deliveryFeeAmount = 60;
 
   static CollectionReference<Map<String, dynamic>>
       _cartReference(String uid) {
