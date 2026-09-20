@@ -367,9 +367,9 @@ class _CartPageState
     final checkoutItems =
         cartItems.map((item) {
       return CheckoutItem(
-        productId:
+        id:
             item.id,
-        productName:
+       name:
             item.name,
         price:
             item.price,
