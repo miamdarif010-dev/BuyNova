@@ -65,25 +65,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _placingOrder = false;
   bool _checkingCoupon = false;
 
-  bool get _isInsideDhaka {
-    final address = _selectedAddress;
-    if (address == null) return false;
-    final zone = address['deliveryZone']?.toString() ?? '';
-    if (zone == 'inside_dhaka') return true;
-    if (zone == 'outside_dhaka') return false;
-
-    final text =
-        '${address['city'] ?? ''} ${address['district'] ?? ''}'
-            .toLowerCase();
-
-    return text.contains('dhaka') || text.contains('ঢাকা');
-  }
-
-  // Inside Dhaka: ৳60, outside Dhaka: ৳120
-  double get _deliveryFee {
-    if (_selectedAddress == null) return 60;
-    return _isInsideDhaka ? 60 : 120;
-  }
   double _discount = 0;
 
   String? _couponCode;
@@ -93,6 +74,42 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _loadingWalletBalance = false;
 
   Map<String, dynamic>? _selectedAddress;
+
+  // ============================================================
+  // DELIVERY FEE
+  // Inside Dhaka: à§³60, Outside Dhaka: à§³120
+  // ============================================================
+
+  String get _deliveryZone {
+    return _selectedAddress?['deliveryZone']?.toString() ?? '';
+  }
+
+  bool get _hasDeliveryZone {
+    return _deliveryZone == 'inside_dhaka' ||
+        _deliveryZone == 'outside_dhaka';
+  }
+
+  bool get _isInsideDhaka {
+    final address = _selectedAddress;
+
+    if (address == null) return false;
+
+    final zone = _deliveryZone;
+
+    if (zone == 'inside_dhaka') return true;
+    if (zone == 'outside_dhaka') return false;
+
+    final text =
+        '${address['city'] ?? ''} ${address['district'] ?? ''}'
+            .toLowerCase();
+
+    return text.contains('dhaka') || text.contains('à¦¢à¦¾à¦•à¦¾');
+  }
+
+  double get _deliveryFee {
+    if (_selectedAddress == null) return 60;
+    return _isInsideDhaka ? 60 : 120;
+  }
 
   double get subtotal {
     return widget.items.fold(
@@ -189,24 +206,41 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (user == null) return;
 
     try {
-      final snapshot = await _firestore
+      final addressesRef = _firestore
           .collection('users')
           .doc(user.uid)
-          .collection('addresses')
+          .collection('addresses');
+
+      // 1) Default address
+      final defaultSnapshot = await addressesRef
           .where('isDefault', isEqualTo: true)
           .limit(1)
           .get();
 
-      if (snapshot.docs.isNotEmpty) {
+      if (defaultSnapshot.docs.isNotEmpty) {
         if (!mounted) return;
 
         setState(() {
-          _selectedAddress = snapshot.docs.first.data();
+          _selectedAddress = defaultSnapshot.docs.first.data();
         });
 
         return;
       }
 
+      // 2) Any saved address
+      final anySnapshot = await addressesRef.limit(1).get();
+
+      if (anySnapshot.docs.isNotEmpty) {
+        if (!mounted) return;
+
+        setState(() {
+          _selectedAddress = anySnapshot.docs.first.data();
+        });
+
+        return;
+      }
+
+      // 3) Old single address saved in the user document
       final userDoc = await _firestore
           .collection('users')
           .doc(user.uid)
@@ -220,25 +254,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (address is Map) {
         if (!mounted) return;
-final anyAddress = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('addresses')
-          .limit(1)
-          .get();
-
-      if (anyAddress.docs.isNotEmpty) {
-        if (!mounted) return;
 
         setState(() {
-          _selectedAddress = anyAddress.docs.first.data();
-        });
-
-        return;
-      }
-        setState(() {
-          _selectedAddress =
-              Map<String, dynamic>.from(address);
+          _selectedAddress = Map<String, dynamic>.from(address);
         });
       }
     } catch (_) {}
@@ -331,7 +349,7 @@ final anyAddress = await _firestore
         _discount = calculatedDiscount;
         _couponCode = code;
         _couponMessage =
-            'Coupon applied. Discount: ৳${calculatedDiscount.toStringAsFixed(2)}';
+            'Coupon applied. Discount: à§³${calculatedDiscount.toStringAsFixed(2)}';
       });
     } catch (e) {
       setState(() {
@@ -365,9 +383,9 @@ final anyAddress = await _firestore
           title: const Text('Insufficient Wallet Balance'),
           content: Text(
             'Your BuyNova Wallet balance is '
-            '৳${_walletBalance.toStringAsFixed(2)}, '
+            'à§³${_walletBalance.toStringAsFixed(2)}, '
             'but this order requires '
-            '৳${grandTotal.toStringAsFixed(2)}.',
+            'à§³${grandTotal.toStringAsFixed(2)}.',
           ),
           actions: [
             TextButton(
@@ -410,6 +428,14 @@ final anyAddress = await _firestore
     if (_selectedAddress == null) {
       _showMessage(
         'Please select a delivery address.',
+      );
+      return;
+    }
+
+    if (!_hasDeliveryZone) {
+      _showMessage(
+        'Please edit your address and choose '
+        'Inside Dhaka or Outside Dhaka.',
       );
       return;
     }
@@ -475,6 +501,7 @@ final anyAddress = await _firestore
         'items': orderItems,
         'subtotal': subtotal,
         'deliveryFee': _deliveryFee,
+        'deliveryZone': _deliveryZone,
         'discount': _discount,
         'total': grandTotal,
         'grandTotal': grandTotal,
@@ -658,6 +685,13 @@ final anyAddress = await _firestore
             'customerId': user.uid,
             'userId': user.uid,
             'sellerId': sellerId,
+            'customerName':
+                _selectedAddress?['name']?.toString() ?? '',
+            'customerPhone':
+                _selectedAddress?['phone']?.toString() ?? '',
+            'address':
+                _selectedAddress?['address']?.toString() ?? '',
+            'deliveryZone': _deliveryZone,
             'items': items.map((item) {
               return {
                 'productId': item.id,
@@ -677,6 +711,7 @@ final anyAddress = await _firestore
             'sellingTotal': sellingTotal,
             'supplierTotal': supplierTotal,
             'resellerProfit': resellerProfit,
+            'profit': resellerProfit,
             'currency': 'BDT',
             'paymentMethod': _paymentMethod,
             'paymentStatus': 'pending',
@@ -918,6 +953,12 @@ final anyAddress = await _firestore
         address['zipCode']?.toString() ??
         '';
 
+    final zoneText = _deliveryZone == 'inside_dhaka'
+        ? 'Inside Dhaka'
+        : _deliveryZone == 'outside_dhaka'
+            ? 'Outside Dhaka'
+            : '';
+
     return Column(
       crossAxisAlignment:
           CrossAxisAlignment.start,
@@ -951,6 +992,21 @@ final anyAddress = await _firestore
                   .trim(),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Text(
+            zoneText.isEmpty
+                ? 'Delivery area not set. Tap Change, then edit '
+                    'this address and choose Inside/Outside Dhaka.'
+                : zoneText,
+            style: TextStyle(
+              fontSize: 12,
+              color: zoneText.isEmpty
+                  ? Colors.orange.shade800
+                  : Colors.grey.shade600,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1010,7 +1066,7 @@ final anyAddress = await _firestore
                           )
                         : Text(
                             'Balance: '
-                            '৳${_walletBalance.toStringAsFixed(2)}',
+                            'à§³${_walletBalance.toStringAsFixed(2)}',
                             style: TextStyle(
                               color:
                                   Colors.green,
@@ -1247,7 +1303,7 @@ final anyAddress = await _firestore
                         ),
                       ),
                       Text(
-                        '৳${item.total.toStringAsFixed(2)}',
+                        'à§³${item.total.toStringAsFixed(2)}',
                         style:
                             const TextStyle(
                           fontWeight:
@@ -1277,7 +1333,9 @@ final anyAddress = await _firestore
             ),
             const SizedBox(height: 8),
             _summaryRow(
-              'Delivery Fee',
+              _hasDeliveryZone
+                  ? 'Delivery Fee (${_isInsideDhaka ? 'Inside' : 'Outside'} Dhaka)'
+                  : 'Delivery Fee',
               _deliveryFee,
             ),
             if (_discount > 0) ...[
@@ -1301,7 +1359,7 @@ final anyAddress = await _firestore
                   ),
                 ),
                 Text(
-                  '৳${grandTotal.toStringAsFixed(2)}',
+                  'à§³${grandTotal.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1328,7 +1386,7 @@ final anyAddress = await _firestore
       children: [
         Text(title),
         Text(
-          '$prefix৳${value.abs().toStringAsFixed(2)}',
+          '$prefixà§³${value.abs().toStringAsFixed(2)}',
           style: TextStyle(
             color: color,
             fontWeight:
@@ -1387,7 +1445,7 @@ final anyAddress = await _firestore
                     : Text(
                         _paymentMethod ==
                                 'BuyNova Wallet'
-                            ? 'Pay ৳${grandTotal.toStringAsFixed(2)} with Wallet'
+                            ? 'Pay à§³${grandTotal.toStringAsFixed(2)} with Wallet'
                             : 'Place Order',
                         style:
                             const TextStyle(
