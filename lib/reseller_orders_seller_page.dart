@@ -366,25 +366,15 @@ class ResellerOrdersSellerPage extends StatelessWidget {
                     ...items.map(
                       (item) {
                         final name =
-                            _text(
-                          item['productName'],
-                        ).isNotEmpty
-                                ? _text(
-                                    item[
-                                        'productName'],
-                                  )
-                                : _text(
-                                    item['name'],
-                                  );
+                            _text(item['productName']).isNotEmpty
+                                ? _text(item['productName'])
+                                : _text(item['name']);
 
-                        final quantity =
-                            _toInt(
-                          item['quantity'],
-                        final price =
-                            _toDouble(item['supplierPrice']);
+                        final quantity = _toInt(item['quantity']);
+
+                        final price = _toDouble(item['supplierPrice']);
 
                         final total = price * quantity;
-
                         return Card(
                           elevation: 0,
                           margin:
