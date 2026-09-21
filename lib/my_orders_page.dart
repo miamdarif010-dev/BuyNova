@@ -22,6 +22,10 @@ class MyOrdersPage extends StatelessWidget {
         return 'Delivered';
       case 'cancelled':
         return 'Cancelled';
+      case 'returned':
+        return 'Returned';
+      case 'refunded':
+        return 'Refunded';
       default:
         return 'Order Placed';
     }
@@ -41,6 +45,10 @@ class MyOrdersPage extends StatelessWidget {
         return Colors.green;
       case 'cancelled':
         return Colors.red;
+      case 'returned':
+        return Colors.brown;
+      case 'refunded':
+        return Colors.teal;
       default:
         return Colors.grey;
     }
@@ -228,7 +236,7 @@ class MyOrdersPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '₩${(price * quantity).toStringAsFixed(0)}',
+                  'à§³${(price * quantity).toStringAsFixed(0)}',
                   style:
                       const TextStyle(
                     fontWeight:
@@ -249,8 +257,9 @@ class MyOrdersPage extends StatelessWidget {
     BuildContext context,
     String sellerOrderId,
     Map<String, dynamic>
-        sellerOrderData,
-  ) async {
+        sellerOrderData, {
+    String collectionName = 'seller_orders',
+  }) async {
     final currentUser =
         FirebaseAuth.instance.currentUser;
 
@@ -348,9 +357,7 @@ class MyOrdersPage extends StatelessWidget {
     try {
       final sellerOrderRef =
           FirebaseFirestore.instance
-              .collection(
-                'seller_orders',
-              )
+              .collection(collectionName)
               .doc(sellerOrderId);
 
       final latestSnapshot =
@@ -435,13 +442,15 @@ class MyOrdersPage extends StatelessWidget {
     BuildContext context,
     QueryDocumentSnapshot<
             Map<String, dynamic>>
-        doc,
-  ) {
+        doc, {
+    String collectionName = 'seller_orders',
+    String fallbackLabel = 'Seller Order',
+  }) {
     final data = doc.data();
 
     final sellerCode =
         (data['sellerCode'] ??
-                'Seller')
+                fallbackLabel)
             .toString();
 
     final status =
@@ -451,7 +460,9 @@ class MyOrdersPage extends StatelessWidget {
 
     final subtotal =
         _number(
-      data['sellerSubtotal'],
+      data['sellerSubtotal'] ??
+          data['subtotal'] ??
+          data['sellingTotal'],
     );
 
     final itemsRaw =
@@ -528,7 +539,7 @@ class MyOrdersPage extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '₩${subtotal.toStringAsFixed(0)}',
+                  'à§³${subtotal.toStringAsFixed(0)}',
                   style:
                       const TextStyle(
                     color:
@@ -553,6 +564,7 @@ class MyOrdersPage extends StatelessWidget {
                       context,
                       doc.id,
                       data,
+                      collectionName: collectionName,
                     );
                   },
                   icon: const Icon(
@@ -613,8 +625,11 @@ class MyOrdersPage extends StatelessWidget {
         orderDoc,
     List<QueryDocumentSnapshot<
             Map<String, dynamic>>>
-        sellerOrders,
-  ) {
+        sellerOrders, {
+    List<QueryDocumentSnapshot<
+            Map<String, dynamic>>>
+        resellerOrders = const [],
+  }) {
     final data =
         orderDoc.data();
 
@@ -724,7 +739,7 @@ class MyOrdersPage extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '₩${total.toStringAsFixed(0)}',
+                      'à§³${total.toStringAsFixed(0)}',
                       style:
                           const TextStyle(
                         fontWeight:
@@ -817,6 +832,38 @@ class MyOrdersPage extends StatelessWidget {
                       _buildSellerOrderCard(
                     context,
                     sellerOrder,
+                  ),
+                ),
+              ],
+
+              if (resellerOrders.isNotEmpty) ...[
+                const SizedBox(
+                  height: 18,
+                ),
+
+                const Text(
+                  'Reseller Store Orders',
+                  style:
+                      TextStyle(
+                    fontSize: 17,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                ...resellerOrders.map(
+                  (resellerOrder) =>
+                      _buildSellerOrderCard(
+                    context,
+                    resellerOrder,
+                    collectionName:
+                        'reseller_orders',
+                    fallbackLabel:
+                        'Reseller Store',
                   ),
                 ),
               ],
@@ -1026,27 +1073,84 @@ class MyOrdersPage extends StatelessWidget {
                     .add(sellerDoc);
               }
 
-              return ListView.builder(
-                padding:
-                    const EdgeInsets.all(
-                  16,
-                ),
-                itemCount:
-                    sortedOrders.length,
-                itemBuilder:
-                    (context, index) {
-                  final orderDoc =
-                      sortedOrders[index];
-
-                  final sellerOrders =
-                      sellerOrdersByOrderId[
-                              orderDoc.id] ??
+              return StreamBuilder<
+                  QuerySnapshot<
+                      Map<String, dynamic>>>(
+                stream:
+                    FirebaseFirestore.instance
+                        .collection(
+                          'reseller_orders',
+                        )
+                        .where(
+                          'customerId',
+                          isEqualTo: user.uid,
+                        )
+                        .snapshots(),
+                builder: (
+                  context,
+                  resellerSnapshot,
+                ) {
+                  final resellerDocs =
+                      resellerSnapshot
+                              .data?.docs ??
                           [];
 
-                  return _buildMainOrderCard(
-                    context,
-                    orderDoc,
-                    sellerOrders,
+                  final resellerOrdersByOrderId =
+                      <String,
+                          List<QueryDocumentSnapshot<
+                              Map<String, dynamic>>>>{};
+
+                  for (final resellerDoc
+                      in resellerDocs) {
+                    final resellerOrderId =
+                        (resellerDoc.data()[
+                                    'orderId'] ??
+                                '')
+                            .toString();
+
+                    if (resellerOrderId
+                        .isEmpty) {
+                      continue;
+                    }
+
+                    resellerOrdersByOrderId
+                        .putIfAbsent(
+                      resellerOrderId,
+                      () => [],
+                    )
+                        .add(resellerDoc);
+                  }
+
+                  return ListView.builder(
+                    padding:
+                        const EdgeInsets.all(
+                      16,
+                    ),
+                    itemCount:
+                        sortedOrders.length,
+                    itemBuilder:
+                        (context, index) {
+                      final orderDoc =
+                          sortedOrders[index];
+
+                      final sellerOrders =
+                          sellerOrdersByOrderId[
+                                  orderDoc.id] ??
+                              [];
+
+                      final resellerOrders =
+                          resellerOrdersByOrderId[
+                                  orderDoc.id] ??
+                              [];
+
+                      return _buildMainOrderCard(
+                        context,
+                        orderDoc,
+                        sellerOrders,
+                        resellerOrders:
+                            resellerOrders,
+                      );
+                    },
                   );
                 },
               );
