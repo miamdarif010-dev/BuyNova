@@ -31,6 +31,10 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     super.dispose();
   }
 
+  // ==========================================================
+  // LOGIN
+  // ==========================================================
+
   void _openLogin() {
     Navigator.push(
       context,
@@ -39,6 +43,10 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
       ),
     );
   }
+
+  // ==========================================================
+  // ADD VIDEO
+  // ==========================================================
 
   void _openPostVideo() {
     if (currentUser == null) {
@@ -54,6 +62,10 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     );
   }
 
+  // ==========================================================
+  // WATCH & EARN
+  // ==========================================================
+
   void _openWatchEarn() {
     Navigator.push(
       context,
@@ -62,6 +74,10 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
       ),
     );
   }
+
+  // ==========================================================
+  // BUILD
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -91,17 +107,76 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
             }
 
             if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    'Could not load videos.\n\n${snapshot.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
+              return Stack(
+                children: [
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.redAccent,
+                            size: 65,
+                          ),
+                          const SizedBox(height: 15),
+                          const Text(
+                            'Could not load videos.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            '${snapshot.error}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Try Again'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                  Positioned(
+                    top: 8,
+                    left: 10,
+                    child: _watchEarnCircleButton(),
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Row(
+                      children: [
+                        _topButton(
+                          icon: Icons.add,
+                          onPressed: _openPostVideo,
+                        ),
+                        const SizedBox(width: 8),
+                        _topButton(
+                          icon: Icons.close,
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               );
             }
 
@@ -145,17 +220,11 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                       ],
                     ),
                   ),
-
-                  // ==================================================
-                  // TOP VIDEO CONTROLS
-                  // ==================================================
-
                   Positioned(
                     top: 8,
                     left: 10,
                     child: _watchEarnCircleButton(),
                   ),
-
                   Positioned(
                     top: 10,
                     right: 10,
@@ -200,10 +269,8 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                       key: ValueKey(doc.id),
                       videoId: doc.id,
                       data: data,
-                      isActive:
-                          index == _currentPage,
-                      onLoginRequired:
-                          _openLogin,
+                      isActive: index == _currentPage,
+                      onLoginRequired: _openLogin,
                     );
                   },
                 ),
@@ -352,6 +419,7 @@ class _ReelsVideoItemState
 
   bool _isInitialized = false;
   bool _isPlaying = false;
+  bool _isLoadingVideo = true;
 
   bool _isLiked = false;
   bool _isLoadingLike = false;
@@ -379,21 +447,54 @@ class _ReelsVideoItemState
   void initState() {
     super.initState();
 
-    _likeCount =
-        _toInt(widget.data['likeCount']);
+    _likeCount = _readCounter(
+      widget.data,
+      'likeCount',
+      'likes',
+    );
 
-    _commentCount =
-        _toInt(widget.data['commentCount']);
+    _commentCount = _readCounter(
+      widget.data,
+      'commentCount',
+      'comments',
+    );
 
-    _viewCount =
-        _toInt(widget.data['viewCount']);
+    _viewCount = _readCounter(
+      widget.data,
+      'viewCount',
+      'views',
+    );
 
-    _shareCount =
-        _toInt(widget.data['shareCount']);
+    _shareCount = _readCounter(
+      widget.data,
+      'shareCount',
+      'shares',
+    );
+
+    _rewardEligible =
+        widget.data['rewardEligible'] == true;
 
     _loadVideo();
     _checkLike();
     _checkReward();
+  }
+
+  // ==========================================================
+  // COUNTER READER
+  // ==========================================================
+
+  int _readCounter(
+    Map<String, dynamic> data,
+    String newField,
+    String oldField,
+  ) {
+    final newValue = data[newField];
+
+    if (newValue != null) {
+      return _toInt(newValue);
+    }
+
+    return _toInt(data[oldField]);
   }
 
   int _toInt(dynamic value) {
@@ -416,6 +517,11 @@ class _ReelsVideoItemState
         widget.data['videoUrl']?.toString() ?? '';
 
     if (videoUrl.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isLoadingVideo = false;
+        });
+      }
       return;
     }
 
@@ -429,6 +535,9 @@ class _ReelsVideoItemState
 
       await controller.initialize();
 
+      // Loop video.
+      await controller.setLooping(true);
+
       if (!mounted) {
         controller.dispose();
         return;
@@ -436,24 +545,22 @@ class _ReelsVideoItemState
 
       setState(() {
         _isInitialized = true;
+        _isLoadingVideo = false;
       });
 
       if (widget.isActive) {
-        await controller.play();
-
-        if (mounted) {
-          setState(() {
-            _isPlaying = true;
-          });
-        }
-
-        _recordView();
-        _startWatchTimer();
+        await _playVideo();
       }
     } catch (e) {
       debugPrint(
         'Video loading error: $e',
       );
+
+      if (mounted) {
+        setState(() {
+          _isLoadingVideo = false;
+        });
+      }
     }
   }
 
@@ -566,6 +673,10 @@ class _ReelsVideoItemState
       return;
     }
 
+    if (_watchSeconds >= _requiredWatchSeconds) {
+      return;
+    }
+
     if (_watchTimer != null) {
       return;
     }
@@ -617,9 +728,6 @@ class _ReelsVideoItemState
   // ==========================================================
 
   Future<void> _checkReward() async {
-    _rewardEligible =
-        widget.data['rewardEligible'] == true;
-
     final user = currentUser;
 
     if (user == null) {
@@ -643,26 +751,19 @@ class _ReelsVideoItemState
       }
 
       setState(() {
-        _rewardClaimed =
-            claimDoc.exists;
+        _rewardClaimed = claimDoc.exists;
       });
+
+      if (_rewardEligible &&
+          !_rewardClaimed &&
+          widget.isActive &&
+          _isPlaying) {
+        _startWatchTimer();
+      }
     } catch (e) {
       debugPrint(
         'Reward check error: $e',
       );
-
-      if (mounted) {
-        setState(() {
-          _rewardClaimed = false;
-        });
-      }
-    }
-
-    if (_rewardEligible &&
-        !_rewardClaimed &&
-        widget.isActive &&
-        _isPlaying) {
-      _startWatchTimer();
     }
   }
 
@@ -834,21 +935,21 @@ class _ReelsVideoItemState
       _isLoadingLike = true;
     });
 
-    final likeRef =
-        FirebaseFirestore.instance
-            .collection('sellerVideos')
-            .doc(widget.videoId)
-            .collection('likes')
-            .doc(user.uid);
+    final firestore =
+        FirebaseFirestore.instance;
 
-    final videoRef =
-        FirebaseFirestore.instance
-            .collection('sellerVideos')
-            .doc(widget.videoId);
+    final likeRef = firestore
+        .collection('sellerVideos')
+        .doc(widget.videoId)
+        .collection('likes')
+        .doc(user.uid);
+
+    final videoRef = firestore
+        .collection('sellerVideos')
+        .doc(widget.videoId);
 
     try {
-      await FirebaseFirestore.instance
-          .runTransaction(
+      await firestore.runTransaction(
         (transaction) async {
           final likeDoc =
               await transaction.get(likeRef);
@@ -856,9 +957,14 @@ class _ReelsVideoItemState
           final videoDoc =
               await transaction.get(videoRef);
 
+          final videoData =
+              videoDoc.data();
+
           final currentLikes =
-              _toInt(
-            videoDoc.data()?['likeCount'],
+              _readCounter(
+            videoData ?? {},
+            'likeCount',
+            'likes',
           );
 
           if (likeDoc.exists) {
@@ -942,21 +1048,24 @@ class _ReelsVideoItemState
 
     final user = currentUser;
 
+    // Guest users can watch videos,
+    // but unique view tracking is only for logged-in users.
     if (user == null) {
       return;
     }
 
-    final viewRef =
-        FirebaseFirestore.instance
-            .collection('sellerVideos')
-            .doc(widget.videoId)
-            .collection('views')
-            .doc(user.uid);
+    final firestore =
+        FirebaseFirestore.instance;
 
-    final videoRef =
-        FirebaseFirestore.instance
-            .collection('sellerVideos')
-            .doc(widget.videoId);
+    final viewRef = firestore
+        .collection('sellerVideos')
+        .doc(widget.videoId)
+        .collection('views')
+        .doc(user.uid);
+
+    final videoRef = firestore
+        .collection('sellerVideos')
+        .doc(widget.videoId);
 
     try {
       final existing =
@@ -967,15 +1076,19 @@ class _ReelsVideoItemState
         return;
       }
 
-      await FirebaseFirestore.instance
-          .runTransaction(
+      await firestore.runTransaction(
         (transaction) async {
           final currentVideo =
               await transaction.get(videoRef);
 
+          final videoData =
+              currentVideo.data();
+
           final currentViews =
-              _toInt(
-            currentVideo.data()?['viewCount'],
+              _readCounter(
+            videoData ?? {},
+            'viewCount',
+            'views',
           );
 
           transaction.set(
@@ -1021,12 +1134,13 @@ class _ReelsVideoItemState
           widget.data['videoUrl']?.toString() ??
               '';
 
-      await Share.share(
-        videoUrl.isNotEmpty
-            ? 'Check out this BuyNova video:\n$videoUrl'
-            : 'Check out this video on BuyNova!',
-      );
+      final shareText = videoUrl.isNotEmpty
+          ? 'Check out this BuyNova video:\n$videoUrl'
+          : 'Check out this video on BuyNova!';
 
+      await Share.share(shareText);
+
+      // Count the share after the share action completes.
       final videoRef =
           FirebaseFirestore.instance
               .collection('sellerVideos')
@@ -1039,8 +1153,10 @@ class _ReelsVideoItemState
               await transaction.get(videoRef);
 
           final currentShares =
-              _toInt(
-            doc.data()?['shareCount'],
+              _readCounter(
+            doc.data() ?? {},
+            'shareCount',
+            'shares',
           );
 
           transaction.update(
@@ -1152,6 +1268,21 @@ class _ReelsVideoItemState
                             return const Center(
                               child:
                                   CircularProgressIndicator(),
+                            );
+                          }
+
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets
+                                        .all(20),
+                                child: Text(
+                                  'Could not load comments.\n\n${snapshot.error}',
+                                  textAlign:
+                                      TextAlign.center,
+                                ),
+                              ),
                             );
                           }
 
@@ -1334,8 +1465,7 @@ class _ReelsVideoItemState
                                         'sellerVideos',
                                       )
                                       .doc(
-                                        widget
-                                            .videoId,
+                                        widget.videoId,
                                       )
                                       .update({
                                     'commentCount':
@@ -1362,6 +1492,20 @@ class _ReelsVideoItemState
                                   debugPrint(
                                     'Comment error: $e',
                                   );
+
+                                  if (context
+                                      .mounted) {
+                                    ScaffoldMessenger
+                                            .of(
+                                      context,
+                                    ).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Could not post comment.',
+                                        ),
+                                      ),
+                                    );
+                                  }
                                 }
                               },
                               icon:
@@ -1397,6 +1541,8 @@ class _ReelsVideoItemState
       return;
     }
 
+    // Kept compatible with the current CartPage
+    // so no unrelated file needs to be changed.
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1450,6 +1596,10 @@ class _ReelsVideoItemState
     return Stack(
       fit: StackFit.expand,
       children: [
+        // ======================================================
+        // VIDEO
+        // ======================================================
+
         GestureDetector(
           onTap: _togglePlayPause,
           child: Container(
@@ -1458,26 +1608,39 @@ class _ReelsVideoItemState
                     _controller != null
                 ? Center(
                     child: AspectRatio(
-                      aspectRatio: _controller!
-                          .value
-                          .aspectRatio,
+                      aspectRatio:
+                          _controller!
+                              .value
+                              .aspectRatio >
+                          0
+                              ? _controller!
+                                  .value
+                                  .aspectRatio
+                              : 9 / 16,
                       child: VideoPlayer(
                         _controller!,
                       ),
                     ),
                   )
-                : const Center(
-                    child:
-                        CircularProgressIndicator(
-                      color: Colors.white,
-                    ),
+                : Center(
+                    child: _isLoadingVideo
+                        ? const CircularProgressIndicator(
+                            color: Colors.white,
+                          )
+                        : const Icon(
+                            Icons
+                                .video_library_outlined,
+                            color:
+                                Colors.white70,
+                            size: 65,
+                          ),
                   ),
           ),
         ),
 
-        // ========================================================
+        // ======================================================
         // PLAY ICON
-        // ========================================================
+        // ======================================================
 
         if (_isInitialized &&
             !_isPlaying)
@@ -1489,9 +1652,9 @@ class _ReelsVideoItemState
             ),
           ),
 
-        // ========================================================
+        // ======================================================
         // BOTTOM GRADIENT
-        // ========================================================
+        // ======================================================
 
         Positioned(
           left: 0,
@@ -1518,9 +1681,9 @@ class _ReelsVideoItemState
           ),
         ),
 
-        // ========================================================
+        // ======================================================
         // REWARD BUTTON
-        // ========================================================
+        // ======================================================
 
         Positioned(
           top: 60,
@@ -1528,9 +1691,9 @@ class _ReelsVideoItemState
           child: _rewardButton(),
         ),
 
-        // ========================================================
+        // ======================================================
         // RIGHT ACTION BUTTONS
-        // ========================================================
+        // ======================================================
 
         Positioned(
           right: 12,
@@ -1551,15 +1714,13 @@ class _ReelsVideoItemState
               _actionButton(
                 icon: Icons.comment,
                 label: '$_commentCount',
-                onPressed:
-                    _showComments,
+                onPressed: _showComments,
               ),
               const SizedBox(height: 18),
               _actionButton(
                 icon: Icons.share,
                 label: '$_shareCount',
-                onPressed:
-                    _shareVideo,
+                onPressed: _shareVideo,
               ),
               const SizedBox(height: 18),
               _actionButton(
@@ -1571,9 +1732,9 @@ class _ReelsVideoItemState
           ),
         ),
 
-        // ========================================================
+        // ======================================================
         // BOTTOM INFORMATION
-        // ========================================================
+        // ======================================================
 
         Positioned(
           left: 15,
@@ -1595,6 +1756,9 @@ class _ReelsVideoItemState
                   Expanded(
                     child: Text(
                       sellerName,
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,
@@ -1630,6 +1794,10 @@ class _ReelsVideoItemState
                 GestureDetector(
                   onTap: _openProduct,
                   child: Container(
+                    constraints:
+                        const BoxConstraints(
+                      maxWidth: 310,
+                    ),
                     padding:
                         const EdgeInsets.all(9),
                     decoration:
@@ -1695,6 +1863,10 @@ class _ReelsVideoItemState
                                         .isNotEmpty
                                     ? productName
                                     : 'View Product',
+                                maxLines: 1,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
                                 style:
                                     const TextStyle(
                                   color:
@@ -1706,7 +1878,7 @@ class _ReelsVideoItemState
                               if (productPrice !=
                                   null)
                                 Text(
-                                  '₩${_toInt(productPrice)}',
+                                  '৳${_toInt(productPrice)}',
                                   style:
                                       const TextStyle(
                                     color:
@@ -1716,6 +1888,7 @@ class _ReelsVideoItemState
                             ],
                           ),
                         ),
+                        const SizedBox(width: 8),
                         const Icon(
                           Icons.arrow_forward_ios,
                           color:
