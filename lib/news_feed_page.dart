@@ -9,6 +9,7 @@ import 'package:video_player/video_player.dart';
 import 'login_page.dart';
 import 'cart_page.dart';
 import 'add_seller_video_page.dart';
+import 'watch_earn_page.dart';
 
 class NewsFeedPage extends StatefulWidget {
   const NewsFeedPage({super.key});
@@ -49,6 +50,15 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
       context,
       MaterialPageRoute(
         builder: (context) => const AddSellerVideoPage(),
+      ),
+    );
+  }
+
+  void _openWatchEarn() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WatchEarnPage(),
       ),
     );
   }
@@ -135,14 +145,34 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                       ],
                     ),
                   ),
+
+                  // ==================================================
+                  // TOP VIDEO CONTROLS
+                  // ==================================================
+
+                  Positioned(
+                    top: 8,
+                    left: 10,
+                    child: _watchEarnCircleButton(),
+                  ),
+
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: _topButton(
-                      icon: Icons.close,
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
+                    child: Row(
+                      children: [
+                        _topButton(
+                          icon: Icons.add,
+                          onPressed: _openPostVideo,
+                        ),
+                        const SizedBox(width: 8),
+                        _topButton(
+                          icon: Icons.close,
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -177,6 +207,21 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                     );
                   },
                 ),
+
+                // ==================================================
+                // WATCH & EARN CIRCLE
+                // ==================================================
+
+                Positioned(
+                  top: 8,
+                  left: 10,
+                  child: _watchEarnCircleButton(),
+                ),
+
+                // ==================================================
+                // ADD + CLOSE
+                // ==================================================
+
                 Positioned(
                   top: 10,
                   right: 10,
@@ -203,6 +248,58 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
       ),
     );
   }
+
+  // ==========================================================
+  // WATCH & EARN CIRCLE BUTTON
+  // ==========================================================
+
+  Widget _watchEarnCircleButton() {
+    return GestureDetector(
+      onTap: _openWatchEarn,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black.withValues(alpha: 0.72),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.75),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.card_giftcard,
+              color: Colors.amber,
+              size: 25,
+            ),
+            SizedBox(height: 2),
+            Text(
+              'Earn',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // TOP BUTTON
+  // ==========================================================
 
   Widget _topButton({
     required IconData icon,
@@ -1300,8 +1397,6 @@ class _ReelsVideoItemState
       return;
     }
 
-    // CartPage does not have productId/productName
-    // parameters, so open the normal CartPage.
     Navigator.push(
       context,
       MaterialPageRoute(
