@@ -206,6 +206,44 @@ class AddressBookPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Delivery Area',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Inside Dhaka'),
+                          selected: zone == 'inside_dhaka',
+                          onSelected: saving
+                              ? null
+                              : (_) {
+                                  setState(() {
+                                    zone = 'inside_dhaka';
+                                  });
+                                },
+                        ),
+                        ChoiceChip(
+                          label: const Text('Outside Dhaka'),
+                          selected: zone == 'outside_dhaka',
+                          onSelected: saving
+                              ? null
+                              : (_) {
+                                  setState(() {
+                                    zone = 'outside_dhaka';
+                                  });
+                                },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       value: isDefault,
