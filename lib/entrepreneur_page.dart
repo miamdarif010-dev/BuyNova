@@ -704,19 +704,5 @@ class _EntrepreneurPageState
   // COMING SOON
   // =========================================================
 
-  void _comingSoon(
-    String title,
-  ) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(
-        content: Text(
-          '$title coming soon',
-        ),
-        behavior:
-            SnackBarBehavior.floating,
-      ),
-    );
-  }
+  
 }
