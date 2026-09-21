@@ -6,8 +6,7 @@ class AddressBookPage extends StatelessWidget {
   const AddressBookPage({super.key});
 
   // =========================================================
-  // ADDRESS FORM
-  // =========================================================
+  // ADDRESS =========================================================
 
   void _showAddressForm(
     BuildContext context, {
