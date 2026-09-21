@@ -68,6 +68,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool get _isInsideDhaka {
     final address = _selectedAddress;
     if (address == null) return false;
+    final zone = address['deliveryZone']?.toString() ?? '';
+    if (zone == 'inside_dhaka') return true;
+    if (zone == 'outside_dhaka') return false;
 
     final text =
         '${address['city'] ?? ''} ${address['district'] ?? ''}'
@@ -217,7 +220,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (address is Map) {
         if (!mounted) return;
+final anyAddress = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('addresses')
+          .limit(1)
+          .get();
 
+      if (anyAddress.docs.isNotEmpty) {
+        if (!mounted) return;
+
+        setState(() {
+          _selectedAddress = anyAddress.docs.first.data();
+        });
+
+        return;
+      }
         setState(() {
           _selectedAddress =
               Map<String, dynamic>.from(address);
