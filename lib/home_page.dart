@@ -9,7 +9,6 @@ import 'settings_page.dart';
 import 'cart_page.dart';
 import 'categories_page.dart';
 import 'news_feed_page.dart';
-import 'watch_earn_page.dart';
 import 'app_settings.dart';
 import 'product_details_page.dart';
 
@@ -360,19 +359,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   // =========================================================
-  // WATCH & EARN
-  // =========================================================
-
-  void _openWatchEarn() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const WatchEarnPage(),
-      ),
-    );
-  }
-
-  // =========================================================
   // BUILD
   // =========================================================
 
@@ -502,6 +488,10 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
 
+                      // =================================================
+                      // VIDEOS
+                      // =================================================
+
                       ListTile(
                         leading: const Icon(
                           Icons.video_library_outlined,
@@ -534,21 +524,9 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
 
-                      ListTile(
-                        leading: const Icon(
-                          Icons.ondemand_video_outlined,
-                        ),
-                        title: const Text(
-                          'Watch & Earn',
-                        ),
-                        subtitle: const Text(
-                          'Watch videos & earn points',
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _openWatchEarn();
-                        },
-                      ),
+                      // =================================================
+                      // SETTINGS
+                      // =================================================
 
                       ListTile(
                         leading: const Icon(
