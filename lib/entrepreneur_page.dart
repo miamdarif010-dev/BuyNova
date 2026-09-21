@@ -6,6 +6,8 @@ import 'available_products_page.dart';
 import 'my_store_page.dart';
 import 'reseller_orders_page.dart';
 import 'my_profit_page.dart';
+import 'news_feed_page.dart';
+
 class EntrepreneurPage extends StatefulWidget {
   const EntrepreneurPage({super.key});
 
@@ -215,6 +217,20 @@ class _EntrepreneurPageState
       MaterialPageRoute(
         builder: (_) =>
             const ResellerOrdersPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // VIDEOS
+  // =========================================================
+
+  Future<void> _openVideos() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const NewsFeedPage(),
       ),
     );
   }
@@ -514,7 +530,10 @@ class _EntrepreneurPageState
       crossAxisAlignment:
           CrossAxisAlignment.start,
       children: [
+        // =====================================================
         // APPROVED CARD
+        // =====================================================
+
         Card(
           color:
               Colors.green.shade50,
@@ -623,6 +642,21 @@ class _EntrepreneurPageState
         ),
 
         // =====================================================
+        // VIDEOS
+        // =====================================================
+
+        _businessItem(
+          icon:
+              Icons.video_library_outlined,
+          title:
+              'Videos',
+          subtitle:
+              'Watch, upload and manage your BuyNova videos.',
+          onTap:
+              _openVideos,
+        ),
+
+        // =====================================================
         // RESELLER ORDERS
         // =====================================================
 
@@ -652,7 +686,8 @@ class _EntrepreneurPageState
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const MyProfitPage(),
+                builder: (_) =>
+                    const MyProfitPage(),
               ),
             );
           },
@@ -699,10 +734,4 @@ class _EntrepreneurPageState
       ),
     );
   }
-
-  // =========================================================
-  // COMING SOON
-  // =========================================================
-
-  
 }
