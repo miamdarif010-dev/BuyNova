@@ -252,11 +252,22 @@ class _MyVideosPageState extends State<MyVideosPage> {
         (data['status'] ?? 'published')
             .toString();
 
-    final views =
-        _toInt(data['views']);
+    // =======================================================
+    // IMPORTANT:
+    // New video system uses viewCount / likeCount.
+    // Old videos may still use views / likes.
+    // We support BOTH.
+    // =======================================================
 
-    final likes =
-        _toInt(data['likes']);
+    final views = _toInt(
+      data['viewCount'] ??
+          data['views'],
+    );
+
+    final likes = _toInt(
+      data['likeCount'] ??
+          data['likes'],
+    );
 
     return Card(
       elevation: 0,
