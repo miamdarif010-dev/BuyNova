@@ -8,6 +8,10 @@ import 'add_seller_video_page.dart';
 class MyVideosPage extends StatelessWidget {
   const MyVideosPage({super.key});
 
+  // =========================================================
+  // DELETE VIDEO
+  // =========================================================
+
   Future<void> _deleteVideo(
     BuildContext context,
     String videoId,
@@ -15,7 +19,7 @@ class MyVideosPage extends StatelessWidget {
   ) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Video'),
         content: Text(
           caption.isNotEmpty
@@ -24,14 +28,20 @@ class MyVideosPage extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
             child: const Text(
               'Delete',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(
+                color: Colors.red,
+              ),
             ),
           ),
         ],
@@ -49,7 +59,9 @@ class MyVideosPage extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Video deleted successfully'),
+            content: Text(
+              'Video deleted successfully',
+            ),
           ),
         );
       }
@@ -57,12 +69,18 @@ class MyVideosPage extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete video: $e'),
+            content: Text(
+              'Failed to delete video: $e',
+            ),
           ),
         );
       }
     }
   }
+
+  // =========================================================
+  // OPEN ADD VIDEO
+  // =========================================================
 
   void _openAddVideo(BuildContext context) {
     Navigator.push(
@@ -73,9 +91,14 @@ class MyVideosPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
 
     return Scaffold(
       appBar: AppBar(
@@ -83,27 +106,46 @@ class MyVideosPage extends StatelessWidget {
         backgroundColor: Colors.redAccent,
         foregroundColor: Colors.white,
 
-        // + button inside My Videos
+        // =====================================================
+        // ADD VIDEO BUTTON
+        // =====================================================
+
         actions: [
           IconButton(
             tooltip: 'Add Video',
             icon: const Icon(Icons.add),
-            onPressed: () => _openAddVideo(context),
+            onPressed: () {
+              _openAddVideo(context);
+            },
           ),
         ],
       ),
 
+      // =======================================================
+      // BODY
+      // =======================================================
+
       body: uid == null
           ? const Center(
-              child: Text('Please login first'),
+              child: Text(
+                'Please login first',
+              ),
             )
-          : StreamBuilder<QuerySnapshot>(
+          : StreamBuilder<
+              QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
                   .collection('sellerVideos')
-                  .where('sellerId', isEqualTo: uid)
+                  .where(
+                    'userId',
+                    isEqualTo: uid,
+                  )
                   .snapshots(),
 
               builder: (context, snapshot) {
+                // =================================================
+                // LOADING
+                // =================================================
+
                 if (snapshot.connectionState ==
                     ConnectionState.waiting) {
                   return const Center(
@@ -111,116 +153,225 @@ class MyVideosPage extends StatelessWidget {
                   );
                 }
 
+                // =================================================
+                // ERROR
+                // =================================================
+
                 if (snapshot.hasError) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Text(
-                        'Unable to load your videos.\n\n${snapshot.error}',
+                        'Unable to load your videos.\n\n'
+                        '${snapshot.error}',
                         textAlign: TextAlign.center,
                       ),
                     ),
                   );
                 }
 
+                // =================================================
+                // VIDEOS
+                // =================================================
+
                 final docs = snapshot.data?.docs ?? [];
+
+                // =================================================
+                // EMPTY
+                // =================================================
 
                 if (docs.isEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.video_library_outlined,
-                          size: 70,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'You haven\'t posted any videos yet.',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.video_library_outlined,
+                            size: 70,
+                            color: Colors.grey,
                           ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        ElevatedButton.icon(
-                          onPressed: () => _openAddVideo(context),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add Video'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent,
-                            foregroundColor: Colors.white,
+                          const SizedBox(height: 16),
+                          const Text(
+                            'You haven\'t posted any videos yet.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              _openAddVideo(context);
+                            },
+                            icon: const Icon(
+                              Icons.add,
+                            ),
+                            label: const Text(
+                              'Add Video',
+                            ),
+                            style:
+                                ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  Colors.redAccent,
+                              foregroundColor:
+                                  Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
 
+                // =================================================
+                // VIDEO LIST
+                // =================================================
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(8),
                   itemCount: docs.length,
-
                   itemBuilder: (context, index) {
                     final doc = docs[index];
+
                     final data =
-                        doc.data() as Map<String, dynamic>;
+                        doc.data();
 
                     final caption =
-                        data['caption']?.toString() ?? '';
+                        data['caption']
+                                ?.toString() ??
+                            '';
 
                     final videoUrl =
-                        data['videoUrl']?.toString() ?? '';
+                        data['videoUrl']
+                                ?.toString() ??
+                            '';
 
-                    final sellerName =
-                        data['sellerName']?.toString() ?? 'Seller';
+                    // New unified user name.
+                    // sellerName is kept as fallback so
+                    // existing videos continue to work.
+                    final ownerName =
+                        data['userName']
+                                ?.toString()
+                                .trim()
+                                .isNotEmpty ==
+                            true
+                        ? data['userName']
+                            .toString()
+                        : data['sellerName']
+                                ?.toString() ??
+                            'BuyNova User';
 
                     final likeCount =
                         data['likeCount'] is num
-                            ? (data['likeCount'] as num).toInt()
+                            ? (data['likeCount']
+                                    as num)
+                                .toInt()
                             : 0;
 
                     final viewCount =
                         data['viewCount'] is num
-                            ? (data['viewCount'] as num).toInt()
+                            ? (data['viewCount']
+                                    as num)
+                                .toInt()
                             : 0;
 
                     final productName =
-                        data['productName']?.toString();
+                        data['productName']
+                            ?.toString();
+
+                    final status =
+                        data['status']
+                                ?.toString() ??
+                            'published';
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(
+                      margin:
+                          const EdgeInsets.symmetric(
                         vertical: 4,
                       ),
-
                       child: ListTile(
+                        // =================================================
+                        // VIDEO ICON
+                        // =================================================
+
                         leading: const CircleAvatar(
-                          backgroundColor: Colors.black87,
+                          backgroundColor:
+                              Colors.black87,
                           child: Icon(
                             Icons.play_arrow,
                             color: Colors.white,
                           ),
                         ),
 
+                        // =================================================
+                        // CAPTION
+                        // =================================================
+
                         title: Text(
                           caption.isEmpty
                               ? '(No caption)'
                               : caption,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          overflow:
+                              TextOverflow.ellipsis,
                         ),
 
-                        subtitle: Text(
-                          productName != null &&
-                                  productName.isNotEmpty
-                              ? 'Linked: $productName • '
-                                  '♥ $likeCount • '
-                                  'Views $viewCount'
-                              : '♥ $likeCount • '
-                                  'Views $viewCount',
+                        // =================================================
+                        // VIDEO INFORMATION
+                        // =================================================
+
+                        subtitle: Padding(
+                          padding:
+                              const EdgeInsets.only(
+                            top: 4,
+                          ),
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              if (productName != null &&
+                                  productName.isNotEmpty)
+                                Text(
+                                  'Linked: $productName',
+                                  maxLines: 1,
+                                  overflow:
+                                      TextOverflow
+                                          .ellipsis,
+                                ),
+                              const SizedBox(
+                                height: 3,
+                              ),
+                              Text(
+                                '♥ $likeCount • '
+                                'Views $viewCount',
+                              ),
+                              const SizedBox(
+                                height: 3,
+                              ),
+                              Text(
+                                status
+                                    .toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                  color: status ==
+                                          'published'
+                                      ? Colors.green
+                                      : Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+
+                        // =================================================
+                        // OPEN VIDEO
+                        // =================================================
 
                         onTap: videoUrl.isEmpty
                             ? null
@@ -228,27 +379,39 @@ class MyVideosPage extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        VideoPlayerPage(
-                                      videoUrl: videoUrl,
-                                      caption: caption,
-                                      sellerName: sellerName,
+                                    builder:
+                                        (context) =>
+                                            VideoPlayerPage(
+                                      videoUrl:
+                                          videoUrl,
+                                      caption:
+                                          caption,
+                                      sellerName:
+                                          ownerName,
                                     ),
                                   ),
                                 );
                               },
 
-                        trailing: IconButton(
-                          tooltip: 'Delete Video',
+                        // =================================================
+                        // DELETE
+                        // =================================================
+
+                        trailing:
+                            IconButton(
+                          tooltip:
+                              'Delete Video',
                           icon: const Icon(
                             Icons.delete_outline,
                             color: Colors.red,
                           ),
-                          onPressed: () => _deleteVideo(
-                            context,
-                            doc.id,
-                            caption,
-                          ),
+                          onPressed: () {
+                            _deleteVideo(
+                              context,
+                              doc.id,
+                              caption,
+                            );
+                          },
                         ),
                       ),
                     );
