@@ -1,92 +1,577 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'video_player_page.dart';
 import 'add_seller_video_page.dart';
+import 'video_player_page.dart';
 
-class MyVideosPage extends StatelessWidget {
+class MyVideosPage extends StatefulWidget {
   const MyVideosPage({super.key});
+
+  @override
+  State<MyVideosPage> createState() => _MyVideosPageState();
+}
+
+class _MyVideosPageState extends State<MyVideosPage> {
+  User? get currentUser =>
+      FirebaseAuth.instance.currentUser;
+
+  // =========================================================
+  // OPEN ADD VIDEO
+  // =========================================================
+
+  Future<void> _openAddVideo() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddSellerVideoPage(),
+      ),
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   // =========================================================
   // DELETE VIDEO
   // =========================================================
 
   Future<void> _deleteVideo(
-    BuildContext context,
     String videoId,
-    String caption,
   ) async {
-    final confirm = await showDialog<bool>(
+    final user = currentUser;
+
+    if (user == null) return;
+
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Video'),
-        content: Text(
-          caption.isNotEmpty
-              ? 'Delete "$caption"?'
-              : 'Delete this video?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext, false);
-            },
-            child: const Text('Cancel'),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Video',
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext, true);
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(
-                color: Colors.red,
+          content: const Text(
+            'Are you sure you want to delete this video?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancel',
               ),
             ),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text(
+                'Delete',
+              ),
+            ),
+          ],
+        );
+      },
     );
 
-    if (confirm != true) return;
+    if (confirmed != true) return;
 
     try {
-      await FirebaseFirestore.instance
+      final videoRef = FirebaseFirestore.instance
           .collection('sellerVideos')
-          .doc(videoId)
-          .delete();
+          .doc(videoId);
 
-      if (context.mounted) {
+      final videoDoc = await videoRef.get();
+
+      if (!videoDoc.exists) {
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Video deleted successfully',
+              'Video no longer exists.',
             ),
           ),
         );
+
+        return;
       }
-    } catch (e) {
-      if (context.mounted) {
+
+      final data = videoDoc.data();
+
+      // =====================================================
+      // OWNER SECURITY CHECK
+      // =====================================================
+
+      final ownerId =
+          (data?['userId'] ?? '').toString();
+
+      final sellerId =
+          (data?['sellerId'] ?? '').toString();
+
+      if (ownerId != user.uid &&
+          sellerId != user.uid) {
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
-              'Failed to delete video: $e',
+              'You can only delete your own videos.',
             ),
           ),
         );
+
+        return;
       }
+
+      await videoRef.delete();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Video deleted successfully.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not delete video: $e',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
   // =========================================================
-  // OPEN ADD VIDEO
+  // OPEN VIDEO
   // =========================================================
 
-  void _openAddVideo(BuildContext context) {
+  void _openVideo(
+    Map<String, dynamic> data,
+  ) {
+    final videoUrl =
+        (data['videoUrl'] ?? '').toString();
+
+    if (videoUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Video URL is not available.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final sellerName =
+        (data['userName'] ??
+                data['sellerName'] ??
+                'BuyNova User')
+            .toString();
+
+    final caption =
+        (data['caption'] ?? '').toString();
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AddSellerVideoPage(),
+        builder: (_) => VideoPlayerPage(
+          videoUrl: videoUrl,
+          sellerName: sellerName,
+          caption: caption,
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // VIDEO QUERY
+  // =========================================================
+
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      _myVideosStream() {
+    final user = currentUser;
+
+    if (user == null) {
+      return const Stream.empty();
+    }
+
+    return FirebaseFirestore.instance
+        .collection('sellerVideos')
+        .where(
+          'userId',
+          isEqualTo: user.uid,
+        )
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .snapshots();
+  }
+
+  // =========================================================
+  // VIDEO CARD
+  // =========================================================
+
+  Widget _videoCard(
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        doc,
+  ) {
+    final data = doc.data();
+
+    final videoUrl =
+        (data['videoUrl'] ?? '').toString();
+
+    final thumbnailUrl =
+        (data['thumbnailUrl'] ?? '').toString();
+
+    final caption =
+        (data['caption'] ?? '').toString();
+
+    final status =
+        (data['status'] ?? 'published')
+            .toString();
+
+    final views =
+        _toInt(data['views']);
+
+    final likes =
+        _toInt(data['likes']);
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(
+        bottom: 12,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: videoUrl.isEmpty
+            ? null
+            : () {
+                _openVideo(data);
+              },
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            // =================================================
+            // VIDEO PREVIEW
+            // =================================================
+
+            AspectRatio(
+              aspectRatio: 9 / 16,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (thumbnailUrl.isNotEmpty)
+                    Image.network(
+                      thumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (
+                        context,
+                        error,
+                        stackTrace,
+                      ) {
+                        return _videoPlaceholder();
+                      },
+                    )
+                  else
+                    _videoPlaceholder(),
+
+                  // PLAY BUTTON
+
+                  Center(
+                    child: Container(
+                      width: 58,
+                      height: 58,
+                      decoration:
+                          const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black54,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow,
+                        color: Colors.white,
+                        size: 34,
+                      ),
+                    ),
+                  ),
+
+                  // STATUS
+
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Colors.black54,
+                        borderRadius:
+                            BorderRadius.circular(
+                          20,
+                        ),
+                      ),
+                      child: Text(
+                        status,
+                        style:
+                            const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // DELETE BUTTON
+
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Material(
+                      color:
+                          Colors.black54,
+                      shape:
+                          const CircleBorder(),
+                      child: IconButton(
+                        onPressed: () {
+                          _deleteVideo(
+                            doc.id,
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                        ),
+                        tooltip:
+                            'Delete video',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // =================================================
+            // VIDEO INFORMATION
+            // =================================================
+
+            Padding(
+              padding:
+                  const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  if (caption.isNotEmpty)
+                    Text(
+                      caption,
+                      maxLines: 2,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(
+                        fontSize: 16,
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+
+                  const SizedBox(
+                    height: 10,
+                  ),
+
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.visibility_outlined,
+                        size: 18,
+                      ),
+
+                      const SizedBox(
+                        width: 5,
+                      ),
+
+                      Text(
+                        '$views views',
+                      ),
+
+                      const SizedBox(
+                        width: 18,
+                      ),
+
+                      const Icon(
+                        Icons.favorite_border,
+                        size: 18,
+                      ),
+
+                      const SizedBox(
+                        width: 5,
+                      ),
+
+                      Text(
+                        '$likes likes',
+                      ),
+
+                      const Spacer(),
+
+                      const Icon(
+                        Icons.play_circle_outline,
+                        size: 18,
+                      ),
+
+                      const SizedBox(
+                        width: 5,
+                      ),
+
+                      const Text(
+                        'Watch',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // PLACEHOLDER
+  // =========================================================
+
+  Widget _videoPlaceholder() {
+    return Container(
+      color: Colors.black12,
+      child: const Center(
+        child: Icon(
+          Icons.video_library_outlined,
+          size: 60,
+          color: Colors.grey,
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // INT CONVERTER
+  // =========================================================
+
+  int _toInt(
+    dynamic value,
+  ) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
+  }
+
+  // =========================================================
+  // EMPTY STATE
+  // =========================================================
+
+  Widget _emptyState() {
+    return Center(
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 30,
+          vertical: 70,
+        ),
+        child: Column(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.video_library_outlined,
+              size: 72,
+              color: Colors.grey,
+            ),
+
+            const SizedBox(
+              height: 18,
+            ),
+
+            const Text(
+              'No Videos Yet',
+              style: TextStyle(
+                fontSize: 21,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            Text(
+              'Upload your first BuyNova video '
+              'and it will appear here and in the '
+              'main Videos feed.',
+              textAlign:
+                  TextAlign.center,
+              style: TextStyle(
+                color:
+                    Colors.grey.shade600,
+                height: 1.4,
+              ),
+            ),
+
+            const SizedBox(
+              height: 22,
+            ),
+
+            ElevatedButton.icon(
+              onPressed:
+                  _openAddVideo,
+              icon: const Icon(
+                Icons.add,
+              ),
+              label: const Text(
+                'Upload Video',
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -97,328 +582,173 @@ class MyVideosPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final uid = user?.uid;
+    final user = currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'My Videos',
+          ),
+          centerTitle: true,
+        ),
+        body: const Center(
+          child: Text(
+            'Please log in to view your videos.',
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Videos'),
-        backgroundColor: Colors.redAccent,
-        foregroundColor: Colors.white,
-
-        // =====================================================
-        // ADD VIDEO BUTTON
-        // =====================================================
-
+        title: const Text(
+          'My Videos',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
         actions: [
           IconButton(
-            tooltip: 'Add Video',
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              _openAddVideo(context);
-            },
+            onPressed:
+                _openAddVideo,
+            icon: const Icon(
+              Icons.add,
+            ),
+            tooltip:
+                'Upload Video',
           ),
         ],
       ),
 
       // =======================================================
-      // BODY
+      // UPLOAD BUTTON
       // =======================================================
 
-      body: uid == null
-          ? const Center(
-              child: Text(
-                'Please login first',
+      floatingActionButton:
+          FloatingActionButton(
+        onPressed:
+            _openAddVideo,
+        child: const Icon(
+          Icons.add,
+        ),
+      ),
+
+      body: StreamBuilder<
+          QuerySnapshot<
+              Map<String, dynamic>>>(
+        stream:
+            _myVideosStream(),
+        builder:
+            (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 55,
+                      color: Colors.redAccent,
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    const Text(
+                      'Could not load your videos.',
+                      textAlign:
+                          TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    Text(
+                      '${snapshot.error}',
+                      textAlign:
+                          TextAlign.center,
+                      style: TextStyle(
+                        color:
+                            Colors.grey.shade600,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 16,
+                    ),
+
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {});
+                      },
+                      icon: const Icon(
+                        Icons.refresh,
+                      ),
+                      label: const Text(
+                        'Retry',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            )
-          : StreamBuilder<
-              QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('sellerVideos')
-                  .where(
-                    'userId',
-                    isEqualTo: uid,
-                  )
-                  .snapshots(),
+            );
+          }
 
-              builder: (context, snapshot) {
-                // =================================================
-                // LOADING
-                // =================================================
+          final docs =
+              snapshot.data?.docs ??
+                  [];
 
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+          if (docs.isEmpty) {
+            return _emptyState();
+          }
 
-                // =================================================
-                // ERROR
-                // =================================================
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        'Unable to load your videos.\n\n'
-                        '${snapshot.error}',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                }
-
-                // =================================================
-                // VIDEOS
-                // =================================================
-
-                final docs = snapshot.data?.docs ?? [];
-
-                // =================================================
-                // EMPTY
-                // =================================================
-
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.video_library_outlined,
-                            size: 70,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'You haven\'t posted any videos yet.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              _openAddVideo(context);
-                            },
-                            icon: const Icon(
-                              Icons.add,
-                            ),
-                            label: const Text(
-                              'Add Video',
-                            ),
-                            style:
-                                ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  Colors.redAccent,
-                              foregroundColor:
-                                  Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                // =================================================
-                // VIDEO LIST
-                // =================================================
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-
-                    final data =
-                        doc.data();
-
-                    final caption =
-                        data['caption']
-                                ?.toString() ??
-                            '';
-
-                    final videoUrl =
-                        data['videoUrl']
-                                ?.toString() ??
-                            '';
-
-                    // New unified user name.
-                    // sellerName is kept as fallback so
-                    // existing videos continue to work.
-                    final ownerName =
-                        data['userName']
-                                ?.toString()
-                                .trim()
-                                .isNotEmpty ==
-                            true
-                        ? data['userName']
-                            .toString()
-                        : data['sellerName']
-                                ?.toString() ??
-                            'BuyNova User';
-
-                    final likeCount =
-                        data['likeCount'] is num
-                            ? (data['likeCount']
-                                    as num)
-                                .toInt()
-                            : 0;
-
-                    final viewCount =
-                        data['viewCount'] is num
-                            ? (data['viewCount']
-                                    as num)
-                                .toInt()
-                            : 0;
-
-                    final productName =
-                        data['productName']
-                            ?.toString();
-
-                    final status =
-                        data['status']
-                                ?.toString() ??
-                            'published';
-
-                    return Card(
-                      margin:
-                          const EdgeInsets.symmetric(
-                        vertical: 4,
-                      ),
-                      child: ListTile(
-                        // =================================================
-                        // VIDEO ICON
-                        // =================================================
-
-                        leading: const CircleAvatar(
-                          backgroundColor:
-                              Colors.black87,
-                          child: Icon(
-                            Icons.play_arrow,
-                            color: Colors.white,
-                          ),
-                        ),
-
-                        // =================================================
-                        // CAPTION
-                        // =================================================
-
-                        title: Text(
-                          caption.isEmpty
-                              ? '(No caption)'
-                              : caption,
-                          maxLines: 1,
-                          overflow:
-                              TextOverflow.ellipsis,
-                        ),
-
-                        // =================================================
-                        // VIDEO INFORMATION
-                        // =================================================
-
-                        subtitle: Padding(
-                          padding:
-                              const EdgeInsets.only(
-                            top: 4,
-                          ),
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              if (productName != null &&
-                                  productName.isNotEmpty)
-                                Text(
-                                  'Linked: $productName',
-                                  maxLines: 1,
-                                  overflow:
-                                      TextOverflow
-                                          .ellipsis,
-                                ),
-                              const SizedBox(
-                                height: 3,
-                              ),
-                              Text(
-                                '♥ $likeCount • '
-                                'Views $viewCount',
-                              ),
-                              const SizedBox(
-                                height: 3,
-                              ),
-                              Text(
-                                status
-                                    .toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  color: status ==
-                                          'published'
-                                      ? Colors.green
-                                      : Colors.orange,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // =================================================
-                        // OPEN VIDEO
-                        // =================================================
-
-                        onTap: videoUrl.isEmpty
-                            ? null
-                            : () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) =>
-                                            VideoPlayerPage(
-                                      videoUrl:
-                                          videoUrl,
-                                      caption:
-                                          caption,
-                                      sellerName:
-                                          ownerName,
-                                    ),
-                                  ),
-                                );
-                              },
-
-                        // =================================================
-                        // DELETE
-                        // =================================================
-
-                        trailing:
-                            IconButton(
-                          tooltip:
-                              'Delete Video',
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                          onPressed: () {
-                            _deleteVideo(
-                              context,
-                              doc.id,
-                              caption,
-                            );
-                          },
-                        ),
-                      ),
-                    );
-                  },
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(() {});
+            },
+            child: ListView.builder(
+              physics:
+                  const AlwaysScrollableScrollPhysics(),
+              padding:
+                  const EdgeInsets.fromLTRB(
+                12,
+                12,
+                12,
+                90,
+              ),
+              itemCount:
+                  docs.length,
+              itemBuilder:
+                  (context, index) {
+                return _videoCard(
+                  docs[index],
                 );
               },
             ),
+          );
+        },
+      ),
     );
   }
 }
