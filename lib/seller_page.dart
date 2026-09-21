@@ -6,6 +6,7 @@ import 'add_product_page.dart';
 import 'my_products_page.dart';
 import 'seller_orders_page.dart';
 import 'seller_return_refund_page.dart';
+import 'news_feed_page.dart';
 
 class SellerPage extends StatelessWidget {
   const SellerPage({super.key});
@@ -139,13 +140,15 @@ class SellerPage extends StatelessWidget {
     );
   }
 
-  void _comingSoon(
-    BuildContext context,
-    String title,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$title will be added next.'),
+  // =========================================================
+  // OPEN MAIN VIDEOS
+  // =========================================================
+
+  void _openVideos(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NewsFeedPage(),
       ),
     );
   }
@@ -528,8 +531,8 @@ class SellerPage extends StatelessWidget {
 
                     _menuCard(
                       context: context,
-                      icon: Icons
-                          .assignment_return_outlined,
+                      icon:
+                          Icons.assignment_return_outlined,
                       title:
                           'Return & Refund Requests',
                       subtitle:
@@ -542,21 +545,26 @@ class SellerPage extends StatelessWidget {
                       },
                     ),
 
+                    // =================================================
+                    // VIDEOS
+                    // =================================================
+
                     _menuCard(
                       context: context,
                       icon:
                           Icons.video_library_outlined,
-                      title: 'Seller Videos',
+                      title: 'Videos',
                       subtitle:
-                          'Create videos and promote your products.',
+                          'Watch, upload and manage your BuyNova videos.',
                       enabled: isApproved,
                       onTap: () {
-                        _comingSoon(
-                          context,
-                          'Seller Videos',
-                        );
+                        _openVideos(context);
                       },
                     ),
+
+                    // =================================================
+                    // SALES ANALYTICS
+                    // =================================================
 
                     _menuCard(
                       context: context,
@@ -567,9 +575,13 @@ class SellerPage extends StatelessWidget {
                           'View sales and product performance.',
                       enabled: isApproved,
                       onTap: () {
-                        _comingSoon(
-                          context,
-                          'Sales Analytics',
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Sales Analytics will be added next.',
+                            ),
+                          ),
                         );
                       },
                     ),
