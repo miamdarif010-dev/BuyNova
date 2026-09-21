@@ -66,7 +66,7 @@ class _AddSellerVideoPageState
   }
 
   // =========================================================
-  // LOAD PRODUCTS
+  // LOAD MY PRODUCTS
   // =========================================================
 
   Future<void> _loadMyProducts() async {
@@ -84,7 +84,10 @@ class _AddSellerVideoPageState
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('products')
-          .where('sellerId', isEqualTo: user.uid)
+          .where(
+            'sellerId',
+            isEqualTo: user.uid,
+          )
           .get();
 
       final products = snapshot.docs.map((doc) {
@@ -130,7 +133,8 @@ class _AddSellerVideoPageState
 
       await controller.initialize();
 
-      final duration = controller.value.duration;
+      final duration =
+          controller.value.duration;
 
       await controller.dispose();
 
@@ -159,6 +163,8 @@ class _AddSellerVideoPageState
       await previewController.initialize();
 
       await previewController.setLooping(true);
+
+      await previewController.play();
 
       setState(() {
         _videoFile = file;
@@ -211,7 +217,7 @@ class _AddSellerVideoPageState
   }
 
   // =========================================================
-  // UPLOAD VIDEO
+  // UPLOAD VIDEO TO CLOUDINARY
   // =========================================================
 
   Future<String?> _uploadVideoToCloudinary(
@@ -219,11 +225,15 @@ class _AddSellerVideoPageState
   ) async {
     try {
       final url = Uri.parse(
-        'https://api.cloudinary.com/v1_1/$_cloudName/video/upload',
+        'https://api.cloudinary.com/v1_1/'
+        '$_cloudName/video/upload',
       );
 
       final request =
-          http.MultipartRequest('POST', url);
+          http.MultipartRequest(
+        'POST',
+        url,
+      );
 
       request.fields['upload_preset'] =
           _uploadPreset;
@@ -235,7 +245,8 @@ class _AddSellerVideoPageState
         ),
       );
 
-      final streamedResponse = await request.send();
+      final streamedResponse =
+          await request.send();
 
       final response =
           await http.Response.fromStream(
@@ -323,7 +334,7 @@ class _AddSellerVideoPageState
 
     setState(() {
       _uploading = true;
-      _uploadProgress = 0.1;
+      _uploadProgress = 0.05;
     });
 
     try {
@@ -337,7 +348,7 @@ class _AddSellerVideoPageState
       if (!mounted) return;
 
       setState(() {
-        _uploadProgress = 0.2;
+        _uploadProgress = 0.15;
       });
 
       // -------------------------------------------------------
@@ -363,49 +374,76 @@ class _AddSellerVideoPageState
       });
 
       // -------------------------------------------------------
-      // FIRESTORE DATA
+      // FIRESTORE VIDEO DATA
       // -------------------------------------------------------
 
       final videoData =
           <String, dynamic>{
+        // =====================================================
+        // VIDEO
+        // =====================================================
+
         'videoUrl': videoUrl,
 
         'caption':
             _captionController.text.trim(),
 
-        // IMPORTANT:
-        // All authenticated users can post.
+        // =====================================================
+        // OWNER
+        // =====================================================
+
+        // Main ownership field.
         'userId': user.uid,
 
-        // Keep sellerId for compatibility
-        // with existing video/feed code.
+        // Kept for compatibility with existing
+        // seller/video code.
         'sellerId': user.uid,
-
-        'sellerName': userName,
 
         'userName': userName,
 
-        'sellerEmail':
-            user.email ?? '',
+        'sellerName': userName,
 
         'userEmail':
             user.email ?? '',
 
-        // Public immediately
+        'sellerEmail':
+            user.email ?? '',
+
+        // =====================================================
+        // PUBLISH STATUS
+        // =====================================================
+
         'status': 'published',
 
-        // No admin approval
         'moderationStatus': 'none',
 
+        // =====================================================
+        // WATCH & EARN
+        // =====================================================
+
+        // Newly uploaded videos are not automatically
+        // reward eligible.
         'rewardEligible': false,
 
-        // Engagement counters
+        // =====================================================
+        // ENGAGEMENT COUNTERS
+        // =====================================================
+
         'viewCount': 0,
         'likeCount': 0,
         'commentCount': 0,
         'shareCount': 0,
 
-        // Product information
+        // Compatibility fields for older UI code.
+        'views': 0,
+        'likes': 0,
+        'comments': 0,
+        'shares': 0,
+
+        // =====================================================
+        // PRODUCT
+        // =====================================================
+
         'productId':
             _selectedProductId ?? '',
 
@@ -418,9 +456,17 @@ class _AddSellerVideoPageState
         'productImageUrl':
             _selectedProductImage ?? '',
 
+        // =====================================================
+        // CREATED TIME
+        // =====================================================
+
         'createdAt':
             FieldValue.serverTimestamp(),
       };
+
+      // =======================================================
+      // SAVE TO COMMON VIDEO COLLECTION
+      // =======================================================
 
       await FirebaseFirestore.instance
           .collection('sellerVideos')
@@ -437,12 +483,14 @@ class _AddSellerVideoPageState
           content: Text(
             'Video posted successfully!',
           ),
+          behavior:
+              SnackBarBehavior.floating,
         ),
       );
 
-      // -------------------------------------------------------
-      // CLEAR PAGE
-      // -------------------------------------------------------
+      // =======================================================
+      // CLEAN UP
+      // =======================================================
 
       _captionController.clear();
 
@@ -461,7 +509,10 @@ class _AddSellerVideoPageState
         _uploadProgress = 0;
       });
 
-      // Return to previous page
+      // =======================================================
+      // RETURN TO PREVIOUS PAGE
+      // =======================================================
+
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -476,16 +527,18 @@ class _AddSellerVideoPageState
           content: Text(
             'Could not post video: $e',
           ),
+          behavior:
+              SnackBarBehavior.floating,
         ),
       );
     }
   }
 
   // =========================================================
-  // REMOVE VIDEO
+  // REMOVE SELECTED VIDEO
   // =========================================================
 
-  void _removeSelectedVideo() async {
+  Future<void> _removeSelectedVideo() async {
     await _videoController?.dispose();
 
     if (!mounted) return;
@@ -535,26 +588,31 @@ class _AddSellerVideoPageState
         ),
         centerTitle: true,
       ),
+
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding:
+              const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
             children: [
               // =================================================
-              // VIDEO SELECTOR
+              // VIDEO
               // =================================================
 
               const Text(
                 'Video',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               if (_videoFile == null)
                 GestureDetector(
@@ -562,14 +620,20 @@ class _AddSellerVideoPageState
                       ? null
                       : _pickVideo,
                   child: Container(
-                    width: double.infinity,
+                    width:
+                        double.infinity,
                     height: 280,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.grey.shade200,
                       borderRadius:
-                          BorderRadius.circular(18),
+                          BorderRadius.circular(
+                        18,
+                      ),
                       border: Border.all(
-                        color: Colors.grey.shade400,
+                        color:
+                            Colors.grey.shade400,
                       ),
                     ),
                     child: const Column(
@@ -577,24 +641,33 @@ class _AddSellerVideoPageState
                           MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.video_library,
+                          Icons
+                              .video_library,
                           size: 60,
-                          color: Colors.grey,
+                          color:
+                              Colors.grey,
                         ),
-                        SizedBox(height: 12),
+                        SizedBox(
+                          height: 12,
+                        ),
                         Text(
                           'Select Video',
-                          style: TextStyle(
+                          style:
+                              TextStyle(
                             fontSize: 18,
                             fontWeight:
                                 FontWeight.bold,
                           ),
                         ),
-                        SizedBox(height: 5),
+                        SizedBox(
+                          height: 5,
+                        ),
                         Text(
                           'Maximum 90 seconds',
-                          style: TextStyle(
-                            color: Colors.grey,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.grey,
                           ),
                         ),
                       ],
@@ -606,33 +679,41 @@ class _AddSellerVideoPageState
                   children: [
                     ClipRRect(
                       borderRadius:
-                          BorderRadius.circular(18),
+                          BorderRadius.circular(
+                        18,
+                      ),
                       child: Container(
-                        width: double.infinity,
+                        width:
+                            double.infinity,
                         height: 420,
-                        color: Colors.black,
-                        child: _videoController !=
-                                    null &&
-                                _videoController!
-                                    .value
-                                    .isInitialized
-                            ? Center(
-                                child: AspectRatio(
-                                  aspectRatio:
-                                      _videoController!
-                                          .value
-                                          .aspectRatio,
-                                  child: VideoPlayer(
-                                    _videoController!,
+                        color:
+                            Colors.black,
+                        child:
+                            _videoController !=
+                                        null &&
+                                    _videoController!
+                                        .value
+                                        .isInitialized
+                                ? Center(
+                                    child:
+                                        AspectRatio(
+                                      aspectRatio:
+                                          _videoController!
+                                              .value
+                                              .aspectRatio,
+                                      child:
+                                          VideoPlayer(
+                                        _videoController!,
+                                      ),
+                                    ),
+                                  )
+                                : const Center(
+                                    child:
+                                        CircularProgressIndicator(
+                                      color:
+                                          Colors.white,
+                                    ),
                                   ),
-                                ),
-                              )
-                            : const Center(
-                                child:
-                                    CircularProgressIndicator(
-                                  color: Colors.white,
-                                ),
-                              ),
                       ),
                     ),
 
@@ -640,15 +721,19 @@ class _AddSellerVideoPageState
                       Positioned(
                         top: 10,
                         right: 10,
-                        child: CircleAvatar(
+                        child:
+                            CircleAvatar(
                           backgroundColor:
                               Colors.black54,
-                          child: IconButton(
+                          child:
+                              IconButton(
                             onPressed:
                                 _removeSelectedVideo,
-                            icon: const Icon(
+                            icon:
+                                const Icon(
                               Icons.close,
-                              color: Colors.white,
+                              color:
+                                  Colors.white,
                             ),
                           ),
                         ),
@@ -657,23 +742,30 @@ class _AddSellerVideoPageState
                     Positioned(
                       bottom: 12,
                       left: 12,
-                      child: Container(
+                      child:
+                          Container(
                         padding:
-                            const EdgeInsets.symmetric(
+                            const EdgeInsets
+                                .symmetric(
                           horizontal: 10,
                           vertical: 6,
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              Colors.black54,
                           borderRadius:
                               BorderRadius.circular(
                             20,
                           ),
                         ),
-                        child: const Text(
+                        child:
+                            const Text(
                           'Up to 90 seconds',
-                          style: TextStyle(
-                            color: Colors.white,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.white,
                             fontSize: 12,
                           ),
                         ),
@@ -682,7 +774,9 @@ class _AddSellerVideoPageState
                   ],
                 ),
 
-              const SizedBox(height: 22),
+              const SizedBox(
+                height: 22,
+              ),
 
               // =================================================
               // CAPTION
@@ -692,27 +786,37 @@ class _AddSellerVideoPageState
                 'Caption',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               TextField(
-                controller: _captionController,
+                controller:
+                    _captionController,
                 maxLines: 4,
                 maxLength: 500,
-                decoration: InputDecoration(
+                decoration:
+                    InputDecoration(
                   hintText:
                       'Write something about your video...',
-                  border: OutlineInputBorder(
+                  border:
+                      OutlineInputBorder(
                     borderRadius:
-                        BorderRadius.circular(14),
+                        BorderRadius.circular(
+                      14,
+                    ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               // =================================================
               // PRODUCT
@@ -722,11 +826,14 @@ class _AddSellerVideoPageState
                 'Attach Product',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 6),
+              const SizedBox(
+                height: 6,
+              ),
 
               const Text(
                 'Optional. You can post a video without a product.',
@@ -735,7 +842,9 @@ class _AddSellerVideoPageState
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               if (_loadingProducts)
                 const Center(
@@ -745,38 +854,53 @@ class _AddSellerVideoPageState
               else
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(
+                      const EdgeInsets
+                          .symmetric(
                     horizontal: 12,
                   ),
-                  decoration: BoxDecoration(
+                  decoration:
+                      BoxDecoration(
                     border: Border.all(
-                      color: Colors.grey.shade400,
+                      color:
+                          Colors.grey.shade400,
                     ),
                     borderRadius:
-                        BorderRadius.circular(14),
+                        BorderRadius.circular(
+                      14,
+                    ),
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: _selectedProductId,
-                      hint: const Text(
+                  child:
+                      DropdownButtonHideUnderline(
+                    child:
+                        DropdownButton<String>(
+                      isExpanded:
+                          true,
+                      value:
+                          _selectedProductId,
+                      hint:
+                          const Text(
                         'No product selected',
                       ),
                       items: [
-                        const DropdownMenuItem<String>(
+                        const DropdownMenuItem<
+                            String>(
                           value: null,
                           child: Text(
                             'No product',
                           ),
                         ),
                         ..._myProducts.map(
-                          (product) {
+                          (
+                            product,
+                          ) {
                             return DropdownMenuItem<
                                 String>(
                               value:
-                                  product['id']
+                                  product[
+                                          'id']
                                       ?.toString(),
-                              child: Text(
+                              child:
+                                  Text(
                                 product['name']
                                         ?.toString() ??
                                     'Product',
@@ -789,29 +913,36 @@ class _AddSellerVideoPageState
                           },
                         ),
                       ],
-                      onChanged: _uploading
-                          ? null
-                          : (value) {
-                              if (value == null) {
-                                _selectProduct(
-                                  null,
-                                );
-                                return;
-                              }
+                      onChanged:
+                          _uploading
+                              ? null
+                              : (
+                                  value,
+                                ) {
+                                  if (value ==
+                                      null) {
+                                    _selectProduct(
+                                      null,
+                                    );
+                                    return;
+                                  }
 
-                              final product =
-                                  _myProducts
-                                      .firstWhere(
-                                (item) =>
-                                    item['id']
-                                        ?.toString() ==
-                                    value,
-                              );
+                                  final product =
+                                      _myProducts
+                                          .firstWhere(
+                                    (
+                                      item,
+                                    ) =>
+                                        item[
+                                                'id']
+                                            ?.toString() ==
+                                        value,
+                                  );
 
-                              _selectProduct(
-                                product,
-                              );
-                            },
+                                  _selectProduct(
+                                    product,
+                                  );
+                                },
                     ),
                   ),
                 ),
@@ -820,17 +951,25 @@ class _AddSellerVideoPageState
               // SELECTED PRODUCT
               // =================================================
 
-              if (_selectedProductId != null) ...[
-                const SizedBox(height: 14),
+              if (_selectedProductId !=
+                  null) ...[
+                const SizedBox(
+                  height: 14,
+                ),
 
                 Container(
                   padding:
-                      const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
+                      const EdgeInsets.all(
+                    12,
+                  ),
+                  decoration:
+                      BoxDecoration(
                     color:
                         Colors.grey.shade100,
                     borderRadius:
-                        BorderRadius.circular(14),
+                        BorderRadius.circular(
+                      14,
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -843,17 +982,23 @@ class _AddSellerVideoPageState
                               BorderRadius.circular(
                             10,
                           ),
-                          child: Image.network(
+                          child:
+                              Image.network(
                             _selectedProductImage!,
                             width: 65,
                             height: 65,
                             fit: BoxFit.cover,
                             errorBuilder:
-                                (_, __, ___) {
+                                (
+                              _,
+                              __,
+                              ___,
+                            ) {
                               return Container(
                                 width: 65,
                                 height: 65,
-                                color: Colors.grey
+                                color: Colors
+                                    .grey
                                     .shade300,
                                 child:
                                     const Icon(
@@ -869,22 +1014,28 @@ class _AddSellerVideoPageState
                           height: 65,
                           decoration:
                               BoxDecoration(
-                            color: Colors.grey
+                            color: Colors
+                                .grey
                                 .shade300,
                             borderRadius:
                                 BorderRadius.circular(
                               10,
                             ),
                           ),
-                          child: const Icon(
-                            Icons.shopping_bag,
+                          child:
+                              const Icon(
+                            Icons
+                                .shopping_bag,
                           ),
                         ),
 
-                      const SizedBox(width: 12),
+                      const SizedBox(
+                        width: 12,
+                      ),
 
                       Expanded(
-                        child: Column(
+                        child:
+                            Column(
                           crossAxisAlignment:
                               CrossAxisAlignment
                                   .start,
@@ -918,13 +1069,15 @@ class _AddSellerVideoPageState
                       ),
 
                       IconButton(
-                        onPressed: _uploading
-                            ? null
-                            : () =>
-                                _selectProduct(
-                                  null,
-                                ),
-                        icon: const Icon(
+                        onPressed:
+                            _uploading
+                                ? null
+                                : () =>
+                                    _selectProduct(
+                                      null,
+                                    ),
+                        icon:
+                            const Icon(
                           Icons.close,
                         ),
                       ),
@@ -933,34 +1086,47 @@ class _AddSellerVideoPageState
                 ),
               ],
 
-              const SizedBox(height: 28),
+              const SizedBox(
+                height: 28,
+              ),
 
               // =================================================
               // INFO
               // =================================================
 
               Container(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                    const EdgeInsets.all(
+                  14,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.blue.shade50,
                   borderRadius:
-                      BorderRadius.circular(14),
+                      BorderRadius.circular(
+                    14,
+                  ),
                 ),
                 child: const Row(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     Icon(
                       Icons.info_outline,
                       color: Colors.blue,
                     ),
-                    SizedBox(width: 10),
+                    SizedBox(
+                      width: 10,
+                    ),
                     Expanded(
                       child: Text(
-                        'Anyone with a BuyNova account can post videos. Videos are published immediately and can be viewed from the Videos/Reels section.',
-                        style: TextStyle(
+                        'Anyone with a BuyNova account can post videos. Videos are published immediately and appear in the common Videos/Reels feed and the uploader’s My Videos.',
+                        style:
+                            TextStyle(
                           fontSize: 13,
                         ),
                       ),
@@ -969,7 +1135,9 @@ class _AddSellerVideoPageState
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
 
               // =================================================
               // UPLOAD PROGRESS
@@ -977,22 +1145,31 @@ class _AddSellerVideoPageState
 
               if (_uploading) ...[
                 LinearProgressIndicator(
-                  value: _uploadProgress > 0
-                      ? _uploadProgress
-                      : null,
+                  value:
+                      _uploadProgress > 0
+                          ? _uploadProgress
+                          : null,
                 ),
-                const SizedBox(height: 10),
+
+                const SizedBox(
+                  height: 10,
+                ),
+
                 Center(
                   child: Text(
                     'Uploading... '
                     '${(_uploadProgress * 100).toInt()}%',
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontWeight:
                           FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(height: 15),
+
+                const SizedBox(
+                  height: 15,
+                ),
               ],
 
               // =================================================
@@ -1000,12 +1177,15 @@ class _AddSellerVideoPageState
               // =================================================
 
               SizedBox(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 height: 54,
-                child: ElevatedButton.icon(
-                  onPressed: _uploading
-                      ? null
-                      : _postVideo,
+                child:
+                    ElevatedButton.icon(
+                  onPressed:
+                      _uploading
+                          ? null
+                          : _postVideo,
                   icon: _uploading
                       ? const SizedBox(
                           width: 20,
@@ -1013,7 +1193,8 @@ class _AddSellerVideoPageState
                           child:
                               CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color:
+                                Colors.white,
                           ),
                         )
                       : const Icon(
@@ -1023,7 +1204,8 @@ class _AddSellerVideoPageState
                     _uploading
                         ? 'Posting Video...'
                         : 'Post Video',
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 17,
                       fontWeight:
                           FontWeight.bold,
@@ -1032,7 +1214,9 @@ class _AddSellerVideoPageState
                 ),
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(
+                height: 25,
+              ),
             ],
           ),
         ),
