@@ -172,6 +172,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  // =========================================================
+  // MY VIDEOS
+  // =========================================================
+
   void _openMyVideos() {
     Navigator.push(
       context,
@@ -634,6 +638,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
         onTap: _openAddressBook,
       ),
 
+      // =====================================================
+      // BUYER MY VIDEOS
+      // =====================================================
+
+      _plusMenuItem(
+        icon: Icons.video_library_outlined,
+        title: 'My Videos',
+        onTap: _openMyVideos,
+      ),
+
       _menuItem(
         icon: Icons.help_outline,
         title: 'Help & Support',
@@ -723,10 +737,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
           title: 'Favorites',
           onTap: _openFavorites,
         ),
-
-        // =====================================================
-        // RESELLER ORDERS — NEW
-        // =====================================================
 
         _menuItem(
           icon: Icons.local_shipping_outlined,
@@ -1370,4 +1380,3 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 }
-
