@@ -16,8 +16,7 @@ class AddSellerVideoPage extends StatefulWidget {
       _AddSellerVideoPageState();
 }
 
-class _AddSellerVideoPageState
-    extends State<AddSellerVideoPage> {
+class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
   // =========================================================
   // CLOUDINARY
   // =========================================================
@@ -73,11 +72,12 @@ class _AddSellerVideoPageState
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      if (mounted) {
-        setState(() {
-          _loadingProducts = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _loadingProducts = false;
+      });
+
       return;
     }
 
@@ -93,7 +93,7 @@ class _AddSellerVideoPageState
       final products = snapshot.docs.map((doc) {
         final data = doc.data();
 
-        return {
+        return <String, dynamic>{
           'id': doc.id,
           ...data,
         };
@@ -119,6 +119,8 @@ class _AddSellerVideoPageState
   // =========================================================
 
   Future<void> _pickVideo() async {
+    if (_uploading) return;
+
     try {
       final XFile? picked = await _picker.pickVideo(
         source: ImageSource.gallery,
@@ -128,18 +130,19 @@ class _AddSellerVideoPageState
 
       final file = File(picked.path);
 
-      final controller =
-          VideoPlayerController.file(file);
+      final controller = VideoPlayerController.file(file);
 
       await controller.initialize();
 
-      final duration =
-          controller.value.duration;
+      final duration = controller.value.duration;
 
       await controller.dispose();
 
-      // Maximum 90 seconds
-      if (duration.inSeconds > 90) {
+      // -------------------------------------------------------
+      // Maximum exactly 90 seconds
+      // -------------------------------------------------------
+
+      if (duration > const Duration(seconds: 90)) {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,13 +160,10 @@ class _AddSellerVideoPageState
 
       await _videoController?.dispose();
 
-      final previewController =
-          VideoPlayerController.file(file);
+      final previewController = VideoPlayerController.file(file);
 
       await previewController.initialize();
-
       await previewController.setLooping(true);
-
       await previewController.play();
 
       setState(() {
@@ -202,8 +202,7 @@ class _AddSellerVideoPageState
     }
 
     setState(() {
-      _selectedProductId =
-          product['id']?.toString();
+      _selectedProductId = product['id']?.toString();
 
       _selectedProductName =
           product['name']?.toString();
@@ -229,8 +228,7 @@ class _AddSellerVideoPageState
         '$_cloudName/video/upload',
       );
 
-      final request =
-          http.MultipartRequest(
+      final request = http.MultipartRequest(
         'POST',
         url,
       );
@@ -253,7 +251,8 @@ class _AddSellerVideoPageState
         streamedResponse,
       );
 
-      if (response.statusCode != 200) {
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300) {
         return null;
       }
 
@@ -263,6 +262,41 @@ class _AddSellerVideoPageState
       return data['secure_url']?.toString();
     } catch (_) {
       return null;
+    }
+  }
+
+  // =========================================================
+  // CREATE CLOUDINARY THUMBNAIL URL
+  // =========================================================
+
+  String _createThumbnailUrl(
+    String videoUrl,
+  ) {
+    try {
+      final uri = Uri.parse(videoUrl);
+
+      final path = uri.path;
+
+      if (!path.contains('/video/upload/')) {
+        return '';
+      }
+
+      final newPath = path.replaceFirst(
+        '/video/upload/',
+        '/video/upload/so_0/',
+      );
+
+      final withoutExtension =
+          newPath.replaceFirst(
+        RegExp(r'\.[^./]+$'),
+        '',
+      );
+
+      return uri.replace(
+        path: '$withoutExtension.jpg',
+      ).toString();
+    } catch (_) {
+      return '';
     }
   }
 
@@ -291,9 +325,23 @@ class _AddSellerVideoPageState
       }
     } catch (_) {}
 
-    return user.displayName ??
-        user.email ??
-        'BuyNova User';
+    final displayName =
+        user.displayName?.trim();
+
+    if (displayName != null &&
+        displayName.isNotEmpty) {
+      return displayName;
+    }
+
+    final email =
+        user.email?.trim();
+
+    if (email != null &&
+        email.isNotEmpty) {
+      return email;
+    }
+
+    return 'BuyNova User';
   }
 
   // =========================================================
@@ -301,6 +349,8 @@ class _AddSellerVideoPageState
   // =========================================================
 
   Future<void> _postVideo() async {
+    if (_uploading) return;
+
     final user =
         FirebaseAuth.instance.currentUser;
 
@@ -319,6 +369,8 @@ class _AddSellerVideoPageState
     }
 
     if (_videoFile == null) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -329,8 +381,6 @@ class _AddSellerVideoPageState
 
       return;
     }
-
-    if (_uploading) return;
 
     setState(() {
       _uploading = true;
@@ -374,6 +424,13 @@ class _AddSellerVideoPageState
       });
 
       // -------------------------------------------------------
+      // THUMBNAIL
+      // -------------------------------------------------------
+
+      final thumbnailUrl =
+          _createThumbnailUrl(videoUrl);
+
+      // -------------------------------------------------------
       // FIRESTORE VIDEO DATA
       // -------------------------------------------------------
 
@@ -385,6 +442,8 @@ class _AddSellerVideoPageState
 
         'videoUrl': videoUrl,
 
+        'thumbnailUrl': thumbnailUrl,
+
         'caption':
             _captionController.text.trim(),
 
@@ -392,11 +451,9 @@ class _AddSellerVideoPageState
         // OWNER
         // =====================================================
 
-        // Main ownership field.
         'userId': user.uid,
 
-        // Kept for compatibility with existing
-        // seller/video code.
+        // Compatibility with existing seller video system.
         'sellerId': user.uid,
 
         'userName': userName,
@@ -421,8 +478,7 @@ class _AddSellerVideoPageState
         // WATCH & EARN
         // =====================================================
 
-        // Newly uploaded videos are not automatically
-        // reward eligible.
+        // New uploads are not automatically reward eligible.
         'rewardEligible': false,
 
         // =====================================================
@@ -434,7 +490,7 @@ class _AddSellerVideoPageState
         'commentCount': 0,
         'shareCount': 0,
 
-        // Compatibility fields for older UI code.
+        // Compatibility with older documents/UI.
         'views': 0,
         'likes': 0,
         'comments': 0,
@@ -478,6 +534,13 @@ class _AddSellerVideoPageState
         _uploadProgress = 1.0;
       });
 
+      // Give the UI a tiny moment to show 100%.
+      await Future<void>.delayed(
+        const Duration(milliseconds: 250),
+      );
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -495,6 +558,8 @@ class _AddSellerVideoPageState
       _captionController.clear();
 
       await _videoController?.dispose();
+
+      if (!mounted) return;
 
       setState(() {
         _videoFile = null;
@@ -539,6 +604,8 @@ class _AddSellerVideoPageState
   // =========================================================
 
   Future<void> _removeSelectedVideo() async {
+    if (_uploading) return;
+
     await _videoController?.dispose();
 
     if (!mounted) return;
@@ -567,6 +634,10 @@ class _AddSellerVideoPageState
         ) ??
         0;
   }
+
+  // =========================================================
+  // DISPOSE
+  // =========================================================
 
   @override
   void dispose() {
@@ -641,8 +712,7 @@ class _AddSellerVideoPageState
                           MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons
-                              .video_library,
+                          Icons.video_library,
                           size: 60,
                           color:
                               Colors.grey,
@@ -800,6 +870,7 @@ class _AddSellerVideoPageState
                     _captionController,
                 maxLines: 4,
                 maxLength: 500,
+                enabled: !_uploading,
                 decoration:
                     InputDecoration(
                   hintText:
@@ -1024,8 +1095,7 @@ class _AddSellerVideoPageState
                           ),
                           child:
                               const Icon(
-                            Icons
-                                .shopping_bag,
+                            Icons.shopping_bag,
                           ),
                         ),
 
@@ -1057,7 +1127,7 @@ class _AddSellerVideoPageState
                               height: 5,
                             ),
                             Text(
-                              '₩${(_selectedProductPrice ?? 0).toStringAsFixed(0)}',
+                              '৳${(_selectedProductPrice ?? 0).toStringAsFixed(0)}',
                               style:
                                   const TextStyle(
                                 fontWeight:
