@@ -6,7 +6,8 @@ class AddressBookPage extends StatelessWidget {
   const AddressBookPage({super.key});
 
   // =========================================================
-  // ADDRESS =========================================================
+  // ADDRESS FORM
+  // =========================================================
 
   void _showAddressForm(
     BuildContext context, {
@@ -28,6 +29,7 @@ class AddressBookPage extends StatelessWidget {
 
     bool isDefault = data?['isDefault'] == true;
     bool saving = false;
+    String zone = data?['deliveryZone']?.toString() ?? '';
 
     showDialog(
       context: context,
@@ -49,6 +51,17 @@ class AddressBookPage extends StatelessWidget {
                   const SnackBar(
                     content: Text(
                       'Please fill in all address fields.',
+                    ),
+                  ),
+                );
+                return;
+              }
+
+              if (zone.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Please choose Inside Dhaka or Outside Dhaka.',
                     ),
                   ),
                 );
@@ -110,6 +123,7 @@ class AddressBookPage extends StatelessWidget {
                   'name': name,
                   'phone': phone,
                   'address': address,
+                  'deliveryZone': zone,
                   'isDefault': isDefault,
                   'updatedAt':
                       FieldValue.serverTimestamp(),
@@ -205,7 +219,7 @@ class AddressBookPage extends StatelessWidget {
                         border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -458,6 +472,15 @@ class AddressBookPage extends StatelessWidget {
     final isDefault =
         data['isDefault'] == true;
 
+    final zoneValue =
+        data['deliveryZone']?.toString() ?? '';
+
+    final zoneText = zoneValue == 'inside_dhaka'
+        ? 'Inside Dhaka'
+        : zoneValue == 'outside_dhaka'
+            ? 'Outside Dhaka'
+            : '';
+
     return Card(
       margin: const EdgeInsets.only(
         bottom: 14,
@@ -550,6 +573,18 @@ class AddressBookPage extends StatelessWidget {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 3),
+                      Text(
+                        zoneText.isEmpty
+                            ? 'Delivery area not set. Tap edit to choose.'
+                            : zoneText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: zoneText.isEmpty
+                              ? Colors.orange.shade800
+                              : Colors.grey.shade600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
