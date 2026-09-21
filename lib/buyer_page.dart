@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'favorites_page.dart';
 import 'cart_page.dart';
@@ -8,458 +6,272 @@ import 'my_orders_page.dart';
 import 'buyer_support_page.dart';
 import 'notifications_page.dart';
 import 'buyer_messages_page.dart';
+import 'news_feed_page.dart';
 
-class BuyerPage extends StatefulWidget {
+class BuyerPage extends StatelessWidget {
   const BuyerPage({super.key});
 
+  // =========================================================
+  // OPEN VIDEOS
+  // =========================================================
+
+  void _openVideos(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const NewsFeedPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
-  State<BuyerPage> createState() => _BuyerPageState();
-}
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Buyer',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // =================================================
+            // HEADER
+            // =================================================
 
-class _BuyerPageState extends State<BuyerPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+            Card(
+              elevation: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 32,
+                      child: Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Buyer Account',
+                            style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            'Shop products, manage orders and '
+                            'enjoy BuyNova services.',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-  Widget _menuItem({
-    required BuildContext context,
+            const SizedBox(height: 20),
+
+            // =================================================
+            // SHOPPING
+            // =================================================
+
+            const Text(
+              'Shopping',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            _buyerItem(
+              context,
+              icon: Icons.notifications_outlined,
+              title: 'Notifications',
+              subtitle:
+                  'View your latest BuyNova notifications.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const NotificationsPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buyerItem(
+              context,
+              icon: Icons.message_outlined,
+              title: 'Messages',
+              subtitle:
+                  'Chat with sellers and manage conversations.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const BuyerMessagesPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buyerItem(
+              context,
+              icon: Icons.favorite_border,
+              title: 'Favorites',
+              subtitle:
+                  'View products you saved as favorites.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const FavoritesPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buyerItem(
+              context,
+              icon: Icons.shopping_cart_outlined,
+              title: 'Cart',
+              subtitle:
+                  'View products added to your cart.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CartPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buyerItem(
+              context,
+              icon: Icons.receipt_long_outlined,
+              title: 'My Orders',
+              subtitle:
+                  'Track and manage your orders.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const MyOrdersPage(),
+                  ),
+                );
+              },
+            ),
+
+            // =================================================
+            // VIDEOS
+            // =================================================
+
+            _buyerItem(
+              context,
+              icon: Icons.video_library_outlined,
+              title: 'Videos',
+              subtitle:
+                  'Watch, upload and manage your BuyNova videos.',
+              onTap: () {
+                _openVideos(context);
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            // =================================================
+            // SUPPORT
+            // =================================================
+
+            const Text(
+              'Support',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            _buyerItem(
+              context,
+              icon: Icons.support_agent_outlined,
+              title: 'Help & Support',
+              subtitle:
+                  'Get help with your BuyNova account and orders.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const BuyerSupportPage(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // BUYER ITEM
+  // =========================================================
+
+  Widget _buyerItem(
+    BuildContext context, {
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
-    Widget? trailing,
   }) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 8,
-        ),
-        leading: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: Colors.redAccent.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            color: Colors.redAccent,
-          ),
-        ),
+        leading: Icon(icon),
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(subtitle),
+        subtitle: Text(subtitle),
+        trailing: const Icon(
+          Icons.chevron_right,
         ),
-        trailing: trailing ?? const Icon(Icons.chevron_right),
         onTap: onTap,
-      ),
-    );
-  }
-
-  void _openPage(BuildContext context, Widget page) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => page,
-      ),
-    );
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _notificationStream() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
-    }
-
-    return _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('notifications')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _messagesStream() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
-    }
-
-    return _firestore
-        .collection('conversations')
-        .where('buyerId', isEqualTo: user.uid)
-        .orderBy('lastMessageAt', descending: true)
-        .snapshots();
-  }
-
-  Widget _notificationMenuItem(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _notificationStream(),
-      builder: (context, snapshot) {
-        int unreadCount = 0;
-
-        if (snapshot.hasData) {
-          for (final document in snapshot.data!.docs) {
-            final data = document.data();
-
-            final bool isRead =
-                data['isRead'] == true || data['read'] == true;
-
-            if (!isRead) {
-              unreadCount++;
-            }
-          }
-        }
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 1,
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            leading: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.redAccent,
-                  ),
-                ),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: -6,
-                    top: -6,
-                    child: Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 22,
-                        minHeight: 22,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 2,
-                        ),
-                      ),
-                      child: Text(
-                        unreadCount > 99
-                            ? '99+'
-                            : unreadCount.toString(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            title: const Text(
-              'Notifications',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: Text(
-              unreadCount == 0
-                  ? 'You have no unread notifications.'
-                  : '$unreadCount unread notification'
-                      '${unreadCount == 1 ? '' : 's'}.',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _openPage(
-                context,
-                const NotificationsPage(),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _messagesMenuItem(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _messagesStream(),
-      builder: (context, snapshot) {
-        int unreadCount = 0;
-
-        if (snapshot.hasData) {
-          for (final document in snapshot.data!.docs) {
-            final data = document.data();
-
-            final dynamic value = data['buyerUnreadCount'];
-
-            if (value is num && value > 0) {
-              unreadCount += value.toInt();
-            }
-          }
-        }
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 1,
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            leading: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.chat_bubble_outline,
-                    color: Colors.redAccent,
-                  ),
-                ),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: -6,
-                    top: -6,
-                    child: Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 22,
-                        minHeight: 22,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 2,
-                        ),
-                      ),
-                      child: Text(
-                        unreadCount > 99
-                            ? '99+'
-                            : unreadCount.toString(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            title: const Text(
-              'Messages',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: Text(
-              unreadCount == 0
-                  ? 'Chat with sellers about your orders and products.'
-                  : '$unreadCount unread message'
-                      '${unreadCount == 1 ? '' : 's'}.',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _openPage(
-                context,
-                const BuyerMessagesPage(),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = _auth.currentUser;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Buyer'),
-        centerTitle: true,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.redAccent,
-                  Colors.red.shade700,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.shopping_bag_outlined,
-                  color: Colors.white,
-                  size: 42,
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Welcome to BuyNova',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Shop products, manage your orders and get support.',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          const Text(
-            'Shopping',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Notifications
-          _notificationMenuItem(context),
-
-          // Messages
-          _messagesMenuItem(context),
-
-          // Favorites
-          _menuItem(
-            context: context,
-            icon: Icons.favorite_border,
-            title: 'Favorites',
-            subtitle: 'View your saved products.',
-            onTap: () {
-              _openPage(
-                context,
-                const FavoritesPage(),
-              );
-            },
-          ),
-
-          // Cart
-          _menuItem(
-            context: context,
-            icon: Icons.shopping_cart_outlined,
-            title: 'Cart',
-            subtitle: 'View and manage your shopping cart.',
-            onTap: () {
-              _openPage(
-                context,
-                const CartPage(),
-              );
-            },
-          ),
-
-          // My Orders
-          _menuItem(
-            context: context,
-            icon: Icons.receipt_long_outlined,
-            title: 'My Orders',
-            subtitle: 'View orders and track your deliveries.',
-            onTap: () {
-              _openPage(
-                context,
-                const MyOrdersPage(),
-              );
-            },
-          ),
-
-          const SizedBox(height: 14),
-
-          const Text(
-            'Support',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Help & Support
-          _menuItem(
-            context: context,
-            icon: Icons.support_agent_outlined,
-            title: 'Help & Support',
-            subtitle:
-                'Get help with orders, payments and delivery.',
-            onTap: () {
-              _openPage(
-                context,
-                const BuyerSupportPage(),
-              );
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          Center(
-            child: Text(
-              user == null ? 'BuyNova Buyer' : 'BuyNova Buyer',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 13,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-        ],
       ),
     );
   }
