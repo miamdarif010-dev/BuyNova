@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'available_products_page.dart';
 import 'my_store_page.dart';
 import 'reseller_orders_page.dart';
-
+import 'my_profit_page.dart';
 class EntrepreneurPage extends StatefulWidget {
   const EntrepreneurPage({super.key});
 
@@ -649,8 +649,11 @@ class _EntrepreneurPageState
           subtitle:
               'Track your reseller profit.',
           onTap: () {
-            _comingSoon(
-              'My Profit',
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const MyProfitPage(),
+              ),
             );
           },
         ),
