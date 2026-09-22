@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -23,6 +24,12 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
 
   static const String _cloudName = 'riassg6d';
   static const String _uploadPreset = 'buynova_products';
+
+  // Maximum allowed video file size (in bytes). 60 MB.
+  static const int _maxVideoBytes = 60 * 1024 * 1024;
+
+  // Network timeout for the Cloudinary upload request.
+  static const Duration _uploadTimeout = Duration(minutes: 3);
 
   // =========================================================
   // CONTROLLERS
@@ -130,19 +137,45 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
 
       final file = File(picked.path);
 
+      // -------------------------------------------------------
+      // File size check (max 60 MB)
+      // -------------------------------------------------------
+
+      final fileSize = await file.length();
+
+      if (fileSize > _maxVideoBytes) {
+        if (!mounted) return;
+
+        final maxMb = (_maxVideoBytes / (1024 * 1024)).toStringAsFixed(0);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Video file is too large. Maximum size is $maxMb MB.',
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      // -------------------------------------------------------
+      // Single controller: used both to check duration and,
+      // if valid, kept as the preview controller (no double
+      // decode of the same video file).
+      // -------------------------------------------------------
+
       final controller = VideoPlayerController.file(file);
 
       await controller.initialize();
 
       final duration = controller.value.duration;
 
-      await controller.dispose();
-
-      // -------------------------------------------------------
       // Maximum exactly 90 seconds
-      // -------------------------------------------------------
 
       if (duration > const Duration(seconds: 90)) {
+        await controller.dispose();
+
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -156,19 +189,19 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
         return;
       }
 
-      if (!mounted) return;
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
 
       await _videoController?.dispose();
 
-      final previewController = VideoPlayerController.file(file);
-
-      await previewController.initialize();
-      await previewController.setLooping(true);
-      await previewController.play();
+      await controller.setLooping(true);
+      await controller.play();
 
       setState(() {
         _videoFile = file;
-        _videoController = previewController;
+        _videoController = controller;
       });
     } catch (e) {
       if (!mounted) return;
@@ -216,12 +249,13 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
   }
 
   // =========================================================
-  // UPLOAD VIDEO TO CLOUDINARY
+  // UPLOAD VIDEO TO CLOUDINARY (with real progress + timeout)
   // =========================================================
 
   Future<String?> _uploadVideoToCloudinary(
-    File file,
-  ) async {
+    File file, {
+    required void Function(double progress) onProgress,
+  }) async {
     try {
       final url = Uri.parse(
         'https://api.cloudinary.com/v1_1/'
@@ -243,11 +277,65 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
         ),
       );
 
-      final streamedResponse =
-          await request.send();
+      final contentLength = request.contentLength;
 
-      final response =
-          await http.Response.fromStream(
+      // Rebuild the request as a StreamedRequest so we can
+      // observe how many bytes have actually been sent and
+      // report real upload progress instead of fake fixed steps.
+
+      final streamedRequest = http.StreamedRequest(
+        request.method,
+        request.url,
+      );
+
+      streamedRequest.headers.addAll(request.headers);
+      streamedRequest.contentLength = contentLength;
+
+      int bytesSent = 0;
+
+      final byteStream = request.finalize();
+
+      final subscription = byteStream.listen(
+        (chunk) {
+          bytesSent += chunk.length;
+          streamedRequest.sink.add(chunk);
+
+          if (contentLength > 0) {
+            // Reserve 0.15â€“0.80 of the overall progress bar for
+            // the actual network upload portion.
+            final fraction = bytesSent / contentLength;
+            final scaled = 0.15 + (fraction * 0.65);
+            onProgress(scaled.clamp(0.15, 0.80));
+          }
+        },
+        onDone: () {
+          streamedRequest.sink.close();
+        },
+        onError: (Object e, StackTrace st) {
+          streamedRequest.sink.addError(e, st);
+        },
+        cancelOnError: true,
+      );
+
+      final client = http.Client();
+
+      late final http.StreamedResponse streamedResponse;
+
+      try {
+        streamedResponse = await client
+            .send(streamedRequest)
+            .timeout(_uploadTimeout);
+      } on TimeoutException {
+        await subscription.cancel();
+        client.close();
+        throw Exception(
+          'Upload timed out. Please check your connection and try again.',
+        );
+      } finally {
+        client.close();
+      }
+
+      final response = await http.Response.fromStream(
         streamedResponse,
       );
 
@@ -260,7 +348,10 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
           jsonDecode(response.body);
 
       return data['secure_url']?.toString();
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception && e.toString().contains('timed out')) {
+        rethrow;
+      }
       return null;
     }
   }
@@ -402,12 +493,17 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
       });
 
       // -------------------------------------------------------
-      // CLOUDINARY UPLOAD
+      // CLOUDINARY UPLOAD (real progress via callback)
       // -------------------------------------------------------
 
-      final videoUrl =
-          await _uploadVideoToCloudinary(
+      final videoUrl = await _uploadVideoToCloudinary(
         _videoFile!,
+        onProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            _uploadProgress = progress;
+          });
+        },
       );
 
       if (videoUrl == null ||
@@ -420,7 +516,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
       if (!mounted) return;
 
       setState(() {
-        _uploadProgress = 0.75;
+        _uploadProgress = 0.85;
       });
 
       // -------------------------------------------------------
@@ -636,6 +732,25 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
   }
 
   // =========================================================
+  // BLOCK BACK NAVIGATION WHILE UPLOADING
+  // =========================================================
+
+  Future<void> _handleBackAttempt() async {
+    if (!_uploading) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Please wait until the upload finishes before leaving.',
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
   // DISPOSE
   // =========================================================
 
@@ -652,642 +767,655 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Post Video',
+    return PopScope(
+      // Block the system/hardware back gesture while uploading
+      // so an in-progress upload can't be abandoned mid-way.
+      canPop: !_uploading,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBackAttempt();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Post Video',
+          ),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _handleBackAttempt,
+          ),
         ),
-        centerTitle: true,
-      ),
 
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding:
-              const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              // =================================================
-              // VIDEO
-              // =================================================
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding:
+                const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                // =================================================
+                // VIDEO
+                // =================================================
 
-              const Text(
-                'Video',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(
-                height: 10,
-              ),
-
-              if (_videoFile == null)
-                GestureDetector(
-                  onTap: _uploading
-                      ? null
-                      : _pickVideo,
-                  child: Container(
-                    width:
-                        double.infinity,
-                    height: 280,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.grey.shade200,
-                      borderRadius:
-                          BorderRadius.circular(
-                        18,
-                      ),
-                      border: Border.all(
-                        color:
-                            Colors.grey.shade400,
-                      ),
-                    ),
-                    child: const Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.video_library,
-                          size: 60,
-                          color:
-                              Colors.grey,
-                        ),
-                        SizedBox(
-                          height: 12,
-                        ),
-                        Text(
-                          'Select Video',
-                          style:
-                              TextStyle(
-                            fontSize: 18,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(
-                          height: 5,
-                        ),
-                        Text(
-                          'Maximum 90 seconds',
-                          style:
-                              TextStyle(
-                            color:
-                                Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
+                const Text(
+                  'Video',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
-                )
-              else
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(
-                        18,
-                      ),
-                      child: Container(
-                        width:
-                            double.infinity,
-                        height: 420,
-                        color:
-                            Colors.black,
-                        child:
-                            _videoController !=
-                                        null &&
-                                    _videoController!
-                                        .value
-                                        .isInitialized
-                                ? Center(
-                                    child:
-                                        AspectRatio(
-                                      aspectRatio:
-                                          _videoController!
-                                              .value
-                                              .aspectRatio,
-                                      child:
-                                          VideoPlayer(
-                                        _videoController!,
-                                      ),
-                                    ),
-                                  )
-                                : const Center(
-                                    child:
-                                        CircularProgressIndicator(
-                                      color:
-                                          Colors.white,
-                                    ),
-                                  ),
-                      ),
-                    ),
-
-                    if (!_uploading)
-                      Positioned(
-                        top: 10,
-                        right: 10,
-                        child:
-                            CircleAvatar(
-                          backgroundColor:
-                              Colors.black54,
-                          child:
-                              IconButton(
-                            onPressed:
-                                _removeSelectedVideo,
-                            icon:
-                                const Icon(
-                              Icons.close,
-                              color:
-                                  Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    Positioned(
-                      bottom: 12,
-                      left: 12,
-                      child:
-                          Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              Colors.black54,
-                          borderRadius:
-                              BorderRadius.circular(
-                            20,
-                          ),
-                        ),
-                        child:
-                            const Text(
-                          'Up to 90 seconds',
-                          style:
-                              TextStyle(
-                            color:
-                                Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-              const SizedBox(
-                height: 22,
-              ),
-
-              // =================================================
-              // CAPTION
-              // =================================================
-
-              const Text(
-                'Caption',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(
-                height: 10,
-              ),
-
-              TextField(
-                controller:
-                    _captionController,
-                maxLines: 4,
-                maxLength: 500,
-                enabled: !_uploading,
-                decoration:
-                    InputDecoration(
-                  hintText:
-                      'Write something about your video...',
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                      14,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 10,
-              ),
-
-              // =================================================
-              // PRODUCT
-              // =================================================
-
-              const Text(
-                'Attach Product',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(
-                height: 6,
-              ),
-
-              const Text(
-                'Optional. You can post a video without a product.',
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-
-              const SizedBox(
-                height: 10,
-              ),
-
-              if (_loadingProducts)
-                const Center(
-                  child:
-                      CircularProgressIndicator(),
-                )
-              else
-                Container(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal: 12,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    border: Border.all(
-                      color:
-                          Colors.grey.shade400,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      14,
-                    ),
-                  ),
-                  child:
-                      DropdownButtonHideUnderline(
-                    child:
-                        DropdownButton<String>(
-                      isExpanded:
-                          true,
-                      value:
-                          _selectedProductId,
-                      hint:
-                          const Text(
-                        'No product selected',
-                      ),
-                      items: [
-                        const DropdownMenuItem<
-                            String>(
-                          value: null,
-                          child: Text(
-                            'No product',
-                          ),
-                        ),
-                        ..._myProducts.map(
-                          (
-                            product,
-                          ) {
-                            return DropdownMenuItem<
-                                String>(
-                              value:
-                                  product[
-                                          'id']
-                                      ?.toString(),
-                              child:
-                                  Text(
-                                product['name']
-                                        ?.toString() ??
-                                    'Product',
-                                maxLines: 1,
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                      onChanged:
-                          _uploading
-                              ? null
-                              : (
-                                  value,
-                                ) {
-                                  if (value ==
-                                      null) {
-                                    _selectProduct(
-                                      null,
-                                    );
-                                    return;
-                                  }
-
-                                  final product =
-                                      _myProducts
-                                          .firstWhere(
-                                    (
-                                      item,
-                                    ) =>
-                                        item[
-                                                'id']
-                                            ?.toString() ==
-                                        value,
-                                  );
-
-                                  _selectProduct(
-                                    product,
-                                  );
-                                },
-                    ),
-                  ),
-                ),
-
-              // =================================================
-              // SELECTED PRODUCT
-              // =================================================
-
-              if (_selectedProductId !=
-                  null) ...[
-                const SizedBox(
-                  height: 14,
-                ),
-
-                Container(
-                  padding:
-                      const EdgeInsets.all(
-                    12,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.grey.shade100,
-                    borderRadius:
-                        BorderRadius.circular(
-                      14,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      if (_selectedProductImage !=
-                              null &&
-                          _selectedProductImage!
-                              .isNotEmpty)
-                        ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(
-                            10,
-                          ),
-                          child:
-                              Image.network(
-                            _selectedProductImage!,
-                            width: 65,
-                            height: 65,
-                            fit: BoxFit.cover,
-                            errorBuilder:
-                                (
-                              _,
-                              __,
-                              ___,
-                            ) {
-                              return Container(
-                                width: 65,
-                                height: 65,
-                                color: Colors
-                                    .grey
-                                    .shade300,
-                                child:
-                                    const Icon(
-                                  Icons.image,
-                                ),
-                              );
-                            },
-                          ),
-                        )
-                      else
-                        Container(
-                          width: 65,
-                          height: 65,
-                          decoration:
-                              BoxDecoration(
-                            color: Colors
-                                .grey
-                                .shade300,
-                            borderRadius:
-                                BorderRadius.circular(
-                              10,
-                            ),
-                          ),
-                          child:
-                              const Icon(
-                            Icons.shopping_bag,
-                          ),
-                        ),
-
-                      const SizedBox(
-                        width: 12,
-                      ),
-
-                      Expanded(
-                        child:
-                            Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-                          children: [
-                            Text(
-                              _selectedProductName ??
-                                  'Product',
-                              maxLines: 2,
-                              overflow:
-                                  TextOverflow
-                                      .ellipsis,
-                              style:
-                                  const TextStyle(
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(
-                              height: 5,
-                            ),
-                            Text(
-                              '৳${(_selectedProductPrice ?? 0).toStringAsFixed(0)}',
-                              style:
-                                  const TextStyle(
-                                fontWeight:
-                                    FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      IconButton(
-                        onPressed:
-                            _uploading
-                                ? null
-                                : () =>
-                                    _selectProduct(
-                                      null,
-                                    ),
-                        icon:
-                            const Icon(
-                          Icons.close,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(
-                height: 28,
-              ),
-
-              // =================================================
-              // INFO
-              // =================================================
-
-              Container(
-                width:
-                    double.infinity,
-                padding:
-                    const EdgeInsets.all(
-                  14,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.blue.shade50,
-                  borderRadius:
-                      BorderRadius.circular(
-                    14,
-                  ),
-                ),
-                child: const Row(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.blue,
-                    ),
-                    SizedBox(
-                      width: 10,
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Anyone with a BuyNova account can post videos. Videos are published immediately and appear in the common Videos/Reels feed and the uploader’s My Videos.',
-                        style:
-                            TextStyle(
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(
-                height: 20,
-              ),
-
-              // =================================================
-              // UPLOAD PROGRESS
-              // =================================================
-
-              if (_uploading) ...[
-                LinearProgressIndicator(
-                  value:
-                      _uploadProgress > 0
-                          ? _uploadProgress
-                          : null,
                 ),
 
                 const SizedBox(
                   height: 10,
                 ),
 
-                Center(
-                  child: Text(
-                    'Uploading... '
-                    '${(_uploadProgress * 100).toInt()}%',
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.w600,
+                if (_videoFile == null)
+                  GestureDetector(
+                    onTap: _uploading
+                        ? null
+                        : _pickVideo,
+                    child: Container(
+                      width:
+                          double.infinity,
+                      height: 280,
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Colors.grey.shade200,
+                        borderRadius:
+                            BorderRadius.circular(
+                          18,
+                        ),
+                        border: Border.all(
+                          color:
+                              Colors.grey.shade400,
+                        ),
+                      ),
+                      child: const Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.video_library,
+                            size: 60,
+                            color:
+                                Colors.grey,
+                          ),
+                          SizedBox(
+                            height: 12,
+                          ),
+                          Text(
+                            'Select Video',
+                            style:
+                                TextStyle(
+                              fontSize: 18,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(
+                            height: 5,
+                          ),
+                          Text(
+                            'Maximum 90 seconds',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(
+                          18,
+                        ),
+                        child: Container(
+                          width:
+                              double.infinity,
+                          height: 420,
+                          color:
+                              Colors.black,
+                          child:
+                              _videoController !=
+                                          null &&
+                                      _videoController!
+                                          .value
+                                          .isInitialized
+                                  ? Center(
+                                      child:
+                                          AspectRatio(
+                                        aspectRatio:
+                                            _videoController!
+                                                .value
+                                                .aspectRatio,
+                                        child:
+                                            VideoPlayer(
+                                          _videoController!,
+                                        ),
+                                      ),
+                                    )
+                                  : const Center(
+                                      child:
+                                          CircularProgressIndicator(
+                                        color:
+                                            Colors.white,
+                                      ),
+                                    ),
+                        ),
+                      ),
+
+                      if (!_uploading)
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child:
+                              CircleAvatar(
+                            backgroundColor:
+                                Colors.black54,
+                            child:
+                                IconButton(
+                              onPressed:
+                                  _removeSelectedVideo,
+                              icon:
+                                  const Icon(
+                                Icons.close,
+                                color:
+                                    Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      Positioned(
+                        bottom: 12,
+                        left: 12,
+                        child:
+                            Container(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                Colors.black54,
+                            borderRadius:
+                                BorderRadius.circular(
+                              20,
+                            ),
+                          ),
+                          child:
+                              const Text(
+                            'Up to 90 seconds',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                const SizedBox(
+                  height: 22,
+                ),
+
+                // =================================================
+                // CAPTION
+                // =================================================
+
+                const Text(
+                  'Caption',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 10,
+                ),
+
+                TextField(
+                  controller:
+                      _captionController,
+                  maxLines: 4,
+                  maxLength: 500,
+                  enabled: !_uploading,
+                  decoration:
+                      InputDecoration(
+                    hintText:
+                        'Write something about your video...',
+                    border:
+                        OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(
+                        14,
+                      ),
                     ),
                   ),
                 ),
 
                 const SizedBox(
-                  height: 15,
+                  height: 10,
                 ),
-              ],
 
-              // =================================================
-              // POST BUTTON
-              // =================================================
+                // =================================================
+                // PRODUCT
+                // =================================================
 
-              SizedBox(
-                width:
-                    double.infinity,
-                height: 54,
-                child:
-                    ElevatedButton.icon(
-                  onPressed:
-                      _uploading
-                          ? null
-                          : _postVideo,
-                  icon: _uploading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color:
-                                Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.upload,
+                const Text(
+                  'Attach Product',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 6,
+                ),
+
+                const Text(
+                  'Optional. You can post a video without a product.',
+                  style: TextStyle(
+                    color: Colors.grey,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 10,
+                ),
+
+                if (_loadingProducts)
+                  const Center(
+                    child:
+                        CircularProgressIndicator(),
+                  )
+                else
+                  Container(
+                    padding:
+                        const EdgeInsets
+                            .symmetric(
+                      horizontal: 12,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      border: Border.all(
+                        color:
+                            Colors.grey.shade400,
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(
+                        14,
+                      ),
+                    ),
+                    child:
+                        DropdownButtonHideUnderline(
+                      child:
+                          DropdownButton<String>(
+                        isExpanded:
+                            true,
+                        value:
+                            _selectedProductId,
+                        hint:
+                            const Text(
+                          'No product selected',
                         ),
-                  label: Text(
-                    _uploading
-                        ? 'Posting Video...'
-                        : 'Post Video',
-                    style:
-                        const TextStyle(
-                      fontSize: 17,
-                      fontWeight:
-                          FontWeight.bold,
+                        items: [
+                          const DropdownMenuItem<
+                              String>(
+                            value: null,
+                            child: Text(
+                              'No product',
+                            ),
+                          ),
+                          ..._myProducts.map(
+                            (
+                              product,
+                            ) {
+                              return DropdownMenuItem<
+                                  String>(
+                                value:
+                                    product[
+                                            'id']
+                                        ?.toString(),
+                                child:
+                                    Text(
+                                  product['name']
+                                          ?.toString() ??
+                                      'Product',
+                                  maxLines: 1,
+                                  overflow:
+                                      TextOverflow
+                                          .ellipsis,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                        onChanged:
+                            _uploading
+                                ? null
+                                : (
+                                    value,
+                                  ) {
+                                    if (value ==
+                                        null) {
+                                      _selectProduct(
+                                        null,
+                                      );
+                                      return;
+                                    }
+
+                                    final product =
+                                        _myProducts
+                                            .firstWhere(
+                                      (
+                                        item,
+                                      ) =>
+                                          item[
+                                                  'id']
+                                              ?.toString() ==
+                                          value,
+                                    );
+
+                                    _selectProduct(
+                                      product,
+                                    );
+                                  },
+                      ),
+                    ),
+                  ),
+
+                // =================================================
+                // SELECTED PRODUCT
+                // =================================================
+
+                if (_selectedProductId !=
+                    null) ...[
+                  const SizedBox(
+                    height: 14,
+                  ),
+
+                  Container(
+                    padding:
+                        const EdgeInsets.all(
+                      12,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.grey.shade100,
+                      borderRadius:
+                          BorderRadius.circular(
+                        14,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        if (_selectedProductImage !=
+                                null &&
+                            _selectedProductImage!
+                                .isNotEmpty)
+                          ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(
+                              10,
+                            ),
+                            child:
+                                Image.network(
+                              _selectedProductImage!,
+                              width: 65,
+                              height: 65,
+                              fit: BoxFit.cover,
+                              errorBuilder:
+                                  (
+                                _,
+                                __,
+                                ___,
+                              ) {
+                                return Container(
+                                  width: 65,
+                                  height: 65,
+                                  color: Colors
+                                      .grey
+                                      .shade300,
+                                  child:
+                                      const Icon(
+                                    Icons.image,
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 65,
+                            height: 65,
+                            decoration:
+                                BoxDecoration(
+                              color: Colors
+                                  .grey
+                                  .shade300,
+                              borderRadius:
+                                  BorderRadius.circular(
+                                10,
+                              ),
+                            ),
+                            child:
+                                const Icon(
+                              Icons.shopping_bag,
+                            ),
+                          ),
+
+                        const SizedBox(
+                          width: 12,
+                        ),
+
+                        Expanded(
+                          child:
+                              Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
+                            children: [
+                              Text(
+                                _selectedProductName ??
+                                    'Product',
+                                maxLines: 2,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 5,
+                              ),
+                              Text(
+                                'à§³${(_selectedProductPrice ?? 0).toStringAsFixed(0)}',
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        IconButton(
+                          onPressed:
+                              _uploading
+                                  ? null
+                                  : () =>
+                                      _selectProduct(
+                                        null,
+                                      ),
+                          icon:
+                              const Icon(
+                            Icons.close,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(
+                  height: 28,
+                ),
+
+                // =================================================
+                // INFO
+                // =================================================
+
+                Container(
+                  width:
+                      double.infinity,
+                  padding:
+                      const EdgeInsets.all(
+                    14,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.blue.shade50,
+                    borderRadius:
+                        BorderRadius.circular(
+                      14,
+                    ),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blue,
+                      ),
+                      SizedBox(
+                        width: 10,
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Anyone with a BuyNova account can post videos. Videos are published immediately and appear in the common Videos/Reels feed and the uploaderâ€™s My Videos.',
+                          style:
+                              TextStyle(
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 20,
+                ),
+
+                // =================================================
+                // UPLOAD PROGRESS
+                // =================================================
+
+                if (_uploading) ...[
+                  LinearProgressIndicator(
+                    value:
+                        _uploadProgress > 0
+                            ? _uploadProgress
+                            : null,
+                  ),
+
+                  const SizedBox(
+                    height: 10,
+                  ),
+
+                  Center(
+                    child: Text(
+                      'Uploading... '
+                      '${(_uploadProgress * 100).toInt()}%',
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 15,
+                  ),
+                ],
+
+                // =================================================
+                // POST BUTTON
+                // =================================================
+
+                SizedBox(
+                  width:
+                      double.infinity,
+                  height: 54,
+                  child:
+                      ElevatedButton.icon(
+                    onPressed:
+                        _uploading
+                            ? null
+                            : _postVideo,
+                    icon: _uploading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color:
+                                  Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.upload,
+                          ),
+                    label: Text(
+                      _uploading
+                          ? 'Posting Video...'
+                          : 'Post Video',
+                      style:
+                          const TextStyle(
+                        fontSize: 17,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(
-                height: 25,
-              ),
-            ],
+                const SizedBox(
+                  height: 25,
+                ),
+              ],
+            ),
           ),
         ),
       ),
