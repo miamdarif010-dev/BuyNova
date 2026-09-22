@@ -251,6 +251,7 @@ class _EntrepreneurPageState
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF9F7),
       appBar: AppBar(
         title: const Text(
           'Entrepreneur / Reseller',
@@ -260,6 +261,8 @@ class _EntrepreneurPageState
           ),
         ),
         centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
       ),
       body: RefreshIndicator(
         onRefresh:
@@ -303,53 +306,72 @@ class _EntrepreneurPageState
   // =========================================================
 
   Widget _headerCard() {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding:
-            const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const CircleAvatar(
-              radius: 38,
-              child: Icon(
-                Icons.business_center,
-                size: 40,
-              ),
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+            BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset:
+                const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color:
+                  Colors.redAccent.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
             ),
+            child: const Icon(
+              Icons.business_center_outlined,
+              size: 40,
+              color: Colors.redAccent,
+            ),
+          ),
 
-            const SizedBox(
-              height: 14,
-            ),
+          const SizedBox(
+            height: 14,
+          ),
 
-            const Text(
-              'Entrepreneur / Reseller',
-              textAlign:
-                  TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+          const Text(
+            'Entrepreneur / Reseller',
+            textAlign:
+                TextAlign.center,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight:
+                  FontWeight.bold,
             ),
+          ),
 
-            const SizedBox(
-              height: 8,
-            ),
+          const SizedBox(
+            height: 8,
+          ),
 
-            Text(
-              'Find products from BuyNova sellers, '
-              'set your own selling price and earn profit.',
-              textAlign:
-                  TextAlign.center,
-              style: TextStyle(
-                color:
-                    Colors.grey.shade600,
-                height: 1.4,
-              ),
+          Text(
+            'Find products from BuyNova sellers, '
+            'set your own selling price and earn profit.',
+            textAlign:
+                TextAlign.center,
+            style: TextStyle(
+              color:
+                  Colors.grey.shade600,
+              height: 1.4,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -385,28 +407,89 @@ class _EntrepreneurPageState
           height: 18,
         ),
 
-        SizedBox(
-          width:
-              double.infinity,
-          height: 52,
-          child:
-              ElevatedButton.icon(
-            onPressed:
-                _sendRequest,
-            icon:
-                const Icon(
-              Icons.send,
-            ),
-            label:
-                const Text(
-              'Become an Entrepreneur',
-              style:
-                  TextStyle(
-                fontSize: 16,
-                fontWeight:
-                    FontWeight.bold,
+        Container(
+          width: double.infinity,
+          padding:
+              const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius:
+                BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color:
+                    Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset:
+                    const Offset(0, 3),
               ),
-            ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _iconBox(
+                    Icons.storefront_outlined,
+                  ),
+                  const SizedBox(
+                    width: 14,
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Become an Entrepreneur',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(
+                height: 10,
+              ),
+
+              Text(
+                'Apply to become a BuyNova reseller '
+                'and start your business.',
+                style: TextStyle(
+                  color:
+                      Colors.grey.shade600,
+                ),
+              ),
+
+              const SizedBox(
+                height: 16,
+              ),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child:
+                    ElevatedButton.icon(
+                  onPressed:
+                      _sendRequest,
+                  icon:
+                      const Icon(
+                    Icons.send_outlined,
+                  ),
+                  label:
+                      const Text(
+                    'Become an Entrepreneur',
+                    style:
+                        TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -418,53 +501,64 @@ class _EntrepreneurPageState
   // =========================================================
 
   Widget _pendingSection() {
-    return Card(
-      color:
-          Colors.orange.shade50,
-      elevation: 0,
-      child: const Padding(
-        padding:
-            EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Icon(
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color:
+            Colors.orange.shade50,
+        borderRadius:
+            BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color:
+                  Colors.orange.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
               Icons.hourglass_top,
               color:
                   Colors.orange,
-              size: 32,
+              size: 28,
             ),
+          ),
 
-            SizedBox(
-              width: 14,
+          const SizedBox(
+            width: 14,
+          ),
+
+          const Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Request Pending',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                SizedBox(
+                  height: 5,
+                ),
+
+                Text(
+                  'Your Entrepreneur / Reseller '
+                  'request is waiting for admin approval.',
+                ),
+              ],
             ),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Request Pending',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  SizedBox(
-                    height: 5,
-                  ),
-
-                  Text(
-                    'Your Entrepreneur / Reseller '
-                    'request is waiting for admin approval.',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -476,26 +570,61 @@ class _EntrepreneurPageState
   Widget _rejectedSection() {
     return Column(
       children: [
-        Card(
-          color:
-              Colors.red.shade50,
-          elevation: 0,
-          child: const ListTile(
-            leading: Icon(
-              Icons.cancel_outlined,
-              color:
-                  Colors.red,
-            ),
-            title: Text(
-              'Request Rejected',
-              style: TextStyle(
-                fontWeight:
-                    FontWeight.bold,
+        Container(
+          width: double.infinity,
+          padding:
+              const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color:
+                Colors.red.shade50,
+            borderRadius:
+                BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color:
+                      Colors.red.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.cancel_outlined,
+                  color:
+                      Colors.red,
+                  size: 28,
+                ),
               ),
-            ),
-            subtitle: Text(
-              'You can send another request.',
-            ),
+
+              const SizedBox(
+                width: 14,
+              ),
+
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Request Rejected',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(
+                      height: 5,
+                    ),
+                    Text(
+                      'You can send another request.',
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
 
@@ -531,75 +660,95 @@ class _EntrepreneurPageState
           CrossAxisAlignment.start,
       children: [
         // =====================================================
-        // APPROVED CARD
+        // APPROVED STATUS BOX
         // =====================================================
 
-        Card(
-          color:
-              Colors.green.shade50,
-          elevation: 0,
-          child: Padding(
-            padding:
-                const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle,
+        Container(
+          width: double.infinity,
+          padding:
+              const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color:
+                Colors.green.shade50,
+            borderRadius:
+                BorderRadius.circular(16),
+            border: Border.all(
+              color:
+                  Colors.green.withValues(alpha: 0.20),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color:
+                      Colors.green.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline,
                   color:
                       Colors.green,
-                  size: 32,
+                  size: 30,
                 ),
+              ),
 
-                const SizedBox(
-                  width: 12,
-                ),
+              const SizedBox(
+                width: 14,
+              ),
 
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Entrepreneur Approved',
-                        style: TextStyle(
-                          fontSize: 17,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Entrepreneur Approved',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    if (_entrepreneurCode
+                        .isNotEmpty) ...[
+                      const SizedBox(
+                        height: 5,
+                      ),
+                      Text(
+                        'Entrepreneur ID: '
+                        '$_entrepreneurCode',
+                        style:
+                            const TextStyle(
                           fontWeight:
-                              FontWeight.bold,
+                              FontWeight.w600,
                         ),
                       ),
-
-                      if (_entrepreneurCode
-                          .isNotEmpty)
-                        Padding(
-                          padding:
-                              const EdgeInsets.only(
-                            top: 4,
-                          ),
-                          child:
-                              Text(
-                            'Entrepreneur ID: '
-                            '$_entrepreneurCode',
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight.w600,
-                            ),
-                          ),
-                        ),
                     ],
-                  ),
+
+                    const SizedBox(
+                      height: 4,
+                    ),
+
+                    const Text(
+                      'Your reseller account is active.',
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
 
         const SizedBox(
-          height: 18,
+          height: 22,
         ),
 
         const Text(
-          'My Business',
+          'Overview',
           style: TextStyle(
             fontSize: 20,
             fontWeight:
@@ -608,14 +757,110 @@ class _EntrepreneurPageState
         ),
 
         const SizedBox(
-          height: 10,
+          height: 12,
         ),
 
         // =====================================================
-        // MY STORE
+        // OVERVIEW BOXES
         // =====================================================
 
-        _businessItem(
+        Row(
+          children: [
+            Expanded(
+              child: _overviewBox(
+                icon:
+                    Icons.store_outlined,
+                title:
+                    'My Store',
+                subtitle:
+                    'Manage store',
+                onTap:
+                    _openMyStore,
+              ),
+            ),
+            const SizedBox(
+              width: 12,
+            ),
+            Expanded(
+              child: _overviewBox(
+                icon:
+                    Icons.search_outlined,
+                title:
+                    'Find Products',
+                subtitle:
+                    'Browse products',
+                onTap:
+                    _openAvailableProducts,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(
+          height: 12,
+        ),
+
+        Row(
+          children: [
+            Expanded(
+              child: _overviewBox(
+                icon:
+                    Icons.shopping_bag_outlined,
+                title:
+                    'Orders',
+                subtitle:
+                    'Reseller orders',
+                onTap:
+                    _openResellerOrders,
+              ),
+            ),
+            const SizedBox(
+              width: 12,
+            ),
+            Expanded(
+              child: _overviewBox(
+                icon:
+                    Icons.account_balance_wallet_outlined,
+                title:
+                    'My Profit',
+                subtitle:
+                    'Track profit',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const MyProfitPage(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(
+          height: 24,
+        ),
+
+        const Text(
+          'Business Management',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(
+          height: 12,
+        ),
+
+        // =====================================================
+        // LARGE BUSINESS BOXES
+        // =====================================================
+
+        _businessBox(
           icon:
               Icons.store_outlined,
           title:
@@ -626,11 +871,7 @@ class _EntrepreneurPageState
               _openMyStore,
         ),
 
-        // =====================================================
-        // FIND PRODUCTS
-        // =====================================================
-
-        _businessItem(
+        _businessBox(
           icon:
               Icons.add_business_outlined,
           title:
@@ -641,11 +882,7 @@ class _EntrepreneurPageState
               _openAvailableProducts,
         ),
 
-        // =====================================================
-        // VIDEOS
-        // =====================================================
-
-        _businessItem(
+        _businessBox(
           icon:
               Icons.video_library_outlined,
           title:
@@ -656,11 +893,7 @@ class _EntrepreneurPageState
               _openVideos,
         ),
 
-        // =====================================================
-        // RESELLER ORDERS
-        // =====================================================
-
-        _businessItem(
+        _businessBox(
           icon:
               Icons.shopping_bag_outlined,
           title:
@@ -671,11 +904,7 @@ class _EntrepreneurPageState
               _openResellerOrders,
         ),
 
-        // =====================================================
-        // MY PROFIT
-        // =====================================================
-
-        _businessItem(
+        _businessBox(
           icon:
               Icons.account_balance_wallet_outlined,
           title:
@@ -697,40 +926,237 @@ class _EntrepreneurPageState
   }
 
   // =========================================================
-  // BUSINESS ITEM
+  // ICON BOX
   // =========================================================
 
-  Widget _businessItem({
+  Widget _iconBox(
+    IconData icon,
+  ) {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        color:
+            Colors.redAccent.withValues(alpha: 0.10),
+        borderRadius:
+            BorderRadius.circular(14),
+      ),
+      child: Icon(
+        icon,
+        color:
+            Colors.redAccent,
+        size: 26,
+      ),
+    );
+  }
+
+  // =========================================================
+  // OVERVIEW BOX
+  // =========================================================
+
+  Widget _overviewBox({
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 0,
+    return InkWell(
+      borderRadius:
+          BorderRadius.circular(16),
+      onTap:
+          onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              Colors.white,
+          borderRadius:
+              BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color:
+                  Colors.black.withValues(alpha: 0.04),
+              blurRadius:
+                  10,
+              offset:
+                  const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color:
+                    Colors.redAccent.withValues(alpha: 0.10),
+                borderRadius:
+                    BorderRadius.circular(13),
+              ),
+              child: Icon(
+                icon,
+                color:
+                    Colors.redAccent,
+              ),
+            ),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            Text(
+              title,
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+
+            const SizedBox(
+              height: 4,
+            ),
+
+            Text(
+              subtitle,
+              style:
+                  TextStyle(
+                color:
+                    Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // LARGE BUSINESS BOX
+  // =========================================================
+
+  Widget _businessBox({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: double.infinity,
       margin:
           const EdgeInsets.only(
-        bottom: 8,
+        bottom: 12,
       ),
-      child: ListTile(
-        leading:
-            Icon(icon),
-        title: Text(
-          title,
-          style:
-              const TextStyle(
-            fontWeight:
-                FontWeight.w600,
+      decoration: BoxDecoration(
+        color:
+            Colors.white,
+        borderRadius:
+            BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black.withValues(alpha: 0.04),
+            blurRadius:
+                10,
+            offset:
+                const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color:
+            Colors.transparent,
+        child: InkWell(
+          borderRadius:
+              BorderRadius.circular(16),
+          onTap:
+              onTap,
+          child: Padding(
+            padding:
+                const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color:
+                        Colors.redAccent.withValues(alpha: 0.10),
+                    borderRadius:
+                        BorderRadius.circular(15),
+                  ),
+                  child: Icon(
+                    icon,
+                    color:
+                        Colors.redAccent,
+                    size: 28,
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 14,
+                ),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style:
+                            const TextStyle(
+                          fontSize: 16,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 5,
+                      ),
+
+                      Text(
+                        subtitle,
+                        style:
+                            TextStyle(
+                          color:
+                              Colors.grey.shade600,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 8,
+                ),
+
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color:
+                        Colors.grey.shade100,
+                    shape:
+                        BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chevron_right,
+                    size: 22,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        subtitle:
-            Text(subtitle),
-        trailing:
-            const Icon(
-          Icons.chevron_right,
-        ),
-        onTap:
-            onTap,
       ),
     );
   }
