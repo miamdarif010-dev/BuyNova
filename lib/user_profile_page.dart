@@ -172,10 +172,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  // =========================================================
-  // MY VIDEOS
-  // =========================================================
-
   void _openMyVideos() {
     Navigator.push(
       context,
@@ -601,7 +597,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // BUYER SECTION
+  // BUYER / CUSTOMER SECTION
   // =========================================================
 
   List<Widget> _buyerSectionItems() {
@@ -637,10 +633,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
         title: 'Address Book',
         onTap: _openAddressBook,
       ),
-
-      // =====================================================
-      // BUYER MY VIDEOS
-      // =====================================================
 
       _plusMenuItem(
         icon: Icons.video_library_outlined,
@@ -868,7 +860,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // ENTREPRENEUR SECTION
+  // ENTREPRENEUR / RESELLER SECTION
   // =========================================================
 
   List<Widget> _entrepreneurSectionItems() {
@@ -1065,11 +1057,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     _profileImage(),
                               ),
                             ),
-
-                            const SizedBox(
-                              height: 12,
-                            ),
-
+                            const SizedBox(height: 12),
                             Text(
                               _name.isNotEmpty
                                   ? _name
@@ -1081,11 +1069,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     FontWeight.bold,
                               ),
                             ),
-
-                            const SizedBox(
-                              height: 5,
-                            ),
-
+                            const SizedBox(height: 5),
                             Text(
                               user.email ?? '',
                               style: TextStyle(
@@ -1093,11 +1077,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     Colors.grey.shade600,
                               ),
                             ),
-
                             if (_phone.isNotEmpty) ...[
-                              const SizedBox(
-                                height: 4,
-                              ),
+                              const SizedBox(height: 4),
                               Text(
                                 _phone,
                                 style: TextStyle(
@@ -1106,11 +1087,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                 ),
                               ),
                             ],
-
-                            const SizedBox(
-                              height: 14,
-                            ),
-
+                            const SizedBox(height: 14),
                             SizedBox(
                               width:
                                   double.infinity,
@@ -1131,9 +1108,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ),
 
-                    const SizedBox(
-                      height: 16,
-                    ),
+                    const SizedBox(height: 16),
 
                     // =================================================
                     // ADMIN
@@ -1143,8 +1118,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       _expandableSectionHeader(
                         icon:
                             Icons.admin_panel_settings_outlined,
-                        title:
-                            'ADMIN PANEL',
+                        title: 'ADMIN PANEL',
                         expanded:
                             _adminExpanded,
                         onTap:
@@ -1153,7 +1127,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                       if (_adminExpanded) ...[
                         _sectionNotification(),
-
                         _menuItem(
                           icon:
                               Icons.admin_panel_settings_outlined,
@@ -1164,36 +1137,71 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         ),
                       ],
 
-                      const SizedBox(
-                        height: 8,
-                      ),
+                      const SizedBox(height: 8),
                     ],
 
                     // =================================================
-                    // BUYER
+                    // 1. BUYER / CUSTOMER
                     // =================================================
 
                     _expandableSectionHeader(
                       icon:
                           Icons.shopping_bag_outlined,
-                      title:
-                          'BUYER',
+                      title: 'BUYER / CUSTOMER',
                       expanded:
                           _buyerExpanded,
-                      onTap:
-                          _openBuyer,
+                      onTap: _openBuyer,
                     ),
 
                     if (_buyerExpanded) ...[
                       ..._buyerSectionItems(),
                     ],
 
-                    const SizedBox(
-                      height: 8,
-                    ),
+                    const SizedBox(height: 8),
 
                     // =================================================
-                    // EARN & REWARDS
+                    // 2. RESELLER / ENTREPRENEUR
+                    // =================================================
+
+                    _expandableSectionHeader(
+                      icon:
+                          Icons.business_center_outlined,
+                      title:
+                          'RESELLER / ENTREPRENEUR',
+                      expanded:
+                          _entrepreneurExpanded,
+                      onTap:
+                          _openEntrepreneur,
+                    ),
+
+                    if (_entrepreneurExpanded) ...[
+                      ..._entrepreneurSectionItems(),
+                    ],
+
+                    const SizedBox(height: 8),
+
+                    // =================================================
+                    // 3. SELLER
+                    // =================================================
+
+                    _expandableSectionHeader(
+                      icon:
+                          Icons.storefront_outlined,
+                      title: 'SELLER',
+                      expanded:
+                          _sellerExpanded,
+                      onTap:
+                          _openSellerDashboard,
+                    ),
+
+                    if (_sellerExpanded) ...[
+                      ..._sellerSectionItems(),
+                    ],
+
+                    const SizedBox(height: 8),
+
+                    // =================================================
+                    // 4. EARN & REWARDS
                     // =================================================
 
                     _expandableSectionHeader(
@@ -1248,55 +1256,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ],
 
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    // =================================================
-                    // ENTREPRENEUR / RESELLER
-                    // =================================================
-
-                    _expandableSectionHeader(
-                      icon:
-                          Icons.business_center_outlined,
-                      title:
-                          'ENTREPRENEUR / RESELLER',
-                      expanded:
-                          _entrepreneurExpanded,
-                      onTap:
-                          _openEntrepreneur,
-                    ),
-
-                    if (_entrepreneurExpanded) ...[
-                      ..._entrepreneurSectionItems(),
-                    ],
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    // =================================================
-                    // SELLER
-                    // =================================================
-
-                    _expandableSectionHeader(
-                      icon:
-                          Icons.storefront_outlined,
-                      title:
-                          'SELLER',
-                      expanded:
-                          _sellerExpanded,
-                      onTap:
-                          _openSellerDashboard,
-                    ),
-
-                    if (_sellerExpanded) ...[
-                      ..._sellerSectionItems(),
-                    ],
-
-                    const SizedBox(
-                      height: 16,
-                    ),
+                    const SizedBox(height: 16),
 
                     // =================================================
                     // SETTINGS
@@ -1305,8 +1265,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     _menuItem(
                       icon:
                           Icons.settings_outlined,
-                      title:
-                          'Settings',
+                      title: 'Settings',
                       indented: false,
                       onTap:
                           _openSettings,
@@ -1317,12 +1276,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // =================================================
 
                     _menuItem(
-                      icon:
-                          Icons.logout,
-                      title:
-                          'Logout',
-                      iconColor:
-                          Colors.red,
+                      icon: Icons.logout,
+                      title: 'Logout',
+                      iconColor: Colors.red,
                       indented: false,
                       onTap: () {
                         showDialog(
@@ -1355,7 +1311,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     Navigator.pop(
                                       dialogContext,
                                     );
-
                                     _logout();
                                   },
                                   child:
@@ -1370,9 +1325,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       },
                     ),
 
-                    const SizedBox(
-                      height: 20,
-                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
