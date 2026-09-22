@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import 'add_seller_video_page.dart';
 import 'video_player_page.dart';
@@ -15,6 +16,15 @@ class MyVideosPage extends StatefulWidget {
 class _MyVideosPageState extends State<MyVideosPage> {
   User? get currentUser =>
       FirebaseAuth.instance.currentUser;
+
+  // Cap how many videos load at once. Raise this or add real
+  // pagination later if a seller regularly posts more than this.
+  static const int _videoLimit = 100;
+
+  // Tracks video IDs currently being deleted, so the delete
+  // button can be disabled and a double-tap can't open two
+  // confirmation dialogs or fire two deletes for the same video.
+  final Set<String> _deletingIds = {};
 
   // =========================================================
   // OPEN ADD VIDEO
@@ -34,6 +44,38 @@ class _MyVideosPageState extends State<MyVideosPage> {
   }
 
   // =========================================================
+  // DELETE CLOUDINARY MEDIA (best-effort, server-side)
+  // =========================================================
+  //
+  // Cloudinary deletion requires a signed request (API secret),
+  // which must never live in the client app. This calls a
+  // Firebase Cloud Function ("deleteCloudinaryVideo") that holds
+  // the credentials and performs the actual deletion. If that
+  // function isn't deployed yet, or the call fails, we still
+  // proceed to delete the Firestore document below rather than
+  // blocking the user â€” but the underlying files may be left
+  // behind on Cloudinary until the function exists.
+
+  Future<void> _deleteCloudinaryMedia({
+    required String videoUrl,
+    required String thumbnailUrl,
+  }) async {
+    try {
+      await FirebaseFunctions.instance
+          .httpsCallable('deleteCloudinaryVideo')
+          .call(<String, dynamic>{
+        'videoUrl': videoUrl,
+        'thumbnailUrl': thumbnailUrl,
+      });
+    } catch (e) {
+      // Non-fatal: log only. The Firestore document delete below
+      // still proceeds so the video disappears from the app even
+      // if the Cloudinary cleanup function is missing or fails.
+      debugPrint('Cloudinary cleanup failed: $e');
+    }
+  }
+
+  // =========================================================
   // DELETE VIDEO
   // =========================================================
 
@@ -43,6 +85,10 @@ class _MyVideosPageState extends State<MyVideosPage> {
     final user = currentUser;
 
     if (user == null) return;
+
+    // Prevent double-tap: ignore if this video is already
+    // being deleted.
+    if (_deletingIds.contains(videoId)) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -84,6 +130,14 @@ class _MyVideosPageState extends State<MyVideosPage> {
 
     if (confirmed != true) return;
 
+    // Re-check in case the dialog was somehow triggered twice
+    // before the first confirmation resolved.
+    if (_deletingIds.contains(videoId)) return;
+
+    setState(() {
+      _deletingIds.add(videoId);
+    });
+
     try {
       final videoRef = FirebaseFirestore.instance
           .collection('sellerVideos')
@@ -101,6 +155,10 @@ class _MyVideosPageState extends State<MyVideosPage> {
             ),
           ),
         );
+
+        setState(() {
+          _deletingIds.remove(videoId);
+        });
 
         return;
       }
@@ -129,7 +187,26 @@ class _MyVideosPageState extends State<MyVideosPage> {
           ),
         );
 
+        setState(() {
+          _deletingIds.remove(videoId);
+        });
+
         return;
+      }
+
+      final videoUrl =
+          (data?['videoUrl'] ?? '').toString();
+
+      final thumbnailUrl =
+          (data?['thumbnailUrl'] ?? '').toString();
+
+      // Clean up the Cloudinary files first (best-effort), then
+      // remove the Firestore record.
+      if (videoUrl.isNotEmpty) {
+        await _deleteCloudinaryMedia(
+          videoUrl: videoUrl,
+          thumbnailUrl: thumbnailUrl,
+        );
       }
 
       await videoRef.delete();
@@ -145,9 +222,15 @@ class _MyVideosPageState extends State<MyVideosPage> {
         ),
       );
 
-      setState(() {});
+      setState(() {
+        _deletingIds.remove(videoId);
+      });
     } catch (e) {
       if (!mounted) return;
+
+      setState(() {
+        _deletingIds.remove(videoId);
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -206,6 +289,13 @@ class _MyVideosPageState extends State<MyVideosPage> {
   // =========================================================
   // VIDEO QUERY
   // =========================================================
+  //
+  // NOTE: this where() + orderBy() combination requires a
+  // Firestore composite index (userId ASC, createdAt DESC).
+  // If it isn't created yet, Firestore returns an error the
+  // first time this runs, with a link in the error message to
+  // auto-create it in the Firebase Console â€” this is expected
+  // and not a code bug.
 
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _myVideosStream() {
@@ -225,6 +315,7 @@ class _MyVideosPageState extends State<MyVideosPage> {
           'createdAt',
           descending: true,
         )
+        .limit(_videoLimit)
         .snapshots();
   }
 
@@ -269,6 +360,8 @@ class _MyVideosPageState extends State<MyVideosPage> {
           data['likes'],
     );
 
+    final isDeleting = _deletingIds.contains(doc.id);
+
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(
@@ -276,7 +369,7 @@ class _MyVideosPageState extends State<MyVideosPage> {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: videoUrl.isEmpty
+        onTap: (videoUrl.isEmpty || isDeleting)
             ? null
             : () {
                 _openVideo(data);
@@ -372,19 +465,31 @@ class _MyVideosPageState extends State<MyVideosPage> {
                           Colors.black54,
                       shape:
                           const CircleBorder(),
-                      child: IconButton(
-                        onPressed: () {
-                          _deleteVideo(
-                            doc.id,
-                          );
-                        },
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.white,
-                        ),
-                        tooltip:
-                            'Delete video',
-                      ),
+                      child: isDeleting
+                          ? const Padding(
+                              padding: EdgeInsets.all(10),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              onPressed: () {
+                                _deleteVideo(
+                                  doc.id,
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.white,
+                              ),
+                              tooltip:
+                                  'Delete video',
+                            ),
                     ),
                   ),
                 ],
