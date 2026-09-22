@@ -21,6 +21,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   VideoPlayerController? _controller;
   bool _isInitialized = false;
   bool _hasError = false;
+  bool _showPlayIcon = false;
 
   @override
   void initState() {
@@ -30,7 +31,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   Future<void> _init() async {
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      final controller =
+          VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await controller.initialize();
       controller.setLooping(true);
       controller.play();
@@ -45,6 +47,23 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       if (!mounted) return;
       setState(() => _hasError = true);
     }
+  }
+
+  void _togglePlayPause() {
+    if (_controller == null) return;
+    setState(() {
+      if (_controller!.value.isPlaying) {
+        _controller!.pause();
+        _showPlayIcon = true;
+      } else {
+        _controller!.play();
+        _showPlayIcon = true;
+        // hide the icon again shortly after resuming playback
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) setState(() => _showPlayIcon = false);
+        });
+      }
+    });
   }
 
   @override
@@ -67,19 +86,48 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           Expanded(
             child: Center(
               child: _hasError
-                  ? const Icon(Icons.broken_image, color: Colors.white54, size: 60)
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.broken_image, color: Colors.white54, size: 60),
+                        SizedBox(height: 12),
+                        Text(
+                          'à¦­à¦¿à¦¡à¦¿à¦“ à¦²à§‹à¦¡ à¦•à¦°à¦¾ à¦¯à¦¾à¦¯à¦¼à¦¨à¦¿',
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      ],
+                    )
                   : _isInitialized && _controller != null
                       ? GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _controller!.value.isPlaying
-                                  ? _controller!.pause()
-                                  : _controller!.play();
-                            });
-                          },
-                          child: AspectRatio(
-                            aspectRatio: _controller!.value.aspectRatio,
-                            child: VideoPlayer(_controller!),
+                          onTap: _togglePlayPause,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              AspectRatio(
+                                aspectRatio: _controller!.value.aspectRatio > 0
+                                    ? _controller!.value.aspectRatio
+                                    : 16 / 9,
+                                child: VideoPlayer(_controller!),
+                              ),
+                              AnimatedOpacity(
+                                opacity: _showPlayIcon ? 1 : 0,
+                                duration: const Duration(milliseconds: 200),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black38,
+                                    borderRadius: BorderRadius.circular(50),
+                                  ),
+                                  padding: const EdgeInsets.all(12),
+                                  child: Icon(
+                                    _controller!.value.isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow,
+                                    color: Colors.white,
+                                    size: 48,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : const CircularProgressIndicator(color: Colors.white),
@@ -93,6 +141,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 child: Text(
                   widget.caption,
                   style: const TextStyle(color: Colors.white),
+                  softWrap: true,
                 ),
               ),
             ),
