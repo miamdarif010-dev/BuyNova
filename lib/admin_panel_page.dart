@@ -300,7 +300,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   width: 62,
                   height: 62,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.75),
+                    color: Colors.white.withValues(alpha: 0.75),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -720,7 +720,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
