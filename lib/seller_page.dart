@@ -11,6 +11,10 @@ import 'news_feed_page.dart';
 class SellerPage extends StatelessWidget {
   const SellerPage({super.key});
 
+  // =========================================================
+  // STATUS COLOR
+  // =========================================================
+
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -24,48 +28,76 @@ class SellerPage extends StatelessWidget {
     }
   }
 
+  // =========================================================
+  // OVERVIEW BOX
+  // =========================================================
+
   Widget _statCard({
     required BuildContext context,
     required String title,
     required String value,
     required IconData icon,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            size: 28,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 13,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(
+                  alpha: 0.10,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                icon,
+                color: Colors.redAccent,
+                size: 26,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              title,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  // =========================================================
+  // MANAGEMENT BOX
+  // =========================================================
 
   Widget _menuCard({
     required BuildContext context,
@@ -75,33 +107,86 @@ class SellerPage extends StatelessWidget {
     required VoidCallback onTap,
     bool enabled = true,
   }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      child: ListTile(
-        enabled: enabled,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 6,
-        ),
-        leading: CircleAvatar(
-          child: Icon(icon),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: enabled ? onTap : null,
+          child: Opacity(
+            opacity: enabled ? 1.0 : 0.55,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(
+                        alpha: 0.10,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: Colors.redAccent,
+                      size: 27,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-        subtitle: Text(subtitle),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-        ),
-        onTap: enabled ? onTap : null,
       ),
     );
   }
+
+  // =========================================================
+  // OPEN ADD PRODUCT
+  // =========================================================
 
   void _openAddProduct(BuildContext context) {
     Navigator.push(
@@ -112,6 +197,10 @@ class SellerPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // OPEN MY PRODUCTS
+  // =========================================================
+
   void _openMyProducts(BuildContext context) {
     Navigator.push(
       context,
@@ -120,6 +209,10 @@ class SellerPage extends StatelessWidget {
       ),
     );
   }
+
+  // =========================================================
+  // OPEN SELLER ORDERS
+  // =========================================================
 
   void _openSellerOrders(BuildContext context) {
     Navigator.push(
@@ -130,7 +223,13 @@ class SellerPage extends StatelessWidget {
     );
   }
 
-  void _openReturnRefundRequests(BuildContext context) {
+  // =========================================================
+  // OPEN RETURN REFUND
+  // =========================================================
+
+  void _openReturnRefundRequests(
+    BuildContext context,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -141,7 +240,7 @@ class SellerPage extends StatelessWidget {
   }
 
   // =========================================================
-  // OPEN MAIN VIDEOS
+  // OPEN VIDEOS
   // =========================================================
 
   void _openVideos(BuildContext context) {
@@ -153,14 +252,27 @@ class SellerPage extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // BUILD
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return Scaffold(
+        backgroundColor: const Color(0xFFFFF9F7),
         appBar: AppBar(
-          title: const Text('Seller Dashboard'),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          title: const Text(
+            'Seller Dashboard',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
         ),
         body: const Center(
           child: Text(
@@ -171,8 +283,18 @@ class SellerPage extends StatelessWidget {
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF9F7),
       appBar: AppBar(
-        title: const Text('Seller Dashboard'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          'Seller Dashboard',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
       ),
       body: StreamBuilder<
           DocumentSnapshot<Map<String, dynamic>>>(
@@ -183,10 +305,13 @@ class SellerPage extends StatelessWidget {
         builder: (context, userSnapshot) {
           if (userSnapshot.hasError) {
             return Center(
-              child: Text(
-                'Unable to load seller information.\n\n'
-                '${userSnapshot.error}',
-                textAlign: TextAlign.center,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  'Unable to load seller information.\n\n'
+                  '${userSnapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
@@ -202,13 +327,11 @@ class SellerPage extends StatelessWidget {
               userSnapshot.data?.data() ?? {};
 
           final sellerStatus =
-              userData['sellerStatus']
-                      ?.toString() ??
+              userData['sellerStatus']?.toString() ??
                   'pending';
 
           final sellerCode =
-              userData['sellerCode']
-                      ?.toString() ??
+              userData['sellerCode']?.toString() ??
                   'Not assigned';
 
           return StreamBuilder<
@@ -223,10 +346,13 @@ class SellerPage extends StatelessWidget {
             builder: (context, productSnapshot) {
               if (productSnapshot.hasError) {
                 return Center(
-                  child: Text(
-                    'Unable to load products.\n\n'
-                    '${productSnapshot.error}',
-                    textAlign: TextAlign.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      'Unable to load products.\n\n'
+                      '${productSnapshot.error}',
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 );
               }
@@ -249,19 +375,14 @@ class SellerPage extends StatelessWidget {
                 final data = product.data();
 
                 totalStock +=
-                    (data['stock'] as num?)
-                            ?.toInt() ??
-                        0;
+                    (data['stock'] as num?)?.toInt() ?? 0;
 
                 totalSales +=
-                    (data['salesCount'] as num?)
-                            ?.toInt() ??
+                    (data['salesCount'] as num?)?.toInt() ??
                         0;
 
                 totalViews +=
-                    (data['views'] as num?)
-                            ?.toInt() ??
-                        0;
+                    (data['views'] as num?)?.toInt() ?? 0;
               }
 
               final isApproved =
@@ -280,30 +401,36 @@ class SellerPage extends StatelessWidget {
                     // =================================================
 
                     Container(
-                      padding: const EdgeInsets.all(18),
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
+                        color: Colors.white,
                         borderRadius:
                             BorderRadius.circular(20),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Theme.of(context)
-                                .colorScheme
-                                .primaryContainer,
-                            Theme.of(context)
-                                .colorScheme
-                                .secondaryContainer,
-                          ],
-                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: 0.04,
+                            ),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: [
-                          const CircleAvatar(
-                            radius: 32,
-                            child: Icon(
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent
+                                  .withValues(alpha: 0.10),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
                               Icons.storefront,
                               size: 34,
+                              color: Colors.redAccent,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -323,9 +450,10 @@ class SellerPage extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 Text(
                                   'Seller ID: $sellerCode',
-                                  style:
-                                      const TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 13,
+                                    fontWeight:
+                                        FontWeight.w600,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -336,9 +464,8 @@ class SellerPage extends StatelessWidget {
                                       TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors
-                                        .grey
-                                        .shade700,
+                                    color:
+                                        Colors.grey.shade600,
                                   ),
                                 ),
                               ],
@@ -355,8 +482,7 @@ class SellerPage extends StatelessWidget {
                     // =================================================
 
                     Container(
-                      padding:
-                          const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(
                           alpha: 0.10,
@@ -394,8 +520,7 @@ class SellerPage extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  sellerStatus
-                                      .toUpperCase(),
+                                  sellerStatus.toUpperCase(),
                                   style: TextStyle(
                                     color: statusColor,
                                     fontWeight:
@@ -409,7 +534,7 @@ class SellerPage extends StatelessWidget {
                       ),
                     ),
 
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 24),
 
                     // =================================================
                     // OVERVIEW
@@ -429,7 +554,7 @@ class SellerPage extends StatelessWidget {
                       crossAxisCount: 2,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 1.45,
+                      childAspectRatio: 1.35,
                       shrinkWrap: true,
                       physics:
                           const NeverScrollableScrollPhysics(),
@@ -469,7 +594,7 @@ class SellerPage extends StatelessWidget {
                       ],
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 26),
 
                     // =================================================
                     // PRODUCT MANAGEMENT
@@ -487,8 +612,7 @@ class SellerPage extends StatelessWidget {
 
                     _menuCard(
                       context: context,
-                      icon:
-                          Icons.add_box_outlined,
+                      icon: Icons.add_box_outlined,
                       title: 'Add Product',
                       subtitle: isApproved
                           ? 'Add a new product to BuyNova.'
@@ -501,8 +625,7 @@ class SellerPage extends StatelessWidget {
 
                     _menuCard(
                       context: context,
-                      icon:
-                          Icons.inventory_outlined,
+                      icon: Icons.inventory_outlined,
                       title: 'My Products',
                       subtitle:
                           'Manage, edit and delete your products.',
@@ -514,8 +637,7 @@ class SellerPage extends StatelessWidget {
 
                     _menuCard(
                       context: context,
-                      icon:
-                          Icons.receipt_long_outlined,
+                      icon: Icons.receipt_long_outlined,
                       title: 'Orders',
                       subtitle:
                           'View orders containing your products.',
@@ -533,15 +655,12 @@ class SellerPage extends StatelessWidget {
                       context: context,
                       icon:
                           Icons.assignment_return_outlined,
-                      title:
-                          'Return & Refund Requests',
+                      title: 'Return & Refund Requests',
                       subtitle:
                           'Review customer return and refund requests.',
                       enabled: isApproved,
                       onTap: () {
-                        _openReturnRefundRequests(
-                          context,
-                        );
+                        _openReturnRefundRequests(context);
                       },
                     ),
 
@@ -568,8 +687,7 @@ class SellerPage extends StatelessWidget {
 
                     _menuCard(
                       context: context,
-                      icon:
-                          Icons.analytics_outlined,
+                      icon: Icons.analytics_outlined,
                       title: 'Sales Analytics',
                       subtitle:
                           'View sales and product performance.',
@@ -602,17 +720,41 @@ class SellerPage extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
-                    Card(
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: 0.04,
+                            ),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
                       child: Padding(
-                        padding:
-                            const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           children: [
                             ListTile(
                               contentPadding:
                                   EdgeInsets.zero,
-                              leading: const Icon(
-                                Icons.badge_outlined,
+                              leading: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent
+                                      .withValues(alpha: 0.10),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.badge_outlined,
+                                  color: Colors.redAccent,
+                                ),
                               ),
                               title:
                                   const Text('Seller ID'),
@@ -623,8 +765,19 @@ class SellerPage extends StatelessWidget {
                             ListTile(
                               contentPadding:
                                   EdgeInsets.zero,
-                              leading: const Icon(
-                                Icons.email_outlined,
+                              leading: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent
+                                      .withValues(alpha: 0.10),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.email_outlined,
+                                  color: Colors.redAccent,
+                                ),
                               ),
                               title:
                                   const Text('Email'),
@@ -635,15 +788,25 @@ class SellerPage extends StatelessWidget {
                             ListTile(
                               contentPadding:
                                   EdgeInsets.zero,
-                              leading: Icon(
-                                Icons.verified_outlined,
-                                color: statusColor,
+                              leading: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(
+                                    alpha: 0.10,
+                                  ),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.verified_outlined,
+                                  color: statusColor,
+                                ),
                               ),
                               title:
                                   const Text('Status'),
                               subtitle: Text(
-                                sellerStatus
-                                    .toUpperCase(),
+                                sellerStatus.toUpperCase(),
                                 style: TextStyle(
                                   color: statusColor,
                                   fontWeight:
