@@ -4,7 +4,9 @@ const {
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
+const cloudinary = require("cloudinary").v2;
 
 admin.initializeApp();
 
@@ -15,6 +17,19 @@ setGlobalOptions({
   region: "asia-northeast3",
   maxInstances: 10,
 });
+
+// ============================================================
+// CLOUDINARY SECRETS
+// ============================================================
+// Set these once per project with:
+//   firebase functions:secrets:set CLOUDINARY_API_KEY
+//   firebase functions:secrets:set CLOUDINARY_API_SECRET
+// (v2 functions use Secret Manager, not functions.config().)
+
+const cloudinaryApiKey = defineSecret("CLOUDINARY_API_KEY");
+const cloudinaryApiSecret = defineSecret("CLOUDINARY_API_SECRET");
+
+const CLOUDINARY_CLOUD_NAME = "riassg6d";
 
 // ============================================================
 // HELPERS
@@ -40,6 +55,39 @@ function requireAdmin(request) {
   return uid;
 }
 
+// Extracts the Cloudinary public_id from a delivery URL, e.g.
+//   https://res.cloudinary.com/<cloud>/video/upload/v170.../buynova_products/abc123.mp4
+// -> buynova_products/abc123
+function extractCloudinaryPublicId(url) {
+  try {
+    const uri = new URL(url);
+    const path = uri.pathname;
+
+    const uploadIndex = path.indexOf("/upload/");
+    if (uploadIndex === -1) return null;
+
+    let rest = path.substring(uploadIndex + "/upload/".length);
+
+    // Strip a leading transformation segment (e.g. "so_0/"),
+    // present on generated thumbnail URLs but not on video URLs.
+    const segments = rest.split("/");
+    if (segments.length > 1 && /^[a-z]{1,3}_/.test(segments[0])) {
+      segments.shift();
+    }
+    rest = segments.join("/");
+
+    // Strip a leading version segment like "v1710000000/"
+    rest = rest.replace(/^v\d+\//, "");
+
+    // Strip the file extension
+    rest = rest.replace(/\.[^./]+$/, "");
+
+    return rest || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // ============================================================
 // HEALTH CHECK
 // ============================================================
@@ -52,6 +100,69 @@ exports.healthCheck = onCall(async () => {
     timestamp: new Date().toISOString(),
   };
 });
+
+// ============================================================
+// DELETE CLOUDINARY VIDEO (+ thumbnail)
+// ============================================================
+// Called from MyVideosPage before the Firestore "sellerVideos"
+// document is deleted, so the underlying media doesn't stay
+// orphaned on Cloudinary.
+
+exports.deleteCloudinaryVideo = onCall(
+  { secrets: [cloudinaryApiKey, cloudinaryApiSecret] },
+  async (request) => {
+    requireAuth(request);
+
+    const { videoUrl, thumbnailUrl } = request.data || {};
+
+    if (!videoUrl || typeof videoUrl !== "string") {
+      throw new HttpsError("invalid-argument", "videoUrl is required.");
+    }
+
+    cloudinary.config({
+      cloud_name: CLOUDINARY_CLOUD_NAME,
+      api_key: cloudinaryApiKey.value(),
+      api_secret: cloudinaryApiSecret.value(),
+    });
+
+    const results = { video: null, thumbnail: null };
+
+    const videoPublicId = extractCloudinaryPublicId(videoUrl);
+
+    if (videoPublicId) {
+      try {
+        results.video = await cloudinary.uploader.destroy(videoPublicId, {
+          resource_type: "video",
+          invalidate: true,
+        });
+      } catch (e) {
+        console.error("Failed to delete Cloudinary video:", e);
+        results.video = { error: e.message };
+      }
+    }
+
+    if (thumbnailUrl && typeof thumbnailUrl === "string") {
+      const thumbPublicId = extractCloudinaryPublicId(thumbnailUrl);
+
+      if (thumbPublicId) {
+        try {
+          results.thumbnail = await cloudinary.uploader.destroy(
+            thumbPublicId,
+            {
+              resource_type: "image",
+              invalidate: true,
+            }
+          );
+        } catch (e) {
+          console.error("Failed to delete Cloudinary thumbnail:", e);
+          results.thumbnail = { error: e.message };
+        }
+      }
+    }
+
+    return results;
+  }
+);
 
 // ============================================================
 // WALLET TRANSACTION LISTENER
@@ -436,7 +547,7 @@ exports.placeWalletOrder = onCall(async (request) => {
 
     transaction.set(notificationRef, {
       title: "Payment Successful",
-      message: `à§³${totalAmount.toFixed(2)} was paid from your BuyNova Wallet for order ${orderId}.`,
+      message: `৳${totalAmount.toFixed(2)} was paid from your BuyNova Wallet for order ${orderId}.`,
       type: "order_payment",
       orderId: orderId,
       amount: totalAmount,
@@ -621,7 +732,7 @@ async function refundCancelledSubOrder(orderId, collectionName, subOrderId) {
       status: "approved",
       amount: refundAmount,
       currency: "BDT",
-      currencySymbol: "à§³",
+      currencySymbol: "৳",
       userId: userId,
       orderId: orderId,
       subOrderId: subOrderId,
@@ -657,7 +768,7 @@ async function refundCancelledSubOrder(orderId, collectionName, subOrderId) {
 
     transaction.set(notificationRef, {
       title: "Order Refund",
-      message: `à§³${refundAmount.toFixed(2)} was refunded to your BuyNova Wallet for cancelled order ${orderId}.`,
+      message: `৳${refundAmount.toFixed(2)} was refunded to your BuyNova Wallet for cancelled order ${orderId}.`,
       type: "order_refund",
       orderId: orderId,
       amount: refundAmount,
