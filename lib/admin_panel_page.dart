@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import 'admin_coupon_page.dart';
 import 'admin_wallet_page.dart';
 
-/// Only reachable if the logged-in user's email matches kAdminEmail.
 const String kAdminEmail = 'miamdarif010@gmail.com';
 
 class AdminPanelPage extends StatefulWidget {
@@ -15,35 +15,30 @@ class AdminPanelPage extends StatefulWidget {
 }
 
 class _AdminPanelPageState extends State<AdminPanelPage> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   String _pageTitle = 'Admin Dashboard';
   Widget? _selectedPage;
 
-  // ===========================================================
-  // AUTOMATIC SELLER ID
-  // ===========================================================
+  // =========================================================
+  // ID GENERATORS
+  // =========================================================
 
   String _generateSellerCode(String uid) {
     final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
     return 'SELL-${shortId.toUpperCase()}';
   }
 
-  // ===========================================================
-  // AUTOMATIC ENTREPRENEUR ID
-  // ===========================================================
-
   String _generateEntrepreneurCode(String uid) {
     final shortId = uid.length >= 6 ? uid.substring(0, 6) : uid;
     return 'ENT-${shortId.toUpperCase()}';
   }
 
-  // ===========================================================
-  // OPEN ADMIN SECTION
-  // ===========================================================
+  // =========================================================
+  // NAVIGATION
+  // =========================================================
 
-  void _openSection(
-    String title,
-    Widget page,
-  ) {
+  void _openSection(String title, Widget page) {
     setState(() {
       _pageTitle = title;
       _selectedPage = page;
@@ -57,51 +52,48 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     });
   }
 
-  // ===========================================================
-  // DELETE PRODUCT
-  // ===========================================================
+  // =========================================================
+  // PRODUCT DELETE
+  // =========================================================
 
-  Future<void> _deleteProduct(
-    String productId,
-    String name,
-  ) async {
+  Future<void> _deleteProduct(String productId, String name) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Text(
-          'Delete "$name"? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Product?'),
+          content: Text(
+            'Are you sure you want to delete "$name"?\n\n'
+            'This action cannot be undone.',
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
             ),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirm != true) return;
 
     try {
-      await FirebaseFirestore.instance
-          .collection('products')
-          .doc(productId)
-          .delete();
+      await _firestore.collection('products').doc(productId).delete();
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Product deleted successfully'),
-          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -110,47 +102,31 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to delete product: $e'),
-          behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
-  // ===========================================================
-  // UPDATE SELLER STATUS + SELLER ID
-  // ===========================================================
+  // =========================================================
+  // SELLER STATUS
+  // =========================================================
 
   Future<void> _updateSellerStatus(
     String uid,
     String status,
   ) async {
     try {
-      final userRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid);
-
-      final userDoc = await userRef.get();
-      final existingData = userDoc.data() ?? {};
-
-      final updateData = <String, dynamic>{
+      final data = <String, dynamic>{
         'sellerStatus': status,
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
       if (status == 'approved') {
-        final existingSellerCode =
-            existingData['sellerCode']?.toString() ?? '';
-
-        if (existingSellerCode.isEmpty) {
-          updateData['sellerCode'] = _generateSellerCode(uid);
-          updateData['sellerApprovedAt'] =
-              FieldValue.serverTimestamp();
-        }
+        data['sellerCode'] = _generateSellerCode(uid);
+        data['sellerApprovedAt'] = FieldValue.serverTimestamp();
       }
 
-      await userRef.set(
-        updateData,
-        SetOptions(merge: true),
-      );
+      await _firestore.collection('users').doc(uid).update(data);
 
       if (!mounted) return;
 
@@ -158,10 +134,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         SnackBar(
           content: Text(
             status == 'approved'
-                ? 'Seller approved and Seller ID created'
+                ? 'Seller approved successfully'
                 : 'Seller request rejected',
           ),
-          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -169,52 +144,35 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Failed to update seller status: $e',
-          ),
-          behavior: SnackBarBehavior.floating,
+          content: Text('Failed to update seller status: $e'),
         ),
       );
     }
   }
 
-  // ===========================================================
-  // UPDATE ENTREPRENEUR STATUS + ID
-  // ===========================================================
+  // =========================================================
+  // ENTREPRENEUR STATUS
+  // =========================================================
 
   Future<void> _updateEntrepreneurStatus(
     String uid,
     String status,
   ) async {
     try {
-      final userRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid);
-
-      final userDoc = await userRef.get();
-      final existingData = userDoc.data() ?? {};
-
-      final updateData = <String, dynamic>{
+      final data = <String, dynamic>{
         'entrepreneurStatus': status,
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
       if (status == 'approved') {
-        final existingCode =
-            existingData['entrepreneurCode']?.toString() ?? '';
+        data['entrepreneurCode'] =
+            _generateEntrepreneurCode(uid);
 
-        if (existingCode.isEmpty) {
-          updateData['entrepreneurCode'] =
-              _generateEntrepreneurCode(uid);
-
-          updateData['entrepreneurApprovedAt'] =
-              FieldValue.serverTimestamp();
-        }
+        data['entrepreneurApprovedAt'] =
+            FieldValue.serverTimestamp();
       }
 
-      await userRef.set(
-        updateData,
-        SetOptions(merge: true),
-      );
+      await _firestore.collection('users').doc(uid).update(data);
 
       if (!mounted) return;
 
@@ -222,10 +180,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         SnackBar(
           content: Text(
             status == 'approved'
-                ? 'Entrepreneur approved and ID created'
+                ? 'Entrepreneur approved successfully'
                 : 'Entrepreneur request rejected',
           ),
-          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -236,406 +193,396 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           content: Text(
             'Failed to update entrepreneur status: $e',
           ),
-          behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
-  // ===========================================================
-  // MAIN ADMIN PANEL
-  // ===========================================================
+  // =========================================================
+  // DELETE USER
+  // =========================================================
+
+  Future<void> _deleteUser(
+    String uid,
+    String name,
+    String email,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(
+                Icons.warning_rounded,
+                color: Colors.red,
+              ),
+              SizedBox(width: 8),
+              Text('Delete User'),
+            ],
+          ),
+          content: Text(
+            'You are about to permanently delete:\n\n'
+            '$name\n'
+            '$email\n\n'
+            'The secure Admin backend will delete the Firebase '
+            'Authentication account and related user data.\n\n'
+            'This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete Permanently'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('adminDeleteUser');
+
+      await callable.call({
+        'uid': uid,
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'User account deleted successfully',
+          ),
+        ),
+      );
+
+      _backToDashboard();
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Delete failed: ${e.message ?? e.code}',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Delete failed: $e'),
+        ),
+      );
+    }
+  }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF9F7),
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
         title: Text(
           _pageTitle,
           style: const TextStyle(
             fontWeight: FontWeight.bold,
+            color: Colors.black87,
           ),
         ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFFFFF9F7),
-        foregroundColor: Colors.black87,
-        elevation: 0,
         leading: _selectedPage != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.black87,
+                ),
                 onPressed: _backToDashboard,
               )
             : null,
       ),
-      body: _selectedPage ?? _adminDashboard(),
+      body: _selectedPage ?? _dashboard(),
     );
   }
 
-  // ===========================================================
-  // ADMIN DASHBOARD
-  // ===========================================================
+  // =========================================================
+  // DASHBOARD
+  // =========================================================
 
-  Widget _adminDashboard() {
+  Widget _dashboard() {
     return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // =====================================================
-          // HEADER
-          // =====================================================
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFDAD6),
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.admin_panel_settings_outlined,
-                    size: 34,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'BuyNova Admin',
-                        style: TextStyle(
-                          fontSize: 23,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        'Manage your BuyNova platform',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // =====================================================
-          // OVERVIEW
-          // =====================================================
+          _adminHeader(),
+          const SizedBox(height: 24),
 
           const Text(
             'Overview',
             style: TextStyle(
-              fontSize: 27,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
           _overviewGrid(),
 
-          const SizedBox(height: 30),
-
-          // =====================================================
-          // MANAGEMENT
-          // =====================================================
+          const SizedBox(height: 28),
 
           const Text(
             'Management',
             style: TextStyle(
-              fontSize: 27,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
           _adminMenuBox(
             icon: Icons.inventory_2_outlined,
             title: 'Products',
-            subtitle: 'Manage all BuyNova products',
-            iconBackground: const Color(0xFFFFE4DF),
-            onTap: () {
-              _openSection(
-                'Products',
-                _productsTab(),
-              );
-            },
+            subtitle: 'Manage all products',
+            onTap: () => _openSection(
+              'Products',
+              _productsTab(),
+            ),
           ),
 
           _adminMenuBox(
             icon: Icons.people_outline,
             title: 'Users',
-            subtitle: 'View users and their IDs',
-            iconBackground: const Color(0xFFE4F1FF),
-            onTap: () {
-              _openSection(
-                'Users',
-                _usersTab(),
-              );
-            },
+            subtitle: 'View and manage all users',
+            onTap: () => _openSection(
+              'Users',
+              _usersTab(),
+            ),
           ),
 
           _adminMenuBox(
-            icon: Icons.storefront_outlined,
+            icon: Icons.store_outlined,
             title: 'Seller Requests',
-            subtitle: 'Approve or reject seller applications',
-            iconBackground: const Color(0xFFE8F6E8),
-            onTap: () {
-              _openSection(
-                'Seller Requests',
-                _sellerRequestsTab(),
-              );
-            },
+            subtitle: 'Approve or reject sellers',
+            onTap: () => _openSection(
+              'Seller Requests',
+              _sellerRequestsTab(),
+            ),
           ),
 
           _adminMenuBox(
             icon: Icons.business_center_outlined,
             title: 'Entrepreneur Requests',
-            subtitle: 'Approve or reject reseller applications',
-            iconBackground: const Color(0xFFF1E8FF),
-            onTap: () {
-              _openSection(
-                'Entrepreneur Requests',
-                _entrepreneurRequestsTab(),
-              );
-            },
+            subtitle: 'Approve or reject resellers',
+            onTap: () => _openSection(
+              'Entrepreneur Requests',
+              _entrepreneurRequestsTab(),
+            ),
           ),
 
           _adminMenuBox(
-            icon: Icons.link_outlined,
+            icon: Icons.link,
             title: 'Relationships',
-            subtitle: 'Seller ↔ Entrepreneur products',
-            iconBackground: const Color(0xFFE5F2F2),
-            onTap: () {
-              _openSection(
-                'Relationships',
-                _relationshipsTab(),
-              );
-            },
+            subtitle: 'Seller ↔ Reseller products',
+            onTap: () => _openSection(
+              'Relationships',
+              _relationshipsTab(),
+            ),
           ),
 
           _adminMenuBox(
             icon: Icons.shopping_bag_outlined,
             title: 'Orders',
-            subtitle: 'Manage customer orders and payments',
-            iconBackground: const Color(0xFFFFF0D9),
-            onTap: () {
-              _openSection(
-                'Orders',
-                _ordersTab(),
-              );
-            },
+            subtitle: 'Manage all orders',
+            onTap: () => _openSection(
+              'Orders',
+              _ordersTab(),
+            ),
           ),
 
           _adminMenuBox(
             icon: Icons.local_offer_outlined,
             title: 'Coupons',
             subtitle: 'Create and manage coupons',
-            iconBackground: const Color(0xFFFFE7F0),
-            onTap: () {
-              _openSection(
-                'Coupons',
-                const AdminCouponPage(),
-              );
-            },
+            onTap: () => _openSection(
+              'Coupons',
+              const AdminCouponPage(),
+            ),
           ),
 
           _adminMenuBox(
             icon: Icons.account_balance_wallet_outlined,
             title: 'Wallet',
-            subtitle: 'Manage BuyNova wallet transactions',
-            iconBackground: const Color(0xFFE5F6EA),
-            onTap: () {
-              _openSection(
-                'Wallet',
-                const AdminWalletPage(),
-              );
-            },
+            subtitle: 'Manage wallet transactions',
+            onTap: () => _openSection(
+              'Wallet',
+              const AdminWalletPage(),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // ADMIN HEADER
+  // =========================================================
+
+  Widget _adminHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: const Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            child: Icon(
+              Icons.admin_panel_settings,
+              size: 30,
+            ),
+          ),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'BuyNova Admin',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Full platform control center',
+                  style: TextStyle(
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ===========================================================
-  // OVERVIEW GRID
-  // ===========================================================
+  // =========================================================
+  // OVERVIEW
+  // =========================================================
 
   Widget _overviewGrid() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .snapshots(),
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore.collection('users').snapshots(),
       builder: (context, userSnapshot) {
-        final users =
-            userSnapshot.data?.docs ?? [];
+        int users = 0;
+        int sellers = 0;
+        int entrepreneurs = 0;
 
-        int sellerCount = 0;
-        int entrepreneurCount = 0;
+        if (userSnapshot.hasData) {
+          users = userSnapshot.data!.docs.length;
 
-        for (final doc in users) {
-          final data =
-              doc.data() as Map<String, dynamic>;
+          for (final doc in userSnapshot.data!.docs) {
+            final data = doc.data();
 
-          if (data['sellerStatus'] == 'approved') {
-            sellerCount++;
-          }
+            if (data['sellerStatus'] == 'approved') {
+              sellers++;
+            }
 
-          if (data['entrepreneurStatus'] == 'approved') {
-            entrepreneurCount++;
+            if (data['entrepreneurStatus'] == 'approved') {
+              entrepreneurs++;
+            }
           }
         }
 
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
+        return StreamBuilder<
+            QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore
               .collection('products')
               .snapshots(),
           builder: (context, productSnapshot) {
-            final productCount =
+            final products =
                 productSnapshot.data?.docs.length ?? 0;
 
-            return StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
+            return StreamBuilder<
+                QuerySnapshot<Map<String, dynamic>>>(
+              stream: _firestore
                   .collection('orders')
                   .snapshots(),
               builder: (context, orderSnapshot) {
-                final orderCount =
+                final orders =
                     orderSnapshot.data?.docs.length ?? 0;
 
-                return Column(
+                return GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics:
+                      const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.55,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _overviewCard(
-                            icon: Icons.people_outline,
-                            value: users.length.toString(),
-                            title: 'Users',
-                            iconColor: Colors.blue,
-                            onTap: () {
-                              _openSection(
-                                'Users',
-                                _usersTab(),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _overviewCard(
-                            icon: Icons.storefront_outlined,
-                            value: sellerCount.toString(),
-                            title: 'Sellers',
-                            iconColor: Colors.green,
-                            onTap: () {
-                              _openSection(
-                                'Seller Requests',
-                                _sellerRequestsTab(),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                    _overviewCard(
+                      Icons.people,
+                      'Users',
+                      users.toString(),
                     ),
-
-                    const SizedBox(height: 14),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _overviewCard(
-                            icon:
-                                Icons.business_center_outlined,
-                            value:
-                                entrepreneurCount.toString(),
-                            title: 'Entrepreneurs',
-                            iconColor: Colors.deepPurple,
-                            onTap: () {
-                              _openSection(
-                                'Entrepreneur Requests',
-                                _entrepreneurRequestsTab(),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _overviewCard(
-                            icon:
-                                Icons.inventory_2_outlined,
-                            value:
-                                productCount.toString(),
-                            title: 'Products',
-                            iconColor: Colors.orange,
-                            onTap: () {
-                              _openSection(
-                                'Products',
-                                _productsTab(),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                    _overviewCard(
+                      Icons.store,
+                      'Sellers',
+                      sellers.toString(),
                     ),
-
-                    const SizedBox(height: 14),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _overviewCard(
-                            icon:
-                                Icons.shopping_bag_outlined,
-                            value:
-                                orderCount.toString(),
-                            title: 'Orders',
-                            iconColor: Colors.indigo,
-                            onTap: () {
-                              _openSection(
-                                'Orders',
-                                _ordersTab(),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _overviewCard(
-                            icon:
-                                Icons.account_balance_wallet_outlined,
-                            value: '৳',
-                            title: 'Wallet',
-                            iconColor: Colors.teal,
-                            onTap: () {
-                              _openSection(
-                                'Wallet',
-                                const AdminWalletPage(),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                    _overviewCard(
+                      Icons.business_center,
+                      'Entrepreneurs',
+                      entrepreneurs.toString(),
+                    ),
+                    _overviewCard(
+                      Icons.inventory_2,
+                      'Products',
+                      products.toString(),
+                    ),
+                    _overviewCard(
+                      Icons.shopping_bag,
+                      'Orders',
+                      orders.toString(),
+                    ),
+                    _overviewCard(
+                      Icons.account_balance_wallet,
+                      'Wallet',
+                      'Manage',
                     ),
                   ],
                 );
@@ -647,53 +594,239 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  // ===========================================================
-  // OVERVIEW CARD
-  // ===========================================================
+  Widget _overviewCard(
+    IconData icon,
+    String title,
+    String value,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 27),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _overviewCard({
+  // =========================================================
+  // MENU BOX
+  // =========================================================
+
+  Widget _adminMenuBox({
     required IconData icon,
-    required String value,
     required String title,
-    required Color iconColor,
+    required String subtitle,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(25),
-        onTap: onTap,
-        child: Container(
-          height: 155,
-          padding: const EdgeInsets.all(18),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 8,
+        ),
+        leading: Container(
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
-            color: const Color(0xFFF9EEEC),
-            borderRadius: BorderRadius.circular(25),
+            color: Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Icon(icon),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  // =========================================================
+  // USERS
+  // =========================================================
+
+  Widget _usersTab() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
+          .collection('users')
+          .orderBy('name')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text('No users found'),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data();
+
+            final name =
+                (data['name'] ?? 'No Name').toString();
+
+            final email =
+                (data['email'] ?? 'No Email').toString();
+
+            final sellerStatus =
+                (data['sellerStatus'] ?? 'none').toString();
+
+            final entrepreneurStatus =
+                (data['entrepreneurStatus'] ?? 'none')
+                    .toString();
+
+            return _userCard(
+              uid: doc.id,
+              data: data,
+              name: name,
+              email: email,
+              sellerStatus: sellerStatus,
+              entrepreneurStatus:
+                  entrepreneurStatus,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _userCard({
+    required String uid,
+    required Map<String, dynamic> data,
+    required String name,
+    required String email,
+    required String sellerStatus,
+    required String entrepreneurStatus,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          _openSection(
+            'User Details',
+            _userDetailsTab(uid, data),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
             children: [
-              Icon(
-                icon,
-                size: 38,
-                color: iconColor,
+              CircleAvatar(
+                radius: 27,
+                backgroundImage:
+                    data['profileImageUrl'] != null &&
+                            data['profileImageUrl']
+                                .toString()
+                                .isNotEmpty
+                        ? NetworkImage(
+                            data['profileImageUrl'].toString(),
+                          )
+                        : null,
+                child:
+                    data['profileImageUrl'] == null ||
+                            data['profileImageUrl']
+                                .toString()
+                                .isEmpty
+                        ? const Icon(Icons.person)
+                        : null,
               ),
-              const Spacer(),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 5,
+                      children: [
+                        _statusChip(
+                          'Seller: $sellerStatus',
+                          sellerStatus,
+                        ),
+                        _statusChip(
+                          'Reseller: $entrepreneurStatus',
+                          entrepreneurStatus,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w500,
-                ),
+              const Icon(
+                Icons.chevron_right,
+                color: Colors.black45,
               ),
             ],
           ),
@@ -702,465 +835,758 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  // ===========================================================
-  // ADMIN MENU BOX
-  // ===========================================================
+  // =========================================================
+  // USER DETAILS
+  // =========================================================
 
-  Widget _adminMenuBox({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color iconBackground,
-    required VoidCallback onTap,
-  }) {
+  Widget _userDetailsTab(
+    String uid,
+    Map<String, dynamic> data,
+  ) {
+    final name =
+        (data['name'] ?? 'No Name').toString();
+
+    final email =
+        (data['email'] ?? 'No Email').toString();
+
+    final phone =
+        (data['phone'] ?? 'Not added').toString();
+
+    final sellerStatus =
+        (data['sellerStatus'] ?? 'none').toString();
+
+    final entrepreneurStatus =
+        (data['entrepreneurStatus'] ?? 'none')
+            .toString();
+
+    final sellerCode =
+        (data['sellerCode'] ?? 'Not assigned').toString();
+
+    final entrepreneurCode =
+        (data['entrepreneurCode'] ?? 'Not assigned')
+            .toString();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _userProfileHeader(
+            uid,
+            data,
+            name,
+            email,
+          ),
+
+          const SizedBox(height: 18),
+
+          _detailsSection(
+            title: 'Basic Profile',
+            icon: Icons.person_outline,
+            children: [
+              _summaryRow('UID', uid),
+              _summaryRow('Name', name),
+              _summaryRow('Email', email),
+              _summaryRow('Phone', phone),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          _detailsSection(
+            title: 'Buyer / Customer',
+            icon: Icons.shopping_cart_outlined,
+            children: [
+              _summaryRow(
+                'Role',
+                'Buyer / Customer',
+              ),
+              _summaryRow(
+                'Account',
+                'Active',
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          _detailsSection(
+            title: 'Seller',
+            icon: Icons.store_outlined,
+            children: [
+              _summaryRow(
+                'Seller Status',
+                sellerStatus,
+              ),
+              _summaryRow(
+                'Seller ID',
+                sellerCode,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          _detailsSection(
+            title: 'Reseller / Entrepreneur',
+            icon: Icons.business_center_outlined,
+            children: [
+              _summaryRow(
+                'Status',
+                entrepreneurStatus,
+              ),
+              _summaryRow(
+                'Entrepreneur ID',
+                entrepreneurCode,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          _walletDetails(uid, data),
+
+          const SizedBox(height: 14),
+
+          _userProducts(uid),
+
+          const SizedBox(height: 14),
+
+          _userVideos(uid),
+
+          const SizedBox(height: 14),
+
+          _userOrders(uid),
+
+          const SizedBox(height: 22),
+
+          _deleteUserButton(
+            uid,
+            name,
+            email,
+          ),
+
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // USER PROFILE HEADER
+  // =========================================================
+
+  Widget _userProfileHeader(
+    String uid,
+    Map<String, dynamic> data,
+    String name,
+    String email,
+  ) {
+    final imageUrl =
+        (data['profileImageUrl'] ?? '').toString();
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 45,
+            backgroundImage: imageUrl.isNotEmpty
+                ? NetworkImage(imageUrl)
+                : null,
+            child: imageUrl.isEmpty
+                ? const Icon(
+                    Icons.person,
+                    size: 42,
+                  )
+                : null,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            email,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'UID: $uid',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.black45,
+            ),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
+    );
+  }
+
+  // =========================================================
+  // DETAILS SECTION
+  // =========================================================
+
+  Widget _detailsSection({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // WALLET
+  // =========================================================
+
+  Widget _walletDetails(
+    String uid,
+    Map<String, dynamic> data,
+  ) {
+    final cashBalance =
+        _toDouble(data['cashBalance']);
+
+    final pointsBalance =
+        _toInt(data['pointsBalance']);
+
+    final lifetimePoints =
+        _toInt(data['lifetimePoints']);
+
+    return _detailsSection(
+      title: 'BuyNova Wallet',
+      icon: Icons.account_balance_wallet_outlined,
+      children: [
+        _summaryRow(
+          'Cash Balance',
+          '৳${cashBalance.toStringAsFixed(2)}',
+        ),
+        _summaryRow(
+          'Points',
+          pointsBalance.toString(),
+        ),
+        _summaryRow(
+          'Lifetime Points',
+          lifetimePoints.toString(),
+        ),
+        const SizedBox(height: 8),
+        StreamBuilder<
+            QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('walletTransactions')
+              .orderBy(
+                'createdAt',
+                descending: true,
+              )
+              .limit(5)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const Text(
+                'Wallet transaction history unavailable.',
+                style: TextStyle(
+                  color: Colors.black54,
+                ),
+              );
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+
+            if (docs.isEmpty) {
+              return const Text(
+                'No wallet transactions.',
+                style: TextStyle(
+                  color: Colors.black54,
+                ),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: iconBackground,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 28,
-                    color: Colors.black87,
+                const Text(
+                  'Recent Transactions',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 15),
-                Expanded(
+                const SizedBox(height: 8),
+                ...docs.map(
+                  (doc) {
+                    final tx = doc.data();
+
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(
+                        Icons.receipt_long_outlined,
+                      ),
+                      title: Text(
+                        (tx['source'] ??
+                                tx['type'] ??
+                                'Transaction')
+                            .toString(),
+                      ),
+                      subtitle: Text(
+                        (tx['status'] ?? 'unknown')
+                            .toString(),
+                      ),
+                      trailing: Text(
+                        '৳${_toDouble(tx['amount']).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // =========================================================
+  // USER PRODUCTS
+  // =========================================================
+
+  Widget _userProducts(String uid) {
+    return _detailsSection(
+      title: 'Products',
+      icon: Icons.inventory_2_outlined,
+      children: [
+        StreamBuilder<
+            QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore
+              .collection('products')
+              .where(
+                'sellerId',
+                isEqualTo: uid,
+              )
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const Text(
+                'Seller products unavailable.',
+              );
+            }
+
+            if (snapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(12),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+
+            if (docs.isEmpty) {
+              return const Text(
+                'No seller products found.',
+                style: TextStyle(
+                  color: Colors.black54,
+                ),
+              );
+            }
+
+            return Column(
+              children: docs.map((doc) {
+                final product = doc.data();
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.shopping_bag_outlined,
+                  ),
+                  title: Text(
+                    (product['name'] ??
+                            'Unnamed Product')
+                        .toString(),
+                  ),
+                  subtitle: Text(
+                    (product['category'] ??
+                            'No category')
+                        .toString(),
+                  ),
+                  trailing: Text(
+                    '৳${_toDouble(product['price']).toStringAsFixed(0)}',
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+
+        const Divider(),
+
+        const Text(
+          'Reseller Products',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        StreamBuilder<
+            QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore
+              .collection('reseller_products')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const Text(
+                'Reseller products unavailable.',
+              );
+            }
+
+            if (snapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const SizedBox(
+                height: 40,
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final email =
+                (FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(uid)
+                        .id)
+                    .toString();
+
+            final docs = (snapshot.data?.docs ?? [])
+                .where((doc) {
+              final data = doc.data();
+
+              final entrepreneurId =
+                  data['entrepreneurId']?.toString();
+
+              final ownerId =
+                  data['userId']?.toString();
+
+              return entrepreneurId == uid ||
+                  ownerId == uid ||
+                  data['entrepreneurUid']?.toString() ==
+                      uid ||
+                  data['entrepreneurEmail']?.toString() ==
+                      email;
+            }).toList();
+
+            if (docs.isEmpty) {
+              return const Text(
+                'No reseller products found.',
+                style: TextStyle(
+                  color: Colors.black54,
+                ),
+              );
+            }
+
+            return Column(
+              children: docs.map((doc) {
+                final product = doc.data();
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.storefront_outlined,
+                  ),
+                  title: Text(
+                    (product['productName'] ??
+                            product['name'] ??
+                            'Reseller Product')
+                        .toString(),
+                  ),
+                  subtitle: Text(
+                    'Supplier: ${product['sellerCode'] ?? 'N/A'}',
+                  ),
+                  trailing: Text(
+                    '৳${_toDouble(
+                      product['sellingPrice'] ??
+                          product['price'],
+                    ).toStringAsFixed(0)}',
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // =========================================================
+  // USER VIDEOS
+  // =========================================================
+
+  Widget _userVideos(String uid) {
+    return _detailsSection(
+      title: 'Videos',
+      icon: Icons.video_library_outlined,
+      children: [
+        StreamBuilder<
+            QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore
+              .collection('sellerVideos')
+              .where(
+                'sellerId',
+                isEqualTo: uid,
+              )
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const Text(
+                'Seller videos unavailable.',
+              );
+            }
+
+            if (snapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(10),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+
+            if (docs.isEmpty) {
+              return const Text(
+                'No seller videos found.',
+                style: TextStyle(
+                  color: Colors.black54,
+                ),
+              );
+            }
+
+            return Column(
+              children: docs.map((doc) {
+                final video = doc.data();
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.play_circle_outline,
+                  ),
+                  title: Text(
+                    (video['title'] ??
+                            video['name'] ??
+                            'Seller Video')
+                        .toString(),
+                  ),
+                  subtitle: Text(
+                    (video['status'] ?? 'Published')
+                        .toString(),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // =========================================================
+  // USER ORDERS
+  // =========================================================
+
+  Widget _userOrders(String uid) {
+    return _detailsSection(
+      title: 'Orders',
+      icon: Icons.shopping_bag_outlined,
+      children: [
+        StreamBuilder<
+            QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore
+              .collection('orders')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const Text(
+                'Orders unavailable.',
+              );
+            }
+
+            if (snapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(10),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final docs = (snapshot.data?.docs ?? [])
+                .where((doc) {
+              final data = doc.data();
+
+              return data['customerId']?.toString() ==
+                      uid ||
+                  data['userId']?.toString() == uid ||
+                  data['buyerId']?.toString() == uid ||
+                  data['sellerId']?.toString() == uid ||
+                  data['entrepreneurId']?.toString() ==
+                      uid ||
+                  data['resellerId']?.toString() == uid;
+            }).toList();
+
+            if (docs.isEmpty) {
+              return const Text(
+                'No orders found for this user.',
+                style: TextStyle(
+                  color: Colors.black54,
+                ),
+              );
+            }
+
+            return Column(
+              children: docs.map((doc) {
+                final order = doc.data();
+
+                return Container(
+                  margin:
+                      const EdgeInsets.only(bottom: 8),
+                  padding:
+                      const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF9F7),
+                    borderRadius:
+                        BorderRadius.circular(12),
+                  ),
                   child: Column(
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        'Order ID: ${doc.id}',
                         style: const TextStyle(
-                          fontSize: 17,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
+                        'Status: ${order['orderStatus'] ?? 'N/A'}',
+                      ),
+                      Text(
+                        'Payment: ${order['paymentStatus'] ?? 'N/A'}',
+                      ),
+                      Text(
+                        'Total: ৳${_toDouble(order['total']).toStringAsFixed(2)}',
                       ),
                     ],
                   ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  size: 28,
-                  color: Colors.grey,
-                ),
-              ],
-            ),
-          ),
+                );
+              }).toList(),
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 
-  // ===========================================================
-  // PRODUCTS TAB
-  // ===========================================================
+  // =========================================================
+  // DELETE BUTTON
+  // =========================================================
 
-  Widget _productsTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('products')
-          .orderBy(
-            'createdAt',
-            descending: true,
-          )
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'Error loading products:\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-
-        if (docs.isEmpty) {
-          return const Center(
-            child: Text('No products yet'),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final doc = docs[index];
-
-            final data =
-                doc.data() as Map<String, dynamic>;
-
-            final name =
-                data['name']?.toString() ?? 'Unnamed';
-
-            final price =
-                data['price'] is num
-                    ? (data['price'] as num).toDouble()
-                    : 0.0;
-
-            final imageUrl =
-                data['imageUrl']?.toString();
-
-            final sellerEmail =
-                data['sellerEmail']?.toString() ??
-                    'Unknown seller';
-
-            final sellerCode =
-                data['sellerCode']?.toString() ?? '';
-
-            final category =
-                data['category']?.toString() ??
-                    'General';
-
-            return Card(
-              margin: const EdgeInsets.symmetric(
-                vertical: 4,
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor:
-                      Colors.grey.shade200,
-                  backgroundImage:
-                      imageUrl != null &&
-                              imageUrl.isNotEmpty
-                          ? NetworkImage(imageUrl)
-                          : null,
-                  child:
-                      imageUrl == null ||
-                              imageUrl.isEmpty
-                          ? const Icon(
-                              Icons.image,
-                              color: Colors.grey,
-                            )
-                          : null,
-                ),
-                title: Text(
-                  name,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  '₩${price.toStringAsFixed(0)} • $category\n'
-                  '${sellerCode.isNotEmpty ? '$sellerCode • ' : ''}'
-                  '$sellerEmail',
-                  maxLines: 3,
-                  overflow:
-                      TextOverflow.ellipsis,
-                ),
-                isThreeLine: true,
-                trailing: IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.red,
-                  ),
-                  onPressed: () => _deleteProduct(
-                    doc.id,
-                    name,
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ===========================================================
-  // USERS TAB
-  // ===========================================================
-
-  Widget _usersTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'Error loading users:\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-
-        if (docs.isEmpty) {
-          return const Center(
-            child: Text('No users yet'),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final doc = docs[index];
-
-            final data =
-                doc.data() as Map<String, dynamic>;
-
-            final name =
-                data['name']?.toString() ??
-                    'Unnamed User';
-
-            final email =
-                data['email']?.toString() ?? '';
-
-            final sellerStatus =
-                data['sellerStatus']?.toString() ??
-                    'none';
-
-            final entrepreneurStatus =
-                data['entrepreneurStatus']?.toString() ??
-                    'none';
-
-            final sellerCode =
-                data['sellerCode']?.toString() ?? '';
-
-            final entrepreneurCode =
-                data['entrepreneurCode']?.toString() ?? '';
-
-            return Card(
-              margin: const EdgeInsets.symmetric(
-                vertical: 5,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        const CircleAvatar(
-                          child: Icon(Icons.person),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style:
-                                    const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                email,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color:
-                                      Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (sellerCode.isNotEmpty)
-                      _idBox(
-                        icon: Icons.storefront,
-                        title: 'Seller ID',
-                        value: sellerCode,
-                      ),
-                    if (entrepreneurCode.isNotEmpty)
-                      _idBox(
-                        icon:
-                            Icons.business_center,
-                        title: 'Entrepreneur ID',
-                        value: entrepreneurCode,
-                      ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 5,
-                      children: [
-                        _statusChip(
-                          label:
-                              'Seller: $sellerStatus',
-                          status: sellerStatus,
-                        ),
-                        _statusChip(
-                          label:
-                              'Entrepreneur: $entrepreneurStatus',
-                          status:
-                              entrepreneurStatus,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ===========================================================
-  // ID BOX
-  // ===========================================================
-
-  Widget _idBox({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Container(
+  Widget _deleteUserButton(
+    String uid,
+    String name,
+    String email,
+  ) {
+    return SizedBox(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 8,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 19,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(
+            vertical: 15,
           ),
-          const SizedBox(width: 8),
-          Text(
-            '$title: ',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-            ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+        ),
+        onPressed: () {
+          _deleteUser(
+            uid,
+            name,
+            email,
+          );
+        },
+        icon: const Icon(
+          Icons.delete_forever,
+        ),
+        label: const Text(
+          'Delete User',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
           ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================
-  // STATUS CHIP
-  // ===========================================================
-
-  Widget _statusChip({
-    required String label,
-    required String status,
-  }) {
-    Color color;
-
-    switch (status) {
-      case 'approved':
-        color = Colors.green;
-        break;
-      case 'pending':
-        color = Colors.orange;
-        break;
-      case 'rejected':
-        color = Colors.red;
-        break;
-      default:
-        color = Colors.grey;
-    }
-
-    return Chip(
-      label: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 10,
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
         ),
       ),
-      backgroundColor: color,
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
     );
   }
 
-  // ===========================================================
+  // =========================================================
   // SELLER REQUESTS
-  // ===========================================================
+  // =========================================================
 
   Widget _sellerRequestsTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
           .collection('users')
           .where(
             'sellerStatus',
@@ -1168,23 +1594,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           )
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'Error loading seller requests:\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            ),
           );
         }
 
@@ -1193,73 +1610,29 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         if (docs.isEmpty) {
           return const Center(
             child: Text(
-              'No pending seller requests',
+              'No pending seller requests.',
             ),
           );
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(16),
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final doc = docs[index];
+            final data = doc.data();
 
-            final data =
-                doc.data() as Map<String, dynamic>;
-
-            final name =
-                data['name']?.toString() ??
-                    'Unnamed User';
-
-            final email =
-                data['email']?.toString() ?? '';
-
-            return Card(
-              margin: const EdgeInsets.symmetric(
-                vertical: 4,
+            return _requestCard(
+              uid: doc.id,
+              data: data,
+              role: 'Seller',
+              onApprove: () => _updateSellerStatus(
+                doc.id,
+                'approved',
               ),
-              child: ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(
-                    Icons.storefront_outlined,
-                  ),
-                ),
-                title: Text(name),
-                subtitle: Text(
-                  email,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.check_circle,
-                        color: Colors.green,
-                      ),
-                      tooltip: 'Approve',
-                      onPressed: () =>
-                          _updateSellerStatus(
-                        doc.id,
-                        'approved',
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.cancel,
-                        color: Colors.red,
-                      ),
-                      tooltip: 'Reject',
-                      onPressed: () =>
-                          _updateSellerStatus(
-                        doc.id,
-                        'rejected',
-                      ),
-                    ),
-                  ],
-                ),
+              onReject: () => _updateSellerStatus(
+                doc.id,
+                'rejected',
               ),
             );
           },
@@ -1268,13 +1641,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  // ===========================================================
+  // =========================================================
   // ENTREPRENEUR REQUESTS
-  // ===========================================================
+  // =========================================================
 
   Widget _entrepreneurRequestsTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
           .collection('users')
           .where(
             'entrepreneurStatus',
@@ -1282,6 +1656,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           )
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Center(
@@ -1289,16 +1667,139 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           );
         }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'Error loading entrepreneur requests:\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text(
+              'No pending entrepreneur requests.',
             ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data();
+
+            return _requestCard(
+              uid: doc.id,
+              data: data,
+              role: 'Entrepreneur / Reseller',
+              onApprove:
+                  () => _confirmEntrepreneurAction(
+                doc.id,
+                'approved',
+              ),
+              onReject:
+                  () => _confirmEntrepreneurAction(
+                doc.id,
+                'rejected',
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _requestCard({
+    required String uid,
+    required Map<String, dynamic> data,
+    required String role,
+    required VoidCallback onApprove,
+    required VoidCallback onReject,
+  }) {
+    final name =
+        (data['name'] ?? 'No Name').toString();
+
+    final email =
+        (data['email'] ?? 'No Email').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Text(
+            role,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 17,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('Name: $name'),
+          Text('Email: $email'),
+          Text(
+            'UID: $uid',
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.black45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: onApprove,
+                  icon: const Icon(
+                    Icons.check,
+                  ),
+                  label: const Text('Approve'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onReject,
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.red,
+                  ),
+                  label: const Text(
+                    'Reject',
+                    style: TextStyle(
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // RELATIONSHIPS
+  // =========================================================
+
+  Widget _relationshipsTab() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
+          .collection('reseller_products')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
           );
         }
 
@@ -1306,135 +1807,228 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
         if (docs.isEmpty) {
           return const Center(
-            child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.business_center_outlined,
-                  size: 55,
-                  color: Colors.grey,
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'No pending entrepreneur requests',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ],
+            child: Text(
+              'No Seller ↔ Reseller relationships found.',
             ),
           );
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final data = docs[index].data();
+
+            final productName =
+                (data['productName'] ??
+                        data['name'] ??
+                        'Product')
+                    .toString();
+
+            final sellerCode =
+                (data['sellerCode'] ?? 'N/A')
+                    .toString();
+
+            final entrepreneurCode =
+                (data['entrepreneurCode'] ??
+                        'N/A')
+                    .toString();
+
+            final supplierPrice =
+                _toDouble(
+              data['supplierPrice'],
+            );
+
+            final sellingPrice =
+                _toDouble(
+              data['sellingPrice'],
+            );
+
+            final profit =
+                _toDouble(
+              data['profit'],
+            );
+
+            return Container(
+              margin:
+                  const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    productName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _summaryRow(
+                    'Seller',
+                    sellerCode,
+                  ),
+                  _summaryRow(
+                    'Reseller',
+                    entrepreneurCode,
+                  ),
+                  _summaryRow(
+                    'Supplier Price',
+                    '৳${supplierPrice.toStringAsFixed(2)}',
+                  ),
+                  _summaryRow(
+                    'Selling Price',
+                    '৳${sellingPrice.toStringAsFixed(2)}',
+                  ),
+                  _summaryRow(
+                    'Profit',
+                    '৳${profit.toStringAsFixed(2)}',
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // PRODUCTS
+  // =========================================================
+
+  Widget _productsTab() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
+          .collection('products')
+          .orderBy(
+            'createdAt',
+            descending: true,
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text('No products found.'),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final doc = docs[index];
-
-            final data =
-                doc.data() as Map<String, dynamic>;
+            final data = doc.data();
 
             final name =
-                data['name']?.toString() ??
-                    'Unnamed User';
+                (data['name'] ?? 'Product').toString();
 
-            final email =
-                data['email']?.toString() ?? '';
+            final category =
+                (data['category'] ?? 'No Category')
+                    .toString();
 
-            final phone =
-                data['phone']?.toString() ?? '';
+            final sellerEmail =
+                (data['sellerEmail'] ?? 'N/A')
+                    .toString();
 
-            return Card(
-              margin: const EdgeInsets.symmetric(
-                vertical: 5,
+            final sellerCode =
+                (data['sellerCode'] ?? 'N/A')
+                    .toString();
+
+            final imageUrl =
+                (data['imageUrl'] ?? '').toString();
+
+            return Container(
+              margin:
+                  const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.circular(18),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  leading: const CircleAvatar(
-                    radius: 27,
-                    child: Icon(
-                      Icons.business_center_outlined,
-                    ),
-                  ),
-                  title: Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Padding(
-                    padding:
-                        const EdgeInsets.only(top: 5),
+              child: Row(
+                children: [
+                  _productImage(imageUrl),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment:
                           CrossAxisAlignment.start,
                       children: [
                         Text(
-                          email,
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '৳${_toDouble(data['price']).toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          category,
+                          style: const TextStyle(
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          sellerCode,
+                          style: const TextStyle(
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          sellerEmail,
                           maxLines: 1,
                           overflow:
                               TextOverflow.ellipsis,
-                        ),
-                        if (phone.isNotEmpty)
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(
-                              top: 3,
-                            ),
-                            child: Text(phone),
-                          ),
-                        const SizedBox(height: 5),
-                        const Text(
-                          'Status: Pending',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight:
-                                FontWeight.w600,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black45,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.check_circle,
-                          color: Colors.green,
-                        ),
-                        tooltip:
-                            'Approve Entrepreneur',
-                        onPressed: () =>
-                            _confirmEntrepreneurAction(
-                          doc.id,
-                          name,
-                          'approved',
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.cancel,
-                          color: Colors.red,
-                        ),
-                        tooltip:
-                            'Reject Entrepreneur',
-                        onPressed: () =>
-                            _confirmEntrepreneurAction(
-                          doc.id,
-                          name,
-                          'rejected',
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    tooltip: 'Delete Product',
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                    ),
+                    onPressed: () {
+                      _deleteProduct(
+                        doc.id,
+                        name,
+                      );
+                    },
                   ),
-                ),
+                ],
               ),
             );
           },
@@ -1443,358 +2037,60 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  // ===========================================================
-  // RELATIONSHIPS
-  // ===========================================================
+  Widget _productImage(String url) {
+    if (url.isEmpty) {
+      return Container(
+        width: 65,
+        height: 65,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.image_outlined,
+        ),
+      );
+    }
 
-  Widget _relationshipsTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('reseller_products')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'Error loading relationships:\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        url,
+        width: 65,
+        height: 65,
+        fit: BoxFit.cover,
+        errorBuilder:
+            (context, error, stackTrace) {
+          return Container(
+            width: 65,
+            height: 65,
+            color: Colors.black.withValues(
+              alpha: 0.04,
+            ),
+            child: const Icon(
+              Icons.broken_image_outlined,
             ),
           );
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-
-        if (docs.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.link_off,
-                  size: 55,
-                  color: Colors.grey,
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'No Seller ↔ Entrepreneur relationships yet',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final doc = docs[index];
-
-            final data =
-                doc.data() as Map<String, dynamic>;
-
-            final sellerCode =
-                data['sellerCode']?.toString() ??
-                    'Unknown';
-
-            final sellerEmail =
-                data['sellerEmail']?.toString() ??
-                    'Unknown';
-
-            final entrepreneurCode =
-                data['entrepreneurCode']?.toString() ??
-                    'Unknown';
-
-            final entrepreneurEmail =
-                data['entrepreneurEmail']?.toString() ??
-                    'Unknown';
-
-            final productName =
-                data['name']?.toString() ??
-                    'Unknown Product';
-
-            final supplierPrice =
-                data['supplierPrice'] is num
-                    ? (data['supplierPrice'] as num)
-                        .toDouble()
-                    : 0.0;
-
-            final sellingPrice =
-                data['sellingPrice'] is num
-                    ? (data['sellingPrice'] as num)
-                        .toDouble()
-                    : 0.0;
-
-            final profit =
-                data['profit'] is num
-                    ? (data['profit'] as num).toDouble()
-                    : sellingPrice -
-                        supplierPrice;
-
-            return Card(
-              margin: const EdgeInsets.symmetric(
-                vertical: 5,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.link,
-                          color: Colors.blue,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            productName,
-                            style:
-                                const TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.storefront,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'SELLER',
-                                style:
-                                    TextStyle(
-                                  fontSize: 11,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                sellerCode,
-                                style:
-                                    const TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                sellerEmail,
-                                maxLines: 1,
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Center(
-                      child: Icon(
-                        Icons.arrow_downward,
-                        size: 25,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.business_center,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'ENTREPRENEUR / RESELLER',
-                                style:
-                                    TextStyle(
-                                  fontSize: 11,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                entrepreneurCode,
-                                style:
-                                    const TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                entrepreneurEmail,
-                                maxLines: 1,
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment
-                              .spaceBetween,
-                      children: [
-                        _priceInfo(
-                          'Supplier',
-                          supplierPrice,
-                        ),
-                        _priceInfo(
-                          'Selling',
-                          sellingPrice,
-                        ),
-                        _priceInfo(
-                          'Profit',
-                          profit,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ===========================================================
-  // PRICE INFO
-  // ===========================================================
-
-  Widget _priceInfo(
-    String title,
-    double price,
-  ) {
-    return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey.shade600,
-          ),
-        ),
-        Text(
-          '₩${price.toStringAsFixed(0)}',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================
-  // ENTREPRENEUR CONFIRMATION
-  // ===========================================================
-
-  Future<void> _confirmEntrepreneurAction(
-    String uid,
-    String name,
-    String status,
-  ) async {
-    final isApprove = status == 'approved';
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          isApprove
-              ? 'Approve Entrepreneur'
-              : 'Reject Entrepreneur',
-        ),
-        content: Text(
-          isApprove
-              ? 'Approve "$name" as an Entrepreneur / Reseller?'
-              : 'Reject "$name"\'s Entrepreneur request?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  isApprove
-                      ? Colors.green
-                      : Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () =>
-                Navigator.pop(context, true),
-            child: Text(
-              isApprove
-                  ? 'Approve'
-                  : 'Reject',
-            ),
-          ),
-        ],
+        },
       ),
     );
-
-    if (result != true) return;
-
-    await _updateEntrepreneurStatus(
-      uid,
-      status,
-    );
   }
 
-  // ===========================================================
-  // ORDERS TAB
-  // ===========================================================
+  // =========================================================
+  // ORDERS
+  // =========================================================
 
   Widget _ordersTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
           .collection('orders')
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Center(
@@ -1802,1090 +2098,658 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           );
         }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding:
-                  const EdgeInsets.all(20),
-              child: Text(
-                'Error loading orders:\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
+        final docs =
+            List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+          snapshot.data?.docs ?? [],
+        );
 
-        final docs = snapshot.data?.docs ?? [];
-
-        if (docs.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.shopping_bag_outlined,
-                  size: 60,
-                  color: Colors.grey,
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'No orders yet',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight:
-                        FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final sortedDocs = [...docs];
-
-        sortedDocs.sort((a, b) {
-          final aData =
-              a.data() as Map<String, dynamic>;
-
-          final bData =
-              b.data() as Map<String, dynamic>;
-
+        docs.sort((a, b) {
           final aTime =
-              aData['createdAt'] is Timestamp
-                  ? aData['createdAt']
-                      as Timestamp
-                  : Timestamp(0, 0);
+              _dateFromValue(
+            a.data()['createdAt'],
+          );
 
           final bTime =
-              bData['createdAt'] is Timestamp
-                  ? bData['createdAt']
-                      as Timestamp
-                  : Timestamp(0, 0);
+              _dateFromValue(
+            b.data()['createdAt'],
+          );
 
           return bTime.compareTo(aTime);
         });
 
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text('No orders found.'),
+          );
+        }
+
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: sortedDocs.length,
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
           itemBuilder: (context, index) {
-            final doc = sortedDocs[index];
-
-            final data =
-                doc.data() as Map<String, dynamic>;
-
-            return _orderCard(
-              doc.id,
-              data,
-            );
+            return _orderCard(docs[index]);
           },
         );
       },
     );
   }
 
-  // ===========================================================
-  // MULTI-PRODUCT ORDER CARD
-  // ===========================================================
-
   Widget _orderCard(
-    String orderId,
-    Map<String, dynamic> data,
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
+    final data = doc.data();
+
     final customerName =
-        data['customerName']?.toString() ??
-            'Unknown Customer';
+        (data['customerName'] ?? 'Customer')
+            .toString();
 
     final phone =
-        data['phone']?.toString() ?? '';
+        (data['phone'] ?? 'N/A').toString();
 
     final address =
-        data['address']?.toString() ?? '';
+        (data['address'] ?? 'N/A').toString();
 
     final total =
-        data['total'] is num
-            ? (data['total'] as num).toDouble()
-            : 0.0;
-
-    final subtotal =
-        data['subtotal'] is num
-            ? (data['subtotal'] as num).toDouble()
-            : 0.0;
-
-    final deliveryFee =
-        data['deliveryFee'] is num
-            ? (data['deliveryFee'] as num)
-                .toDouble()
-            : 0.0;
-
-    final paymentMethod =
-        data['paymentMethod']?.toString() ??
-            'Unknown';
-
-    final paymentStatus =
-        data['paymentStatus']?.toString() ??
-            'pending';
+        _toDouble(data['total']);
 
     final orderStatus =
-        data['orderStatus']?.toString() ??
-            'placed';
+        (data['orderStatus'] ?? 'Order Placed')
+            .toString();
 
-    final createdAt =
-        data['createdAt'] is Timestamp
-            ? data['createdAt'] as Timestamp
-            : null;
+    final paymentStatus =
+        (data['paymentStatus'] ?? 'Pending')
+            .toString();
 
-    final dateText =
-        createdAt != null
-            ? _formatDate(
-                createdAt.toDate(),
+    final items =
+        data['items'] is List
+            ? List<dynamic>.from(
+                data['items'],
               )
-            : 'Waiting...';
-
-    final List<Map<String, dynamic>>
-        orderItems = [];
-
-    final rawItems = data['items'];
-
-    if (rawItems is List) {
-      for (final item in rawItems) {
-        if (item is Map) {
-          orderItems.add(
-            Map<String, dynamic>.from(item),
-          );
-        }
-      }
-    }
-
-    if (orderItems.isEmpty &&
-        data['productName'] != null) {
-      orderItems.add({
-        'productId':
-            data['productId'] ?? '',
-        'productName':
-            data['productName'] ??
-                'Product',
-        'imageUrl':
-            data['imageUrl'] ?? '',
-        'price':
-            data['productPrice'] ?? 0,
-        'quantity':
-            data['quantity'] ?? 1,
-        'total':
-            data['subtotal'] ??
-                data['total'] ??
-                0,
-      });
-    }
-
-    final itemCount =
-        data['itemCount'] is num
-            ? (data['itemCount'] as num)
-                .toInt()
-            : orderItems.length;
-
-    final totalQuantity =
-        data['totalQuantity'] is num
-            ? (data['totalQuantity'] as num)
-                .toInt()
-            : orderItems.fold<int>(
-                0,
-                (sum, item) =>
-                    sum +
-                    _toInt(
-                      item['quantity'],
-                    ),
-              );
-
-    return Card(
-      margin:
-          const EdgeInsets.symmetric(
-        vertical: 6,
-      ),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding:
-            const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'ORDER',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        orderId.length > 10
-                            ? orderId.substring(
-                                0,
-                                10,
-                              )
-                            : orderId,
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _orderStatusChip(
-                  orderStatus,
-                ),
-              ],
-            ),
-
-            const Divider(height: 22),
-
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.person_outline,
-                  size: 21,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'CUSTOMER',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        customerName,
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                      if (phone.isNotEmpty)
-                        Text(phone),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 21,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'DELIVERY ADDRESS',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        address.isNotEmpty
-                            ? address
-                            : 'No address',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius:
-                    BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$itemCount product(s) • '
-                    '$totalQuantity item(s)',
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 4),
-
-            ...orderItems.map(
-              _buildOrderItem,
-            ),
-
-            const SizedBox(height: 12),
-
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius:
-                    BorderRadius.circular(10),
-              ),
-              child: Column(
-                children: [
-                  _summaryRow(
-                    'Subtotal',
-                    subtotal,
-                  ),
-                  const SizedBox(height: 5),
-                  _summaryRow(
-                    'Delivery',
-                    deliveryFee,
-                  ),
-                  const Divider(height: 18),
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment
-                            .spaceBetween,
-                    children: [
-                      const Text(
-                        'TOTAL',
-                        style: TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        '₩${total.toStringAsFixed(0)}',
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Row(
-              children: [
-                const Icon(
-                  Icons.payments_outlined,
-                  size: 20,
-                  color: Colors.grey,
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    paymentMethod,
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.w600,
-                    ),
-                  ),
-                ),
-                _paymentStatusChip(
-                  paymentStatus,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 7),
-
-            Row(
-              children: [
-                const Icon(
-                  Icons.access_time,
-                  size: 16,
-                  color: Colors.grey,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  dateText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color:
-                        Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            SizedBox(
-              width: double.infinity,
-              child:
-                  OutlinedButton.icon(
-                icon: const Icon(
-                  Icons.local_shipping_outlined,
-                ),
-                label: const Text(
-                  'Change Order Status',
-                ),
-                onPressed: () =>
-                    _showOrderStatusDialog(
-                  orderId,
-                  orderStatus,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 5),
-
-            SizedBox(
-              width: double.infinity,
-              child:
-                  OutlinedButton.icon(
-                icon: const Icon(
-                  Icons.payment_outlined,
-                ),
-                label: const Text(
-                  'Change Payment Status',
-                ),
-                onPressed: () =>
-                    _showPaymentStatusDialog(
-                  orderId,
-                  paymentStatus,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================
-  // ORDER ITEM
-  // ===========================================================
-
-  Widget _buildOrderItem(
-    Map<String, dynamic> item,
-  ) {
-    final name =
-        item['productName']?.toString() ??
-            'Product';
-
-    final imageUrl =
-        item['imageUrl']?.toString() ?? '';
-
-    final price =
-        _toDouble(item['price']);
-
-    final quantity =
-        _toInt(item['quantity']);
-
-    final itemTotal =
-        _toDouble(item['total']);
+            : <dynamic>[];
 
     return Container(
-      margin:
-          const EdgeInsets.only(top: 8),
-      padding:
-          const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
-        borderRadius:
-            BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius:
-                  BorderRadius.circular(10),
-            ),
-            child: imageUrl.trim().isNotEmpty
-                ? ClipRRect(
-                    borderRadius:
-                        BorderRadius.circular(10),
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder:
-                          (
-                        context,
-                        error,
-                        stackTrace,
-                      ) {
-                        return const Icon(
-                          Icons
-                              .image_not_supported_outlined,
-                          color: Colors.grey,
-                        );
-                      },
-                    ),
-                  )
-                : const Icon(
-                    Icons.shopping_bag_outlined,
-                    color: Colors.grey,
-                  ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 2,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
-                    fontSize: 14,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Order #${doc.id}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '₩${price.toStringAsFixed(0)} × $quantity',
-                  style: TextStyle(
-                    color:
-                        Colors.grey.shade700,
-                    fontSize: 12,
+              ),
+              Text(
+                '৳${total.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _summaryRow(
+            'Customer',
+            customerName,
+          ),
+          _summaryRow(
+            'Phone',
+            phone,
+          ),
+          _summaryRow(
+            'Address',
+            address,
+          ),
+          _summaryRow(
+            'Order Status',
+            orderStatus,
+          ),
+          _summaryRow(
+            'Payment Status',
+            paymentStatus,
+          ),
+          const SizedBox(height: 10),
+          if (items.isNotEmpty) ...[
+            const Text(
+              'Items',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...items.map(
+              (item) => _buildOrderItem(item),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    _showOrderStatusDialog(
+                      doc.id,
+                      orderStatus,
+                    );
+                  },
+                  child: const Text(
+                    'Order Status',
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '₩${itemTotal.toStringAsFixed(0)}',
-            style:
-                const TextStyle(
-              fontWeight:
-                  FontWeight.bold,
-              fontSize: 14,
-            ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    _showPaymentStatusDialog(
+                      doc.id,
+                      paymentStatus,
+                    );
+                  },
+                  child: const Text(
+                    'Payment',
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // ===========================================================
-  // SUMMARY ROW
-  // ===========================================================
-
-  Widget _summaryRow(
-    String title,
-    double value,
-  ) {
-    return Row(
-      mainAxisAlignment:
-          MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.grey,
-          ),
-        ),
-        Text(
-          '₩${value.toStringAsFixed(0)}',
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================
-  // ORDER STATUS CHIP
-  // ===========================================================
-
-  Widget _orderStatusChip(
-    String status,
-  ) {
-    Color color;
-    String label;
-
-    switch (status) {
-      case 'confirmed':
-        color = Colors.blue;
-        label = 'Confirmed';
-        break;
-      case 'processing':
-        color = Colors.orange;
-        label = 'Processing';
-        break;
-      case 'shipped':
-        color = Colors.indigo;
-        label = 'Shipped';
-        break;
-      case 'delivered':
-        color = Colors.green;
-        label = 'Delivered';
-        break;
-      case 'cancelled':
-        color = Colors.red;
-        label = 'Cancelled';
-        break;
-      default:
-        color = Colors.grey;
-        label = 'Order Placed';
+  Widget _buildOrderItem(dynamic item) {
+    if (item is! Map) {
+      return Text(item.toString());
     }
 
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 5,
+    final name =
+        (item['name'] ??
+                item['productName'] ??
+                'Product')
+            .toString();
+
+    final quantity =
+        _toInt(
+          item['quantity'],
+        );
+
+    final price =
+        _toDouble(
+          item['price'],
+        );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 3,
       ),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius:
-            BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$name × $quantity',
+            ),
+          ),
+          Text(
+            '৳${price.toStringAsFixed(2)}',
+          ),
+        ],
       ),
     );
   }
 
-  // ===========================================================
-  // PAYMENT STATUS CHIP
-  // ===========================================================
-
-  Widget _paymentStatusChip(
-    String status,
-  ) {
-    Color color;
-    String label;
-
-    switch (status) {
-      case 'paid':
-        color = Colors.green;
-        label = 'Paid';
-        break;
-      case 'failed':
-        color = Colors.red;
-        label = 'Failed';
-        break;
-      case 'refunded':
-        color = Colors.purple;
-        label = 'Refunded';
-        break;
-      default:
-        color = Colors.orange;
-        label = 'Pending';
-    }
-
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 4,
-      ),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius:
-            BorderRadius.circular(15),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================
-  // CHANGE ORDER STATUS
-  // ===========================================================
+  // =========================================================
+  // ORDER STATUS
+  // =========================================================
 
   Future<void> _showOrderStatusDialog(
     String orderId,
     String currentStatus,
   ) async {
-    String selectedStatus = currentStatus;
+    const statuses = [
+      'Order Placed',
+      'Confirmed',
+      'Processing',
+      'Shipped',
+      'Delivered',
+      'Cancelled',
+      'Returned',
+    ];
 
-    final result =
+    final selected =
         await showDialog<String>(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder:
-              (
-            context,
-            setDialogState,
-          ) {
-            return AlertDialog(
-              title: const Text(
-                'Change Order Status',
-              ),
-              content:
-                  DropdownButtonFormField<String>(
-                initialValue:
-                    selectedStatus,
-                decoration:
-                    const InputDecoration(
-                  labelText:
-                      'Order Status',
-                  border:
-                      OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'placed',
-                    child:
-                        Text('Order Placed'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'confirmed',
-                    child:
-                        Text('Confirmed'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'processing',
-                    child:
-                        Text('Processing'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'shipped',
-                    child:
-                        Text('Shipped'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'delivered',
-                    child:
-                        Text('Delivered'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'cancelled',
-                    child:
-                        Text('Cancelled'),
-                  ),
+        return SimpleDialog(
+          title: const Text(
+            'Update Order Status',
+          ),
+          children: statuses.map((status) {
+            return SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  status,
+                );
+              },
+              child: Row(
+                children: [
+                  if (status == currentStatus)
+                    const Icon(
+                      Icons.check,
+                      size: 18,
+                    ),
+                  if (status == currentStatus)
+                    const SizedBox(width: 8),
+                  Text(status),
                 ],
-                onChanged: (value) {
-                  if (value == null) return;
-
-                  setDialogState(() {
-                    selectedStatus = value;
-                  });
-                },
               ),
-              actions: [
-                TextButton(
-                  onPressed: () =>
-                      Navigator.pop(context),
-                  child:
-                      const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () =>
-                      Navigator.pop(
-                    context,
-                    selectedStatus,
-                  ),
-                  child:
-                      const Text('Update'),
-                ),
-              ],
             );
-          },
+          }).toList(),
         );
       },
     );
 
-    if (result == null) return;
+    if (selected == null) return;
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('orders')
-          .doc(orderId)
-          .update({
-        'orderStatus': result,
-        'updatedAt':
-            FieldValue.serverTimestamp(),
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Order status updated successfully',
-          ),
-          behavior:
-              SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to update order status: $e',
-          ),
-          behavior:
-              SnackBarBehavior.floating,
-        ),
-      );
-    }
+    await _firestore
+        .collection('orders')
+        .doc(orderId)
+        .update({
+      'orderStatus': selected,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  // ===========================================================
-  // CHANGE PAYMENT STATUS
-  // ===========================================================
+  // =========================================================
+  // PAYMENT STATUS
+  // =========================================================
 
   Future<void> _showPaymentStatusDialog(
     String orderId,
     String currentStatus,
   ) async {
-    String selectedStatus = currentStatus;
+    const statuses = [
+      'Pending',
+      'Paid',
+      'Failed',
+      'Refunded',
+    ];
 
-    final result =
+    final selected =
         await showDialog<String>(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder:
-              (
-            context,
-            setDialogState,
-          ) {
-            return AlertDialog(
-              title: const Text(
-                'Change Payment Status',
-              ),
-              content:
-                  DropdownButtonFormField<String>(
-                initialValue:
-                    selectedStatus,
-                decoration:
-                    const InputDecoration(
-                  labelText:
-                      'Payment Status',
-                  border:
-                      OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'pending',
-                    child:
-                        Text('Pending'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'paid',
-                    child:
-                        Text('Paid'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'failed',
-                    child:
-                        Text('Failed'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'refunded',
-                    child:
-                        Text('Refunded'),
-                  ),
+        return SimpleDialog(
+          title: const Text(
+            'Update Payment Status',
+          ),
+          children: statuses.map((status) {
+            return SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  status,
+                );
+              },
+              child: Row(
+                children: [
+                  if (status == currentStatus)
+                    const Icon(
+                      Icons.check,
+                      size: 18,
+                    ),
+                  if (status == currentStatus)
+                    const SizedBox(width: 8),
+                  Text(status),
                 ],
-                onChanged: (value) {
-                  if (value == null) return;
-
-                  setDialogState(() {
-                    selectedStatus = value;
-                  });
-                },
               ),
-              actions: [
-                TextButton(
-                  onPressed: () =>
-                      Navigator.pop(context),
-                  child:
-                      const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () =>
-                      Navigator.pop(
-                    context,
-                    selectedStatus,
-                  ),
-                  child:
-                      const Text('Update'),
-                ),
-              ],
             );
-          },
+          }).toList(),
         );
       },
     );
 
-    if (result == null) return;
+    if (selected == null) return;
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('orders')
-          .doc(orderId)
-          .update({
-        'paymentStatus': result,
-        'updatedAt':
-            FieldValue.serverTimestamp(),
-      });
+    await _firestore
+        .collection('orders')
+        .doc(orderId)
+        .update({
+      'paymentStatus': selected,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
 
-      if (!mounted) return;
+  // =========================================================
+  // ENTREPRENEUR CONFIRMATION
+  // =========================================================
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Payment status updated successfully',
+  Future<void> _confirmEntrepreneurAction(
+    String uid,
+    String status,
+  ) async {
+    final approved = status == 'approved';
+
+    final result =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            approved
+                ? 'Approve Entrepreneur?'
+                : 'Reject Entrepreneur?',
           ),
-          behavior:
-              SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
           content: Text(
-            'Failed to update payment status: $e',
+            approved
+                ? 'This user will receive an Entrepreneur ID.'
+                : 'This entrepreneur request will be rejected.',
           ),
-          behavior:
-              SnackBarBehavior.floating,
-        ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () =>
+                  Navigator.pop(context, true),
+              child: Text(
+                approved
+                    ? 'Approve'
+                    : 'Reject',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true) {
+      await _updateEntrepreneurStatus(
+        uid,
+        status,
       );
     }
   }
 
-  // ===========================================================
-  // NUMBER HELPERS
-  // ===========================================================
+  // =========================================================
+  // COMMON HELPERS
+  // =========================================================
+
+  Widget _idBox(
+    String label,
+    String value,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(
+        top: 6,
+        bottom: 6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(
+          alpha: 0.035,
+        ),
+        borderRadius:
+            BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip(
+    String text,
+    String status,
+  ) {
+    final approved = status == 'approved';
+    final pending = status == 'pending';
+    final rejected = status == 'rejected';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: approved
+            ? Colors.green.withValues(
+                alpha: 0.10,
+              )
+            : pending
+                ? Colors.orange.withValues(
+                    alpha: 0.10,
+                  )
+                : rejected
+                    ? Colors.red.withValues(
+                        alpha: 0.10,
+                      )
+                    : Colors.grey.withValues(
+                        alpha: 0.10,
+                      ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: approved
+              ? Colors.green
+              : pending
+                  ? Colors.orange
+                  : rejected
+                      ? Colors.red
+                      : Colors.grey.shade700,
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryRow(
+    String label,
+    String value,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 4,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 125,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _priceInfo(
+    String label,
+    dynamic value,
+  ) {
+    return _summaryRow(
+      label,
+      '৳${_toDouble(value).toStringAsFixed(2)}',
+    );
+  }
+
+  Widget _errorView(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Text(
+          'Something went wrong:\n$error',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // DETAILS WRAPPER
+  // =========================================================
+
+  Widget _detailsWrapper({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // CONVERTERS
+  // =========================================================
 
   double _toDouble(dynamic value) {
+    if (value == null) return 0;
+
     if (value is num) {
       return value.toDouble();
     }
 
     return double.tryParse(
-          value?.toString() ?? '',
+          value.toString(),
         ) ??
-        0.0;
+        0;
   }
 
   int _toInt(dynamic value) {
+    if (value == null) return 0;
+
+    if (value is int) return value;
+
     if (value is num) {
       return value.toInt();
     }
 
     return int.tryParse(
-          value?.toString() ?? '',
+          value.toString(),
         ) ??
         0;
   }
 
-  // ===========================================================
-  // FORMAT DATE
-  // ===========================================================
+  DateTime _dateFromValue(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
 
-  String _formatDate(
-    DateTime date,
-  ) {
-    final day =
-        date.day.toString().padLeft(2, '0');
+    if (value is DateTime) {
+      return value;
+    }
 
-    final month =
-        date.month.toString().padLeft(2, '0');
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
 
-    final year =
-        date.year.toString();
+  String _formatDate(dynamic value) {
+    final date = _dateFromValue(value);
 
-    final hour =
-        date.hour.toString().padLeft(2, '0');
+    if (date.millisecondsSinceEpoch == 0) {
+      return 'N/A';
+    }
 
-    final minute =
-        date.minute.toString().padLeft(2, '0');
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year} '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+  }
 
-    return '$day/$month/$year $hour:$minute';
+  Widget _orderStatusChip(String status) {
+    return _statusChip(
+      status,
+      status == 'Delivered'
+          ? 'approved'
+          : status == 'Cancelled'
+              ? 'rejected'
+              : 'pending',
+    );
+  }
+
+  Widget _paymentStatusChip(String status) {
+    return _statusChip(
+      status,
+      status == 'Paid'
+          ? 'approved'
+          : status == 'Failed'
+              ? 'rejected'
+              : 'pending',
+    );
   }
 }
