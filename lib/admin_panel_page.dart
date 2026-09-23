@@ -351,15 +351,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             ),
           ),
           const SizedBox(height: 12),
-          _adminMenuBox(
-            icon: Icons.inventory_2_outlined,
-            title: 'Products',
-            subtitle: 'Manage all products',
-            onTap: () => _openSection(
-              'Products',
-              _productsTab(),
-            ),
-          ),
+
+          // ---------------------------------------------------
+          // ALL USERS
+          // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.people_outline,
             title: 'Users',
@@ -369,8 +364,51 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _usersTab(),
             ),
           ),
+
+          // ---------------------------------------------------
+          // APPROVED SELLERS
+          // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.store_outlined,
+            title: 'Sellers',
+            subtitle: 'View all approved sellers',
+            onTap: () => _openSection(
+              'Sellers',
+              _sellersTab(),
+            ),
+          ),
+
+          // ---------------------------------------------------
+          // APPROVED RESELLERS / ENTREPRENEURS
+          // ---------------------------------------------------
+          _adminMenuBox(
+            icon: Icons.business_center_outlined,
+            title: 'Resellers / Entrepreneurs',
+            subtitle: 'View all approved resellers',
+            onTap: () => _openSection(
+              'Resellers / Entrepreneurs',
+              _resellersTab(),
+            ),
+          ),
+
+          // ---------------------------------------------------
+          // PRODUCTS
+          // ---------------------------------------------------
+          _adminMenuBox(
+            icon: Icons.inventory_2_outlined,
+            title: 'Products',
+            subtitle: 'Manage all products',
+            onTap: () => _openSection(
+              'Products',
+              _productsTab(),
+            ),
+          ),
+
+          // ---------------------------------------------------
+          // SELLER REQUESTS
+          // ---------------------------------------------------
+          _adminMenuBox(
+            icon: Icons.storefront_outlined,
             title: 'Seller Requests',
             subtitle: 'Approve or reject sellers',
             onTap: () => _openSection(
@@ -378,8 +416,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _sellerRequestsTab(),
             ),
           ),
+
+          // ---------------------------------------------------
+          // RESELLER REQUESTS
+          // ---------------------------------------------------
           _adminMenuBox(
-            icon: Icons.business_center_outlined,
+            icon: Icons.person_add_business_outlined,
             title: 'Entrepreneur Requests',
             subtitle: 'Approve or reject resellers',
             onTap: () => _openSection(
@@ -387,6 +429,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _entrepreneurRequestsTab(),
             ),
           ),
+
+          // ---------------------------------------------------
+          // RELATIONSHIPS
+          // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.link,
             title: 'Relationships',
@@ -396,6 +442,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _relationshipsTab(),
             ),
           ),
+
+          // ---------------------------------------------------
+          // ORDERS
+          // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.shopping_bag_outlined,
             title: 'Orders',
@@ -405,6 +455,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _ordersTab(),
             ),
           ),
+
+          // ---------------------------------------------------
+          // COUPONS
+          // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.local_offer_outlined,
             title: 'Coupons',
@@ -414,6 +468,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               const AdminCouponPage(),
             ),
           ),
+
+          // ---------------------------------------------------
+          // WALLET
+          // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.account_balance_wallet_outlined,
             title: 'Wallet',
@@ -423,6 +481,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               const AdminWalletPage(),
             ),
           ),
+
           const SizedBox(height: 30),
         ],
       ),
@@ -512,20 +571,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           }
         }
 
-        return StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
-          stream: _firestore
-              .collection('products')
-              .snapshots(),
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestore.collection('products').snapshots(),
           builder: (context, productSnapshot) {
             final products =
                 productSnapshot.data?.docs.length ?? 0;
 
-            return StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-              stream: _firestore
-                  .collection('orders')
-                  .snapshots(),
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _firestore.collection('orders').snapshots(),
               builder: (context, orderSnapshot) {
                 final orders =
                     orderSnapshot.data?.docs.length ?? 0;
@@ -533,8 +586,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 return GridView.count(
                   crossAxisCount: 2,
                   shrinkWrap: true,
-                  physics:
-                      const NeverScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
                   childAspectRatio: 1.55,
@@ -551,7 +603,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     ),
                     _overviewCard(
                       Icons.business_center,
-                      'Entrepreneurs',
+                      'Resellers',
                       entrepreneurs.toString(),
                     ),
                     _overviewCard(
@@ -659,12 +711,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   // =========================================================
-  // USERS
+  // ALL USERS
   // =========================================================
 
   Widget _usersTab() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
           .collection('users')
           .orderBy('name')
@@ -674,8 +725,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           return _errorView(snapshot.error.toString());
         }
 
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
           );
@@ -715,14 +765,229 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               name: name,
               email: email,
               sellerStatus: sellerStatus,
-              entrepreneurStatus:
-                  entrepreneurStatus,
+              entrepreneurStatus: entrepreneurStatus,
             );
           },
         );
       },
     );
   }
+
+  // =========================================================
+  // APPROVED SELLERS
+  // =========================================================
+
+  Widget _sellersTab() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
+          .collection('users')
+          .where(
+            'sellerStatus',
+            isEqualTo: 'approved',
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text('No approved sellers found.'),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+
+            return _roleUserCard(
+              uid: doc.id,
+              data: doc.data(),
+              role: 'Seller',
+              roleCode:
+                  (doc.data()['sellerCode'] ?? 'Not assigned')
+                      .toString(),
+              roleIcon: Icons.store_outlined,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // APPROVED RESELLERS / ENTREPRENEURS
+  // =========================================================
+
+  Widget _resellersTab() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
+          .collection('users')
+          .where(
+            'entrepreneurStatus',
+            isEqualTo: 'approved',
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorView(snapshot.error.toString());
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text(
+              'No approved resellers / entrepreneurs found.',
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+
+            return _roleUserCard(
+              uid: doc.id,
+              data: doc.data(),
+              role: 'Reseller / Entrepreneur',
+              roleCode:
+                  (doc.data()['entrepreneurCode'] ??
+                          'Not assigned')
+                      .toString(),
+              roleIcon: Icons.business_center_outlined,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // ROLE USER CARD
+  // =========================================================
+
+  Widget _roleUserCard({
+    required String uid,
+    required Map<String, dynamic> data,
+    required String role,
+    required String roleCode,
+    required IconData roleIcon,
+  }) {
+    final name =
+        (data['name'] ?? 'No Name').toString();
+
+    final email =
+        (data['email'] ?? 'No Email').toString();
+
+    final imageUrl =
+        (data['profileImageUrl'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          _openSection(
+            'User Details',
+            _userDetailsTab(uid, data),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 29,
+                backgroundImage: imageUrl.isNotEmpty
+                    ? NetworkImage(imageUrl)
+                    : null,
+                child: imageUrl.isEmpty
+                    ? Icon(roleIcon)
+                    : null,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        _statusChip(
+                          role,
+                          'approved',
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            roleCode,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: Colors.black45,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // USER CARD
+  // =========================================================
 
   Widget _userCard({
     required String uid,
@@ -863,6 +1128,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             email,
           ),
           const SizedBox(height: 18),
+
           _detailsSection(
             title: 'Basic Profile',
             icon: Icons.person_outline,
@@ -873,7 +1139,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _summaryRow('Phone', phone),
             ],
           ),
+
           const SizedBox(height: 14),
+
           _detailsSection(
             title: 'Buyer / Customer',
             icon: Icons.shopping_cart_outlined,
@@ -888,7 +1156,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
             ],
           ),
+
           const SizedBox(height: 14),
+
           _detailsSection(
             title: 'Seller',
             icon: Icons.store_outlined,
@@ -903,7 +1173,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
             ],
           ),
+
           const SizedBox(height: 14),
+
           _detailsSection(
             title: 'Reseller / Entrepreneur',
             icon: Icons.business_center_outlined,
@@ -918,20 +1190,31 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
             ],
           ),
+
           const SizedBox(height: 14),
+
           _walletDetails(uid, data),
+
           const SizedBox(height: 14),
-          _userProducts(uid),
+
+          _userProducts(uid, data),
+
           const SizedBox(height: 14),
+
           _userVideos(uid),
+
           const SizedBox(height: 14),
+
           _userOrders(uid),
+
           const SizedBox(height: 22),
+
           _deleteUserButton(
             uid,
             name,
             email,
           ),
+
           const SizedBox(height: 30),
         ],
       ),
@@ -1075,8 +1358,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           lifetimePoints.toString(),
         ),
         const SizedBox(height: 8),
-        StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _firestore
               .collection('users')
               .doc(uid)
@@ -1160,13 +1442,18 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // USER PRODUCTS
   // =========================================================
 
-  Widget _userProducts(String uid) {
+  Widget _userProducts(
+    String uid,
+    Map<String, dynamic> userData,
+  ) {
+    final userEmail =
+        (userData['email'] ?? '').toString();
+
     return _detailsSection(
       title: 'Products',
       icon: Icons.inventory_2_outlined,
       children: [
-        StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _firestore
               .collection('products')
               .where(
@@ -1229,16 +1516,19 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             );
           },
         ),
+
         const Divider(),
+
         const Text(
           'Reseller Products',
           style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
+
         const SizedBox(height: 8),
-        StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
+
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _firestore
               .collection('reseller_products')
               .snapshots(),
@@ -1259,13 +1549,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               );
             }
 
-            final email =
-                (FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(uid)
-                        .id)
-                    .toString();
-
             final docs = (snapshot.data?.docs ?? [])
                 .where((doc) {
               final data = doc.data();
@@ -1276,12 +1559,16 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               final ownerId =
                   data['userId']?.toString();
 
+              final entrepreneurUid =
+                  data['entrepreneurUid']?.toString();
+
+              final entrepreneurEmail =
+                  data['entrepreneurEmail']?.toString();
+
               return entrepreneurId == uid ||
                   ownerId == uid ||
-                  data['entrepreneurUid']?.toString() ==
-                      uid ||
-                  data['entrepreneurEmail']?.toString() ==
-                      email;
+                  entrepreneurUid == uid ||
+                  entrepreneurEmail == userEmail;
             }).toList();
 
             if (docs.isEmpty) {
@@ -1335,8 +1622,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       title: 'Videos',
       icon: Icons.video_library_outlined,
       children: [
-        StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _firestore
               .collection('sellerVideos')
               .where(
@@ -1409,8 +1695,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       title: 'Orders',
       icon: Icons.shopping_bag_outlined,
       children: [
-        StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _firestore
               .collection('orders')
               .snapshots(),
@@ -1546,8 +1831,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // =========================================================
 
   Widget _sellerRequestsTab() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
           .collection('users')
           .where(
@@ -1608,8 +1892,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // =========================================================
 
   Widget _entrepreneurRequestsTab() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
           .collection('users')
           .where(
@@ -1748,8 +2031,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // =========================================================
 
   Widget _relationshipsTab() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
           .collection('reseller_products')
           .snapshots(),
@@ -1866,8 +2148,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // =========================================================
 
   Widget _productsTab() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
           .collection('products')
           .orderBy(
@@ -2043,8 +2324,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // =========================================================
 
   Widget _ordersTab() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
           .collection('orders')
           .snapshots(),
