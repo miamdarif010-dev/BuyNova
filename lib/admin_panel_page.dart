@@ -60,12 +60,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // NEW PAGE NAVIGATION
   // =========================================================
 
-  void _openSection({
-    required String title,
-    required Widget page,
-    required String notificationText,
-    Stream<QuerySnapshot<Map<String, dynamic>>>? notificationStream,
-  }) {
+  {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _AdminSectionPage(
