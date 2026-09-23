@@ -2,21 +2,17 @@ import 'package:flutter/material.dart';
 
 // =========================================================
 // SHARED BASE PAGE
-// à¦ªà§à¦°à¦¤à¦¿à¦Ÿà¦¾ à¦¨à¦¤à§à¦¨ à¦ªà§‡à¦œ à¦à¦‡ à¦¬à§‡à¦¸ à¦¬à§à¦¯à¦¬à¦¹à¦¾à¦° à¦•à¦°à¦›à§‡à¥¤ à¦ªà¦°à§‡ à¦†à¦¸à¦² à¦•à¦¨à¦Ÿà§‡à¦¨à§à¦Ÿ
-// à¦¬à¦¸à¦¾à¦¤à§‡ à¦šà¦¾à¦‡à¦²à§‡ à¦¶à§à¦§à§ `body` à¦¬à¦¦à¦²à¦¾à¦²à§‡à¦‡ à¦¹à¦¬à§‡à¥¤
 // =========================================================
 
 class _BasePage extends StatelessWidget {
   final String title;
   final IconData icon;
   final String message;
-  final Widget? body;
 
   const _BasePage({
     required this.title,
     required this.icon,
     required this.message,
-    this.body,
   });
 
   @override
@@ -25,36 +21,45 @@ class _BasePage extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         centerTitle: true,
       ),
-      body: body ??
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 72, color: Colors.redAccent),
-                  const SizedBox(height: 16),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                ],
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 72,
+                color: Colors.redAccent,
               ),
-            ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 15,
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
     );
   }
 }
@@ -71,7 +76,8 @@ class ShopProfilePage extends StatelessWidget {
     return const _BasePage(
       title: 'Shop Profile',
       icon: Icons.store_outlined,
-      message: 'Your shop name, logo and description will appear here.',
+      message:
+          'Your shop name, logo and description will appear here.',
     );
   }
 }
@@ -84,7 +90,8 @@ class ShopLocationPage extends StatelessWidget {
     return const _BasePage(
       title: 'Shop Location',
       icon: Icons.location_on_outlined,
-      message: 'Set and manage your shop address here.',
+      message:
+          'Set and manage your shop address here.',
     );
   }
 }
@@ -97,7 +104,8 @@ class SalesOrdersPage extends StatelessWidget {
     return const _BasePage(
       title: 'Sales / Orders',
       icon: Icons.receipt_long_outlined,
-      message: 'Orders placed for your products will appear here.',
+      message:
+          'Orders placed for your products will appear here.',
     );
   }
 }
@@ -114,7 +122,8 @@ class ResellerOrdersPage extends StatelessWidget {
     return const _BasePage(
       title: 'Reseller Orders',
       icon: Icons.receipt_long_outlined,
-      message: 'Orders you placed as a reseller will appear here.',
+      message:
+          'Orders you placed as a reseller will appear here.',
     );
   }
 }
@@ -127,7 +136,8 @@ class ResellerProfitPage extends StatelessWidget {
     return const _BasePage(
       title: 'My Profit',
       icon: Icons.monetization_on_outlined,
-      message: 'Your reseller profit summary will appear here.',
+      message:
+          'Your reseller profit summary will appear here.',
     );
   }
 }
@@ -140,7 +150,8 @@ class ResellerMessagesPage extends StatelessWidget {
     return const _BasePage(
       title: 'Messages',
       icon: Icons.message_outlined,
-      message: 'Your reseller messages will appear here.',
+      message:
+          'Your reseller messages will appear here.',
     );
   }
 }
@@ -157,7 +168,8 @@ class SellerVideoRewardsPage extends StatelessWidget {
     return const _BasePage(
       title: 'Seller Video Rewards',
       icon: Icons.video_library_outlined,
-      message: 'Rewards for watching seller videos will appear here.',
+      message:
+          'Rewards for watching seller videos will appear here.',
     );
   }
 }
@@ -170,7 +182,8 @@ class ReferralPage extends StatelessWidget {
     return const _BasePage(
       title: 'Referral',
       icon: Icons.group_add_outlined,
-      message: 'Invite friends and track your referral rewards here.',
+      message:
+          'Invite friends and track your referral rewards here.',
     );
   }
 }
