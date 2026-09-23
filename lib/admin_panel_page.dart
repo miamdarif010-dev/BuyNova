@@ -278,7 +278,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                       ),
 
                       _adminMenuBox(
-                        icon: Icons.person_add_business_outlined,
+                        icon: Icons.person_add_alt_1_outlined,
                         title: 'Entrepreneur Requests',
                         subtitle:
                             'Pending entrepreneur applications',
