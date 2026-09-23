@@ -1312,6 +1312,3 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 }
 
-এটা "lib/user_profile_page.dart"-এ পুরো replace করো। "profile_extra_pages.dart"-এ এখন কিছু পরিবর্তন লাগবে না।
-
-এবার আচরণটা হবে: একটা section খুলবে → অন্য section বন্ধ থাকবে → একই section আবার চাপলে বন্ধ হবে। ভিতরের সব existing option এবং navigation আগের মতোই থাকবে।
