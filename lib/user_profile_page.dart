@@ -364,6 +364,57 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
+  // ENTREPRENEUR / RESELLER APPLICATION
+  // =========================================================
+
+  Future<void> _becomeEntrepreneur() async {
+    final user = currentUser;
+
+    if (user == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(
+        {
+          'name': _name.isNotEmpty
+              ? _name
+              : 'BuyNova User',
+          'email': user.email ?? '',
+          'entrepreneurStatus': 'pending',
+          'entrepreneurRequestedAt':
+              FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      await _loadUserData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Reseller request submitted successfully.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not submit reseller request: $e',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // =========================================================
   // LOGOUT
   // =========================================================
 
@@ -868,6 +919,34 @@ class _UserProfilePageState extends State<UserProfilePage> {
       return [
         _sectionNotification(),
 
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
+          child: ListTile(
+            leading: const Icon(
+              Icons.dashboard_outlined,
+              color: Colors.redAccent,
+            ),
+            title: const Text(
+              'Reseller Dashboard',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'Manage your BuyNova reseller business.',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: _openEntrepreneur,
+          ),
+        ),
+
         _menuItem(
           icon: Icons.storefront_outlined,
           title: 'My Store',
@@ -935,13 +1014,49 @@ class _UserProfilePageState extends State<UserProfilePage> {
               color: Colors.orange,
             ),
             title: const Text(
-              'Entrepreneur Request Pending',
+              'Reseller Request Pending',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
               ),
             ),
             subtitle: const Text(
-              'Your entrepreneur request is waiting for admin approval.',
+              'Your reseller request is waiting for admin approval.',
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (_entrepreneurStatus == 'rejected') {
+      return [
+        _sectionNotification(),
+
+        Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 8,
+          ),
+          child: ListTile(
+            leading: const Icon(
+              Icons.cancel_outlined,
+              color: Colors.red,
+            ),
+            title: const Text(
+              'Reseller Request Rejected',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'You can submit a new reseller request.',
+            ),
+            trailing: TextButton(
+              onPressed: _becomeEntrepreneur,
+              child: const Text(
+                'Apply Again',
+              ),
             ),
           ),
         ),
@@ -964,7 +1079,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             color: Colors.redAccent,
           ),
           title: const Text(
-            'Become an Entrepreneur / Reseller',
+            'Become a Reseller',
             style: TextStyle(
               fontWeight: FontWeight.bold,
             ),
@@ -975,7 +1090,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           trailing: const Icon(
             Icons.chevron_right,
           ),
-          onTap: _openEntrepreneur,
+          onTap: _becomeEntrepreneur,
         ),
       ),
     ];
@@ -1121,8 +1236,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         title: 'ADMIN PANEL',
                         expanded:
                             _adminExpanded,
-                        onTap:
-                            _openAdminPanel,
+                        onTap: () {
+                          setState(() {
+                            _adminExpanded =
+                                !_adminExpanded;
+                          });
+                        },
                       ),
 
                       if (_adminExpanded) ...[
@@ -1150,7 +1269,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       title: 'BUYER / CUSTOMER',
                       expanded:
                           _buyerExpanded,
-                      onTap: _openBuyer,
+                      onTap: () {
+                        setState(() {
+                          _buyerExpanded =
+                              !_buyerExpanded;
+                        });
+                      },
                     ),
 
                     if (_buyerExpanded) ...[
@@ -1160,18 +1284,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     const SizedBox(height: 8),
 
                     // =================================================
-                    // 2. RESELLER / ENTREPRENEUR
+                    // 2. RESELLER
                     // =================================================
 
                     _expandableSectionHeader(
                       icon:
                           Icons.business_center_outlined,
-                      title:
-                          'RESELLER / ENTREPRENEUR',
+                      title: 'RESELLER',
                       expanded:
                           _entrepreneurExpanded,
-                      onTap:
-                          _openEntrepreneur,
+                      onTap: () {
+                        setState(() {
+                          _entrepreneurExpanded =
+                              !_entrepreneurExpanded;
+                        });
+                      },
                     ),
 
                     if (_entrepreneurExpanded) ...[
@@ -1190,8 +1317,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       title: 'SELLER',
                       expanded:
                           _sellerExpanded,
-                      onTap:
-                          _openSellerDashboard,
+                      onTap: () {
+                        setState(() {
+                          _sellerExpanded =
+                              !_sellerExpanded;
+                        });
+                      },
                     ),
 
                     if (_sellerExpanded) ...[
@@ -1211,8 +1342,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           'EARN & REWARDS',
                       expanded:
                           _earnExpanded,
-                      onTap:
-                          _openWatchEarn,
+                      onTap: () {
+                        setState(() {
+                          _earnExpanded =
+                              !_earnExpanded;
+                        });
+                      },
                     ),
 
                     if (_earnExpanded) ...[
