@@ -333,7 +333,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         children: [
           _adminHeader(),
           const SizedBox(height: 24),
-
           const Text(
             'Overview',
             style: TextStyle(
@@ -341,13 +340,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 12),
-
           _overviewGrid(),
-
           const SizedBox(height: 28),
-
           const Text(
             'Management',
             style: TextStyle(
@@ -355,9 +350,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 12),
-
           _adminMenuBox(
             icon: Icons.inventory_2_outlined,
             title: 'Products',
@@ -367,7 +360,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _productsTab(),
             ),
           ),
-
           _adminMenuBox(
             icon: Icons.people_outline,
             title: 'Users',
@@ -377,7 +369,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _usersTab(),
             ),
           ),
-
           _adminMenuBox(
             icon: Icons.store_outlined,
             title: 'Seller Requests',
@@ -387,7 +378,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _sellerRequestsTab(),
             ),
           ),
-
           _adminMenuBox(
             icon: Icons.business_center_outlined,
             title: 'Entrepreneur Requests',
@@ -397,7 +387,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _entrepreneurRequestsTab(),
             ),
           ),
-
           _adminMenuBox(
             icon: Icons.link,
             title: 'Relationships',
@@ -407,7 +396,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _relationshipsTab(),
             ),
           ),
-
           _adminMenuBox(
             icon: Icons.shopping_bag_outlined,
             title: 'Orders',
@@ -417,7 +405,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _ordersTab(),
             ),
           ),
-
           _adminMenuBox(
             icon: Icons.local_offer_outlined,
             title: 'Coupons',
@@ -427,7 +414,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               const AdminCouponPage(),
             ),
           ),
-
           _adminMenuBox(
             icon: Icons.account_balance_wallet_outlined,
             title: 'Wallet',
@@ -437,7 +423,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               const AdminWalletPage(),
             ),
           ),
-
           const SizedBox(height: 30),
         ],
       ),
@@ -877,9 +862,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             name,
             email,
           ),
-
           const SizedBox(height: 18),
-
           _detailsSection(
             title: 'Basic Profile',
             icon: Icons.person_outline,
@@ -890,9 +873,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               _summaryRow('Phone', phone),
             ],
           ),
-
           const SizedBox(height: 14),
-
           _detailsSection(
             title: 'Buyer / Customer',
             icon: Icons.shopping_cart_outlined,
@@ -907,9 +888,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           _detailsSection(
             title: 'Seller',
             icon: Icons.store_outlined,
@@ -924,9 +903,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           _detailsSection(
             title: 'Reseller / Entrepreneur',
             icon: Icons.business_center_outlined,
@@ -941,31 +918,20 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           _walletDetails(uid, data),
-
           const SizedBox(height: 14),
-
           _userProducts(uid),
-
           const SizedBox(height: 14),
-
           _userVideos(uid),
-
           const SizedBox(height: 14),
-
           _userOrders(uid),
-
           const SizedBox(height: 22),
-
           _deleteUserButton(
             uid,
             name,
             email,
           ),
-
           const SizedBox(height: 30),
         ],
       ),
@@ -1263,18 +1229,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             );
           },
         ),
-
         const Divider(),
-
         const Text(
           'Reseller Products',
           style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
-
         const SizedBox(height: 8),
-
         StreamBuilder<
             QuerySnapshot<Map<String, dynamic>>>(
           stream: _firestore
@@ -2488,47 +2450,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // COMMON HELPERS
   // =========================================================
 
-  Widget _idBox(
-    String label,
-    String value,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(
-        top: 6,
-        bottom: 6,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(
-          alpha: 0.035,
-        ),
-        borderRadius:
-            BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _statusChip(
     String text,
     String status,
@@ -2611,16 +2532,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  Widget _priceInfo(
-    String label,
-    dynamic value,
-  ) {
-    return _summaryRow(
-      label,
-      '৳${_toDouble(value).toStringAsFixed(2)}',
-    );
-  }
-
   Widget _errorView(String error) {
     return Center(
       child: Padding(
@@ -2629,46 +2540,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           'Something went wrong:\n$error',
           textAlign: TextAlign.center,
         ),
-      ),
-    );
-  }
-
-  // =========================================================
-  // DETAILS WRAPPER
-  // =========================================================
-
-  Widget _detailsWrapper({
-    required String title,
-    required IconData icon,
-    required Widget child,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
       ),
     );
   }
@@ -2715,41 +2586,5 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }
 
     return DateTime.fromMillisecondsSinceEpoch(0);
-  }
-
-  String _formatDate(dynamic value) {
-    final date = _dateFromValue(value);
-
-    if (date.millisecondsSinceEpoch == 0) {
-      return 'N/A';
-    }
-
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year} '
-        '${date.hour.toString().padLeft(2, '0')}:'
-        '${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  Widget _orderStatusChip(String status) {
-    return _statusChip(
-      status,
-      status == 'Delivered'
-          ? 'approved'
-          : status == 'Cancelled'
-              ? 'rejected'
-              : 'pending',
-    );
-  }
-
-  Widget _paymentStatusChip(String status) {
-    return _statusChip(
-      status,
-      status == 'Paid'
-          ? 'approved'
-          : status == 'Failed'
-              ? 'rejected'
-              : 'pending',
-    );
   }
 }
