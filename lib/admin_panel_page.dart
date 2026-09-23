@@ -18,9 +18,6 @@ class AdminPanelPage extends StatefulWidget {
 class _AdminPanelPageState extends State<AdminPanelPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  String _pageTitle = 'Admin Dashboard';
-  Widget? _selectedPage;
-
   // Admin access control
   bool _checkingAuth = true;
   bool _isAuthorized = false;
@@ -60,28 +57,50 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   // =========================================================
-  // NAVIGATION
+  // NEW PAGE NAVIGATION
   // =========================================================
 
-  void _openSection(String title, Widget page) {
-    setState(() {
-      _pageTitle = title;
-      _selectedPage = page;
-    });
+  void _openSection({
+    required String title,
+    required Widget page,
+    required String notificationText,
+    Stream<QuerySnapshot<Map<String, dynamic>>>? notificationStream,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _AdminSectionPage(
+          title: title,
+          notificationText: notificationText,
+          notificationStream: notificationStream,
+          child: page,
+        ),
+      ),
+    );
   }
 
-  void _backToDashboard() {
-    setState(() {
-      _pageTitle = 'Admin Dashboard';
-      _selectedPage = null;
-    });
+  void _openSimplePage({
+    required String title,
+    required Widget page,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _AdminSectionPage(
+          title: title,
+          notificationText: 'Management',
+          child: page,
+        ),
+      ),
+    );
   }
 
   // =========================================================
   // PRODUCT DELETE
   // =========================================================
 
-  Future<void> _deleteProduct(String productId, String name) async {
+  Future<void> _deleteProduct(
+    String productId,
+    String name,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -190,9 +209,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       };
 
       if (status == 'approved') {
-        data['entrepreneurCode'] =
-            _generateEntrepreneurCode(uid);
-
+        data['entrepreneurCode'] = _generateEntrepreneurCode(uid);
         data['entrepreneurApprovedAt'] =
             FieldValue.serverTimestamp();
       }
@@ -275,8 +292,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     if (confirm != true) return;
 
     try {
-      final callable = FirebaseFunctions.instance
-          .httpsCallable('adminDeleteUser');
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('adminDeleteUser');
 
       await callable.call({
         'uid': uid,
@@ -292,7 +309,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         ),
       );
 
-      _backToDashboard();
+      // Return from User Details page.
+      Navigator.of(context).pop();
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
 
@@ -320,7 +338,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Still checking who is logged in
     if (_checkingAuth) {
       return const Scaffold(
         body: Center(
@@ -329,7 +346,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       );
     }
 
-    // Not the admin -> block access completely
     if (!_isAuthorized) {
       return Scaffold(
         backgroundColor: const Color(0xFFFFF9F7),
@@ -376,24 +392,15 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Text(
-          _pageTitle,
-          style: const TextStyle(
+        title: const Text(
+          'Admin Dashboard',
+          style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.black87,
           ),
         ),
-        leading: _selectedPage != null
-            ? IconButton(
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.black87,
-                ),
-                onPressed: _backToDashboard,
-              )
-            : null,
       ),
-      body: _selectedPage ?? _dashboard(),
+      body: _dashboard(),
     );
   }
 
@@ -408,7 +415,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _adminHeader(),
+
           const SizedBox(height: 24),
+
           const Text(
             'Overview',
             style: TextStyle(
@@ -416,9 +425,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
+
           const SizedBox(height: 12),
+
           _overviewGrid(),
+
           const SizedBox(height: 28),
+
           const Text(
             'Management',
             style: TextStyle(
@@ -426,44 +439,64 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
+
           const SizedBox(height: 12),
 
           // ---------------------------------------------------
-          // ALL USERS
+          // USERS
           // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.people_outline,
-            title: 'Users',
+            title: 'Users / Buyers',
             subtitle: 'View and manage all users',
             onTap: () => _openSection(
-              'Users',
-              _usersTab(),
+              title: 'Users / Buyers',
+              notificationText: 'Buyers',
+              notificationStream:
+                  _firestore.collection('users').snapshots(),
+              page: _usersTab(),
             ),
           ),
 
           // ---------------------------------------------------
-          // APPROVED SELLERS
+          // SELLERS
           // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.store_outlined,
             title: 'Sellers',
             subtitle: 'View all approved sellers',
             onTap: () => _openSection(
-              'Sellers',
-              _sellersTab(),
+              title: 'Sellers',
+              notificationText: 'Sellers',
+              notificationStream: _firestore
+                  .collection('users')
+                  .where(
+                    'sellerStatus',
+                    isEqualTo: 'approved',
+                  )
+                  .snapshots(),
+              page: _sellersTab(),
             ),
           ),
 
           // ---------------------------------------------------
-          // APPROVED RESELLERS / ENTREPRENEURS
+          // RESELLERS / ENTREPRENEURS
           // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.business_center_outlined,
             title: 'Resellers / Entrepreneurs',
             subtitle: 'View all approved resellers',
             onTap: () => _openSection(
-              'Resellers / Entrepreneurs',
-              _resellersTab(),
+              title: 'Resellers / Entrepreneurs',
+              notificationText: 'Entrepreneurs',
+              notificationStream: _firestore
+                  .collection('users')
+                  .where(
+                    'entrepreneurStatus',
+                    isEqualTo: 'approved',
+                  )
+                  .snapshots(),
+              page: _resellersTab(),
             ),
           ),
 
@@ -475,8 +508,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             title: 'Products',
             subtitle: 'Manage all products',
             onTap: () => _openSection(
-              'Products',
-              _productsTab(),
+              title: 'Products',
+              notificationText: 'Products',
+              notificationStream:
+                  _firestore.collection('products').snapshots(),
+              page: _productsTab(),
             ),
           ),
 
@@ -488,21 +524,37 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             title: 'Seller Requests',
             subtitle: 'Approve or reject sellers',
             onTap: () => _openSection(
-              'Seller Requests',
-              _sellerRequestsTab(),
+              title: 'Seller Requests',
+              notificationText: 'Pending Seller Requests',
+              notificationStream: _firestore
+                  .collection('users')
+                  .where(
+                    'sellerStatus',
+                    isEqualTo: 'pending',
+                  )
+                  .snapshots(),
+              page: _sellerRequestsTab(),
             ),
           ),
 
           // ---------------------------------------------------
-          // RESELLER REQUESTS
+          // ENTREPRENEUR REQUESTS
           // ---------------------------------------------------
           _adminMenuBox(
             icon: Icons.person_add_alt_1_outlined,
             title: 'Entrepreneur Requests',
             subtitle: 'Approve or reject resellers',
             onTap: () => _openSection(
-              'Entrepreneur Requests',
-              _entrepreneurRequestsTab(),
+              title: 'Entrepreneur Requests',
+              notificationText: 'Pending Entrepreneur Requests',
+              notificationStream: _firestore
+                  .collection('users')
+                  .where(
+                    'entrepreneurStatus',
+                    isEqualTo: 'pending',
+                  )
+                  .snapshots(),
+              page: _entrepreneurRequestsTab(),
             ),
           ),
 
@@ -512,10 +564,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           _adminMenuBox(
             icon: Icons.link,
             title: 'Relationships',
-            subtitle: 'Seller â†” Reseller products',
+            subtitle: 'Seller ↔ Reseller products',
             onTap: () => _openSection(
-              'Relationships',
-              _relationshipsTab(),
+              title: 'Relationships',
+              notificationText: 'Relationships',
+              notificationStream: _firestore
+                  .collection('reseller_products')
+                  .snapshots(),
+              page: _relationshipsTab(),
             ),
           ),
 
@@ -527,8 +583,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             title: 'Orders',
             subtitle: 'Manage all orders',
             onTap: () => _openSection(
-              'Orders',
-              _ordersTab(),
+              title: 'Orders',
+              notificationText: 'Orders',
+              notificationStream:
+                  _firestore.collection('orders').snapshots(),
+              page: _ordersTab(),
             ),
           ),
 
@@ -540,8 +599,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             title: 'Coupons',
             subtitle: 'Create and manage coupons',
             onTap: () => _openSection(
-              'Coupons',
-              const AdminCouponPage(),
+              title: 'Coupons',
+              notificationText: 'Coupons',
+              notificationStream:
+                  _firestore.collection('coupons').snapshots(),
+              page: const AdminCouponPage(),
             ),
           ),
 
@@ -553,8 +615,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             title: 'Wallet',
             subtitle: 'Manage wallet transactions',
             onTap: () => _openSection(
-              'Wallet',
-              const AdminWalletPage(),
+              title: 'Wallet',
+              notificationText: 'Wallet Transactions',
+              notificationStream: _firestore
+                  .collectionGroup('walletTransactions')
+                  .snapshots(),
+              page: const AdminWalletPage(),
             ),
           ),
 
@@ -988,8 +1054,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         borderRadius: BorderRadius.circular(18),
         onTap: () {
           _openSection(
-            'User Details',
-            _userDetailsTab(uid, data),
+            title: 'User Details',
+            notificationText: 'User Details',
+            page: _userDetailsTab(uid, data),
           );
         },
         child: Padding(
@@ -1083,8 +1150,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         borderRadius: BorderRadius.circular(18),
         onTap: () {
           _openSection(
-            'User Details',
-            _userDetailsTab(uid, data),
+            title: 'User Details',
+            notificationText: 'User Details',
+            page: _userDetailsTab(uid, data),
           );
         },
         child: Padding(
@@ -1182,8 +1250,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         (data['sellerStatus'] ?? 'none').toString();
 
     final entrepreneurStatus =
-        (data['entrepreneurStatus'] ?? 'none')
-            .toString();
+        (data['entrepreneurStatus'] ?? 'none').toString();
 
     final sellerCode =
         (data['sellerCode'] ?? 'Not assigned').toString();
@@ -1203,6 +1270,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             name,
             email,
           ),
+
           const SizedBox(height: 18),
 
           _detailsSection(
@@ -1423,7 +1491,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       children: [
         _summaryRow(
           'Cash Balance',
-          'à§³${cashBalance.toStringAsFixed(2)}',
+          '৳${cashBalance.toStringAsFixed(2)}',
         ),
         _summaryRow(
           'Points',
@@ -1494,11 +1562,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                             .toString(),
                       ),
                       subtitle: Text(
-                        (tx['status'] ?? 'unknown')
-                            .toString(),
+                        (tx['status'] ?? 'unknown').toString(),
                       ),
                       trailing: Text(
-                        'à§³${_toDouble(tx['amount']).toStringAsFixed(2)}',
+                        '৳${_toDouble(tx['amount']).toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                         ),
@@ -1575,17 +1642,15 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     Icons.shopping_bag_outlined,
                   ),
                   title: Text(
-                    (product['name'] ??
-                            'Unnamed Product')
+                    (product['name'] ?? 'Unnamed Product')
                         .toString(),
                   ),
                   subtitle: Text(
-                    (product['category'] ??
-                            'No category')
+                    (product['category'] ?? 'No category')
                         .toString(),
                   ),
                   trailing: Text(
-                    'à§³${_toDouble(product['price']).toStringAsFixed(0)}',
+                    '৳${_toDouble(product['price']).toStringAsFixed(0)}',
                   ),
                 );
               }).toList(),
@@ -1675,9 +1740,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     'Supplier: ${product['sellerCode'] ?? 'N/A'}',
                   ),
                   trailing: Text(
-                    'à§³${_toDouble(
-                      product['sellingPrice'] ??
-                          product['price'],
+                    '৳${_toDouble(
+                      product['sellingPrice'] ?? product['price'],
                     ).toStringAsFixed(0)}',
                   ),
                 );
@@ -1750,8 +1814,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                         .toString(),
                   ),
                   subtitle: Text(
-                    (video['status'] ?? 'Published')
-                        .toString(),
+                    (video['status'] ?? 'Published').toString(),
                   ),
                 );
               }).toList(),
@@ -1796,13 +1859,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 .where((doc) {
               final data = doc.data();
 
-              return data['customerId']?.toString() ==
-                      uid ||
+              return data['customerId']?.toString() == uid ||
                   data['userId']?.toString() == uid ||
                   data['buyerId']?.toString() == uid ||
                   data['sellerId']?.toString() == uid ||
-                  data['entrepreneurId']?.toString() ==
-                      uid ||
+                  data['entrepreneurId']?.toString() == uid ||
                   data['resellerId']?.toString() == uid;
             }).toList();
 
@@ -1820,14 +1881,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 final order = doc.data();
 
                 return Container(
-                  margin:
-                      const EdgeInsets.only(bottom: 8),
-                  padding:
-                      const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF9F7),
-                    borderRadius:
-                        BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
                     crossAxisAlignment:
@@ -1847,7 +1905,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                         'Payment: ${order['paymentStatus'] ?? 'N/A'}',
                       ),
                       Text(
-                        'Total: à§³${_toDouble(order['total']).toStringAsFixed(2)}',
+                        'Total: ৳${_toDouble(order['total']).toStringAsFixed(2)}',
                       ),
                     ],
                   ),
@@ -2009,13 +2067,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               uid: doc.id,
               data: data,
               role: 'Entrepreneur / Reseller',
-              onApprove:
-                  () => _confirmEntrepreneurAction(
+              onApprove: () =>
+                  _confirmEntrepreneurAction(
                 doc.id,
                 'approved',
               ),
-              onReject:
-                  () => _confirmEntrepreneurAction(
+              onReject: () =>
+                  _confirmEntrepreneurAction(
                 doc.id,
                 'rejected',
               ),
@@ -2073,9 +2131,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: onApprove,
-                  icon: const Icon(
-                    Icons.check,
-                  ),
+                  icon: const Icon(Icons.check),
                   label: const Text('Approve'),
                 ),
               ),
@@ -2128,7 +2184,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         if (docs.isEmpty) {
           return const Center(
             child: Text(
-              'No Seller â†” Reseller relationships found.',
+              'No Seller ↔ Reseller relationships found.',
             ),
           );
         }
@@ -2146,37 +2202,27 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     .toString();
 
             final sellerCode =
-                (data['sellerCode'] ?? 'N/A')
-                    .toString();
+                (data['sellerCode'] ?? 'N/A').toString();
 
             final entrepreneurCode =
-                (data['entrepreneurCode'] ??
-                        'N/A')
+                (data['entrepreneurCode'] ?? 'N/A')
                     .toString();
 
             final supplierPrice =
-                _toDouble(
-              data['supplierPrice'],
-            );
+                _toDouble(data['supplierPrice']);
 
             final sellingPrice =
-                _toDouble(
-              data['sellingPrice'],
-            );
+                _toDouble(data['sellingPrice']);
 
             final profit =
-                _toDouble(
-              data['profit'],
-            );
+                _toDouble(data['profit']);
 
             return Container(
-              margin:
-                  const EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
                 crossAxisAlignment:
@@ -2200,15 +2246,15 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   ),
                   _summaryRow(
                     'Supplier Price',
-                    'à§³${supplierPrice.toStringAsFixed(2)}',
+                    '৳${supplierPrice.toStringAsFixed(2)}',
                   ),
                   _summaryRow(
                     'Selling Price',
-                    'à§³${sellingPrice.toStringAsFixed(2)}',
+                    '৳${sellingPrice.toStringAsFixed(2)}',
                   ),
                   _summaryRow(
                     'Profit',
-                    'à§³${profit.toStringAsFixed(2)}',
+                    '৳${profit.toStringAsFixed(2)}',
                   ),
                 ],
               ),
@@ -2263,28 +2309,23 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 (data['name'] ?? 'Product').toString();
 
             final category =
-                (data['category'] ?? 'No Category')
-                    .toString();
+                (data['category'] ?? 'No Category').toString();
 
             final sellerEmail =
-                (data['sellerEmail'] ?? 'N/A')
-                    .toString();
+                (data['sellerEmail'] ?? 'N/A').toString();
 
             final sellerCode =
-                (data['sellerCode'] ?? 'N/A')
-                    .toString();
+                (data['sellerCode'] ?? 'N/A').toString();
 
             final imageUrl =
                 (data['imageUrl'] ?? '').toString();
 
             return Container(
-              margin:
-                  const EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Row(
                 children: [
@@ -2303,7 +2344,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'à§³${_toDouble(data['price']).toStringAsFixed(0)}',
+                          '৳${_toDouble(data['price']).toStringAsFixed(0)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -2324,8 +2365,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                         Text(
                           sellerEmail,
                           maxLines: 1,
-                          overflow:
-                              TextOverflow.ellipsis,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 11,
                             color: Colors.black45,
@@ -2383,9 +2423,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           return Container(
             width: 65,
             height: 65,
-            color: Colors.black.withValues(
-              alpha: 0.04,
-            ),
+            color: Colors.black.withValues(alpha: 0.04),
             child: const Icon(
               Icons.broken_image_outlined,
             ),
@@ -2401,9 +2439,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
   Widget _ordersTab() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _firestore
-          .collection('orders')
-          .snapshots(),
+      stream: _firestore.collection('orders').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _errorView(snapshot.error.toString());
@@ -2423,14 +2459,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
         docs.sort((a, b) {
           final aTime =
-              _dateFromValue(
-            a.data()['createdAt'],
-          );
+              _dateFromValue(a.data()['createdAt']);
 
           final bTime =
-              _dateFromValue(
-            b.data()['createdAt'],
-          );
+              _dateFromValue(b.data()['createdAt']);
 
           return bTime.compareTo(aTime);
         });
@@ -2458,8 +2490,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     final data = doc.data();
 
     final customerName =
-        (data['customerName'] ?? 'Customer')
-            .toString();
+        (data['customerName'] ?? 'Customer').toString();
 
     final phone =
         (data['phone'] ?? 'N/A').toString();
@@ -2471,18 +2502,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         _toDouble(data['total']);
 
     final orderStatus =
-        (data['orderStatus'] ?? 'Order Placed')
-            .toString();
+        (data['orderStatus'] ?? 'Order Placed').toString();
 
     final paymentStatus =
-        (data['paymentStatus'] ?? 'Pending')
-            .toString();
+        (data['paymentStatus'] ?? 'Pending').toString();
 
     final items =
         data['items'] is List
-            ? List<dynamic>.from(
-                data['items'],
-              )
+            ? List<dynamic>.from(data['items'])
             : <dynamic>[];
 
     return Container(
@@ -2508,35 +2535,43 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 ),
               ),
               Text(
-                'à§³${total.toStringAsFixed(2)}',
+                '৳${total.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
+
           const SizedBox(height: 10),
+
           _summaryRow(
             'Customer',
             customerName,
           ),
+
           _summaryRow(
             'Phone',
             phone,
           ),
+
           _summaryRow(
             'Address',
             address,
           ),
+
           _summaryRow(
             'Order Status',
             orderStatus,
           ),
+
           _summaryRow(
             'Payment Status',
             paymentStatus,
           ),
+
           const SizedBox(height: 10),
+
           if (items.isNotEmpty) ...[
             const Text(
               'Items',
@@ -2549,7 +2584,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               (item) => _buildOrderItem(item),
             ),
           ],
+
           const SizedBox(height: 10),
+
           Row(
             children: [
               Expanded(
@@ -2598,14 +2635,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             .toString();
 
     final quantity =
-        _toInt(
-          item['quantity'],
-        );
+        _toInt(item['quantity']);
 
     final price =
-        _toDouble(
-          item['price'],
-        );
+        _toDouble(item['price']);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -2615,11 +2648,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         children: [
           Expanded(
             child: Text(
-              '$name Ã— $quantity',
+              '$name × $quantity',
             ),
           ),
           Text(
-            'à§³${price.toStringAsFixed(2)}',
+            '৳${price.toStringAsFixed(2)}',
           ),
         ],
       ),
@@ -2644,8 +2677,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       'Returned',
     ];
 
-    final selected =
-        await showDialog<String>(
+    final selected = await showDialog<String>(
       context: context,
       builder: (context) {
         return SimpleDialog(
@@ -2680,13 +2712,25 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
     if (selected == null) return;
 
-    await _firestore
-        .collection('orders')
-        .doc(orderId)
-        .update({
-      'orderStatus': selected,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .update({
+        'orderStatus': selected,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to update order status: $e',
+          ),
+        ),
+      );
+    }
   }
 
   // =========================================================
@@ -2704,8 +2748,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       'Refunded',
     ];
 
-    final selected =
-        await showDialog<String>(
+    final selected = await showDialog<String>(
       context: context,
       builder: (context) {
         return SimpleDialog(
@@ -2740,13 +2783,25 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
     if (selected == null) return;
 
-    await _firestore
-        .collection('orders')
-        .doc(orderId)
-        .update({
-      'paymentStatus': selected,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .update({
+        'paymentStatus': selected,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to update payment status: $e',
+          ),
+        ),
+      );
+    }
   }
 
   // =========================================================
@@ -2759,8 +2814,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   ) async {
     final approved = status == 'approved';
 
-    final result =
-        await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -2812,8 +2866,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   ) async {
     final approved = status == 'approved';
 
-    final result =
-        await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -2874,20 +2927,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       ),
       decoration: BoxDecoration(
         color: approved
-            ? Colors.green.withValues(
-                alpha: 0.10,
-              )
+            ? Colors.green.withValues(alpha: 0.10)
             : pending
-                ? Colors.orange.withValues(
-                    alpha: 0.10,
-                  )
+                ? Colors.orange.withValues(alpha: 0.10)
                 : rejected
-                    ? Colors.red.withValues(
-                        alpha: 0.10,
-                      )
-                    : Colors.grey.withValues(
-                        alpha: 0.10,
-                      ),
+                    ? Colors.red.withValues(alpha: 0.10)
+                    : Colors.grey.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -2997,3 +3042,187 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     return DateTime.fromMillisecondsSinceEpoch(0);
   }
 }
+
+// =============================================================
+// SEPARATE ADMIN SECTION PAGE
+// =============================================================
+
+class _AdminSectionPage extends StatelessWidget {
+  final String title;
+  final String notificationText;
+  final Stream<QuerySnapshot<Map<String, dynamic>>>?
+      notificationStream;
+  final Widget child;
+
+  const _AdminSectionPage({
+    required this.title,
+    required this.notificationText,
+    required this.child,
+    this.notificationStream,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFF9F7),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          _notificationHeader(),
+          Expanded(
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _notificationHeader() {
+    if (notificationStream == null) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(
+          16,
+          14,
+          16,
+          6,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.notifications_none_outlined,
+              size: 23,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              notificationText,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: notificationStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(
+              16,
+              14,
+              16,
+              6,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.notifications_none_outlined,
+                  size: 23,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '$notificationText unavailable',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final count = snapshot.data?.docs.length ?? 0;
+
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(
+            16,
+            14,
+            16,
+            6,
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: count > 0
+                      ? Colors.orange.withValues(alpha: 0.10)
+                      : Colors.green.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  count > 0
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_none_outlined,
+                  color: count > 0
+                      ? Colors.orange
+                      : Colors.green,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '🔔 $count $notificationText',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
