@@ -422,7 +422,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           // RESELLER REQUESTS
           // ---------------------------------------------------
           _adminMenuBox(
-            Icons.person_add_alt_1_outlined,
+           icon:Icons.person_add_alt_1_outlined,
             title: 'Entrepreneur Requests',
             subtitle: 'Approve or reject resellers',
             onTap: () => _openSection(
