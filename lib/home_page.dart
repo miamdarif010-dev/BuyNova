@@ -10,6 +10,7 @@ import 'cart_page.dart';
 import 'categories_page.dart';
 import 'news_feed_page.dart';
 import 'product_details_page.dart';
+import 'global_notifications_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -81,26 +82,36 @@ class _HomePageState extends State<HomePage> {
   // =========================================================
   // BDT PRICE
   // =========================================================
-  //
-  // Existing BuyNova products currently store their price
-  // based on the previous KRW system.
-  //
-  // 1 KRW = 0.09 BDT is kept here to preserve the current
-  // app's previous conversion behavior.
-  //
-  // Home Page will ONLY DISPLAY BDT (৳).
-  // =========================================================
 
-  double _convertToBdt(double storedPrice) {
-    return storedPrice * 0.09;
+  double _displayBdtPrice(
+    Map<String, dynamic> productData,
+  ) {
+    final rawPrice =
+        productData['price'] is num
+            ? (productData['price'] as num).toDouble()
+            : 0.0;
+
+    final currency =
+        productData['currency']
+            ?.toString()
+            .trim()
+            .toUpperCase();
+
+    // New products are already stored as BDT.
+    if (currency == 'BDT') {
+      return rawPrice;
+    }
+
+    // Legacy products without currency are treated
+    // as the previous KRW-based products.
+    return rawPrice * 0.09;
   }
 
-  // =========================================================
-  // FORMAT BDT PRICE
-  // =========================================================
-
-  String _formatBdtPrice(double storedPrice) {
-    final bdtPrice = _convertToBdt(storedPrice);
+  String _formatBdtPrice(
+    Map<String, dynamic> productData,
+  ) {
+    final bdtPrice =
+        _displayBdtPrice(productData);
 
     return '৳${bdtPrice.toStringAsFixed(2)}';
   }
@@ -135,7 +146,8 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final favoriteSnapshot = await favoriteRef.get();
+      final favoriteSnapshot =
+          await favoriteRef.get();
 
       if (favoriteSnapshot.exists) {
         await favoriteRef.delete();
@@ -144,7 +156,9 @@ class _HomePageState extends State<HomePage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Removed from Favorites'),
+            content: Text(
+              'Removed from Favorites',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 1),
           ),
@@ -161,9 +175,7 @@ class _HomePageState extends State<HomePage> {
             productData['category']?.toString() ?? '';
 
         final price =
-            productData['price'] is num
-                ? (productData['price'] as num).toDouble()
-                : 0.0;
+            _displayBdtPrice(productData);
 
         await favoriteRef.set({
           'productId': productId,
@@ -171,15 +183,20 @@ class _HomePageState extends State<HomePage> {
           'productImageUrl': imageUrl,
           'category': category,
           'price': price,
+          'currency': 'BDT',
+          'currencySymbol': '৳',
           'userId': user.uid,
-          'createdAt': FieldValue.serverTimestamp(),
+          'createdAt':
+              FieldValue.serverTimestamp(),
         });
 
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Added to Favorites ❤️'),
+            content: Text(
+              'Added to Favorites ❤️',
+            ),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 1),
           ),
@@ -219,6 +236,24 @@ class _HomePageState extends State<HomePage> {
   }
 
   // =========================================================
+  // OPEN GLOBAL NOTIFICATIONS
+  // =========================================================
+
+  Future<void> _openGlobalNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const GlobalNotificationsPage(),
+      ),
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  // =========================================================
   // BOTTOM NAVIGATION
   // =========================================================
 
@@ -235,12 +270,14 @@ class _HomePageState extends State<HomePage> {
       final result = await Navigator.push<String>(
         context,
         MaterialPageRoute(
-          builder: (context) => const CategoriesPage(),
+          builder: (context) =>
+              const CategoriesPage(),
         ),
       );
 
       if (result != null && mounted) {
-        final matchIndex = categories.indexOf(result);
+        final matchIndex =
+            categories.indexOf(result);
 
         if (matchIndex != -1) {
           setState(() {
@@ -262,7 +299,8 @@ class _HomePageState extends State<HomePage> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const NewsFeedPage(),
+          builder: (context) =>
+              const NewsFeedPage(),
         ),
       );
 
@@ -279,7 +317,8 @@ class _HomePageState extends State<HomePage> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const CartPage(),
+          builder: (context) =>
+              const CartPage(),
         ),
       );
 
@@ -300,14 +339,16 @@ class _HomePageState extends State<HomePage> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const LoginPage(),
+            builder: (context) =>
+                const LoginPage(),
           ),
         );
       } else {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const UserProfilePage(),
+            builder: (context) =>
+                const UserProfilePage(),
           ),
         );
       }
@@ -328,7 +369,8 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const NewsFeedPage(),
+        builder: (context) =>
+            const NewsFeedPage(),
       ),
     );
   }
@@ -342,14 +384,16 @@ class _HomePageState extends State<HomePage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const UserProfilePage(),
+          builder: (context) =>
+              const UserProfilePage(),
         ),
       );
     } else {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const LoginPage(),
+          builder: (context) =>
+              const LoginPage(),
         ),
       );
     }
@@ -362,8 +406,12 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, authSnapshot) {
+      stream: FirebaseAuth.instance
+          .authStateChanges(),
+      builder: (
+        context,
+        authSnapshot,
+      ) {
         final user = authSnapshot.data;
         final isLoggedIn = user != null;
 
@@ -394,7 +442,8 @@ class _HomePageState extends State<HomePage> {
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                            fontWeight:
+                                FontWeight.bold,
                           ),
                         ),
                       ],
@@ -405,10 +454,14 @@ class _HomePageState extends State<HomePage> {
                     leading: const Icon(
                       Icons.person_outline,
                     ),
-                    title: const Text('Account'),
+                    title: const Text(
+                      'Account',
+                    ),
                     onTap: () {
                       Navigator.pop(context);
-                      _openAccount(isLoggedIn);
+                      _openAccount(
+                        isLoggedIn,
+                      );
                     },
                   ),
 
@@ -416,7 +469,9 @@ class _HomePageState extends State<HomePage> {
                     leading: const Icon(
                       Icons.home_outlined,
                     ),
-                    title: const Text('Home'),
+                    title: const Text(
+                      'Home',
+                    ),
                     onTap: () {
                       Navigator.pop(context);
 
@@ -430,7 +485,9 @@ class _HomePageState extends State<HomePage> {
                     leading: const Icon(
                       Icons.category_outlined,
                     ),
-                    title: const Text('Categories'),
+                    title: const Text(
+                      'Categories',
+                    ),
                     onTap: () async {
                       Navigator.pop(context);
 
@@ -443,9 +500,12 @@ class _HomePageState extends State<HomePage> {
                         ),
                       );
 
-                      if (result != null && mounted) {
+                      if (result != null &&
+                          mounted) {
                         final matchIndex =
-                            categories.indexOf(result);
+                            categories.indexOf(
+                          result,
+                        );
 
                         if (matchIndex != -1) {
                           setState(() {
@@ -478,15 +538,13 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
 
-                  // =================================================
-                  // VIDEOS
-                  // =================================================
-
                   ListTile(
                     leading: const Icon(
                       Icons.video_library_outlined,
                     ),
-                    title: const Text('Videos'),
+                    title: const Text(
+                      'Videos',
+                    ),
                     subtitle: const Text(
                       'Watch Reels & Videos',
                     ),
@@ -500,7 +558,9 @@ class _HomePageState extends State<HomePage> {
                     leading: const Icon(
                       Icons.shopping_cart_outlined,
                     ),
-                    title: const Text('Cart'),
+                    title: const Text(
+                      'Cart',
+                    ),
                     onTap: () {
                       Navigator.pop(context);
 
@@ -514,15 +574,13 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
 
-                  // =================================================
-                  // SETTINGS
-                  // =================================================
-
                   ListTile(
                     leading: const Icon(
                       Icons.settings_outlined,
                     ),
-                    title: const Text('Settings'),
+                    title: const Text(
+                      'Settings',
+                    ),
                     onTap: () {
                       Navigator.pop(context);
 
@@ -541,7 +599,9 @@ class _HomePageState extends State<HomePage> {
                       leading: const Icon(
                         Icons.logout,
                       ),
-                      title: const Text('Logout'),
+                      title: const Text(
+                        'Logout',
+                      ),
                       onTap: () async {
                         Navigator.pop(context);
 
@@ -560,7 +620,8 @@ class _HomePageState extends State<HomePage> {
           // =================================================
 
           appBar: AppBar(
-            backgroundColor: Colors.redAccent,
+            backgroundColor:
+                Colors.redAccent,
             elevation: 0,
 
             leading: Builder(
@@ -571,7 +632,8 @@ class _HomePageState extends State<HomePage> {
                     color: Colors.white,
                   ),
                   onPressed: () {
-                    Scaffold.of(context).openDrawer();
+                    Scaffold.of(context)
+                        .openDrawer();
                   },
                 );
               },
@@ -581,19 +643,152 @@ class _HomePageState extends State<HomePage> {
               'BuyNova',
               style: TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
                 fontSize: 20,
               ),
             ),
 
             actions: [
-              IconButton(
-                icon: const Icon(
-                  Icons.notifications_outlined,
-                  color: Colors.white,
+              // =================================================
+              // GLOBAL NOTIFICATION
+              // =================================================
+
+              if (user == null)
+                IconButton(
+                  icon: const Icon(
+                    Icons.notifications_outlined,
+                    color: Colors.white,
+                  ),
+                  onPressed:
+                      _openGlobalNotifications,
+                )
+              else
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore
+                      .instance
+                      .collection(
+                        'global_notifications',
+                      )
+                      .where(
+                        'active',
+                        isEqualTo: true,
+                      )
+                      .snapshots(),
+
+                  builder: (
+                    context,
+                    notificationSnapshot,
+                  ) {
+                    final notifications =
+                        notificationSnapshot
+                                .data
+                                ?.docs ??
+                            [];
+
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore
+                          .instance
+                          .collection('users')
+                          .doc(user.uid)
+                          .collection(
+                            'globalNotificationReads',
+                          )
+                          .snapshots(),
+
+                      builder: (
+                        context,
+                        readSnapshot,
+                      ) {
+                        final readIds =
+                            <String>{};
+
+                        for (final readDoc
+                            in readSnapshot
+                                    .data
+                                    ?.docs ??
+                                []) {
+                          readIds.add(
+                            readDoc.id,
+                          );
+                        }
+
+                        int unreadCount = 0;
+
+                        for (final notification
+                            in notifications) {
+                          if (!readIds.contains(
+                            notification.id,
+                          )) {
+                            unreadCount++;
+                          }
+                        }
+
+                        return Stack(
+                          clipBehavior:
+                              Clip.none,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons
+                                    .notifications_outlined,
+                                color:
+                                    Colors.white,
+                              ),
+                              onPressed:
+                                  _openGlobalNotifications,
+                            ),
+
+                            if (unreadCount > 0)
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets
+                                          .symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  constraints:
+                                      const BoxConstraints(
+                                    minWidth: 17,
+                                    minHeight: 17,
+                                  ),
+                                  decoration:
+                                      const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape
+                                        .circle,
+                                  ),
+                                  child: Text(
+                                    unreadCount > 99
+                                        ? '99+'
+                                        : '$unreadCount',
+                                    textAlign:
+                                        TextAlign.center,
+                                    style:
+                                        const TextStyle(
+                                      color: Colors
+                                          .redAccent,
+                                      fontSize: 9,
+                                      fontWeight:
+                                          FontWeight
+                                              .bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    );
+                  },
                 ),
-                onPressed: () {},
-              ),
+
+              // =================================================
+              // CART
+              // =================================================
 
               StreamBuilder<QuerySnapshot>(
                 stream: user == null
@@ -611,14 +806,19 @@ class _HomePageState extends State<HomePage> {
                   int cartCount = 0;
 
                   for (final doc
-                      in cartSnapshot.data?.docs ?? []) {
+                      in cartSnapshot
+                              .data
+                              ?.docs ??
+                          []) {
                     final data =
                         doc.data()
                             as Map<String, dynamic>;
 
                     final qty =
-                        data['quantity'] is num
-                            ? (data['quantity'] as num)
+                        data['quantity']
+                                is num
+                            ? (data['quantity']
+                                    as num)
                                 .toInt()
                             : 1;
 
@@ -626,19 +826,22 @@ class _HomePageState extends State<HomePage> {
                   }
 
                   return Stack(
-                    clipBehavior: Clip.none,
+                    clipBehavior:
+                        Clip.none,
                     children: [
                       IconButton(
                         icon: const Icon(
-                          Icons.shopping_cart_outlined,
+                          Icons
+                              .shopping_cart_outlined,
                           color: Colors.white,
                         ),
                         onPressed: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  const CartPage(),
+                              builder:
+                                  (context) =>
+                                      const CartPage(),
                             ),
                           );
                         },
@@ -650,11 +853,13 @@ class _HomePageState extends State<HomePage> {
                           top: 6,
                           child: Container(
                             padding:
-                                const EdgeInsets.all(3),
+                                const EdgeInsets
+                                    .all(3),
                             decoration:
                                 const BoxDecoration(
                               color: Colors.white,
-                              shape: BoxShape.circle,
+                              shape:
+                                  BoxShape.circle,
                             ),
                             constraints:
                                 const BoxConstraints(
@@ -663,10 +868,12 @@ class _HomePageState extends State<HomePage> {
                             ),
                             child: Text(
                               '$cartCount',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color:
-                                    Colors.redAccent,
+                              textAlign:
+                                  TextAlign.center,
+                              style:
+                                  const TextStyle(
+                                color: Colors
+                                    .redAccent,
                                 fontSize: 10,
                                 fontWeight:
                                     FontWeight.bold,
@@ -693,7 +900,8 @@ class _HomePageState extends State<HomePage> {
 
               Container(
                 color: Colors.redAccent,
-                padding: const EdgeInsets.fromLTRB(
+                padding:
+                    const EdgeInsets.fromLTRB(
                   16,
                   0,
                   16,
@@ -701,45 +909,58 @@ class _HomePageState extends State<HomePage> {
                 ),
                 child: Container(
                   height: 42,
-                  decoration: BoxDecoration(
+                  decoration:
+                      BoxDecoration(
                     color: Colors.white,
                     borderRadius:
-                        BorderRadius.circular(21),
+                        BorderRadius.circular(
+                      21,
+                    ),
                   ),
                   child: TextField(
-                    controller: _searchController,
+                    controller:
+                        _searchController,
                     onChanged: (value) {
                       setState(() {
                         _searchQuery =
-                            value.trim().toLowerCase();
+                            value.trim()
+                                .toLowerCase();
                       });
                     },
-                    decoration: InputDecoration(
-                      hintText: 'Search products...',
-                      prefixIcon: const Icon(
+                    decoration:
+                        InputDecoration(
+                      hintText:
+                          'Search products...',
+                      prefixIcon:
+                          const Icon(
                         Icons.search,
                         color: Colors.grey,
                       ),
                       suffixIcon:
                           _searchQuery.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(
+                                  icon:
+                                      const Icon(
                                     Icons.clear,
-                                    color: Colors.grey,
+                                    color:
+                                        Colors.grey,
                                   ),
                                   onPressed: () {
                                     _searchController
                                         .clear();
 
                                     setState(() {
-                                      _searchQuery = '';
+                                      _searchQuery =
+                                          '';
                                     });
                                   },
                                 )
                               : null,
-                      border: InputBorder.none,
+                      border:
+                          InputBorder.none,
                       contentPadding:
-                          const EdgeInsets.symmetric(
+                          const EdgeInsets
+                              .symmetric(
                         vertical: 8,
                       ),
                     ),
@@ -755,47 +976,65 @@ class _HomePageState extends State<HomePage> {
                 height: 58,
                 color: Colors.white,
                 child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
+                  scrollDirection:
+                      Axis.horizontal,
                   physics:
                       const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 9,
                   ),
-                  itemCount: categories.length,
-                  itemBuilder: (context, index) {
+                  itemCount:
+                      categories.length,
+                  itemBuilder:
+                      (context, index) {
                     final isSelected =
-                        _selectedCategory == index;
+                        _selectedCategory ==
+                            index;
 
                     return GestureDetector(
                       onTap: () {
                         setState(() {
-                          _selectedCategory = index;
+                          _selectedCategory =
+                              index;
                         });
                       },
-                      child: AnimatedContainer(
-                        duration: const Duration(
+                      child:
+                          AnimatedContainer(
+                        duration:
+                            const Duration(
                           milliseconds: 200,
                         ),
                         margin:
-                            const EdgeInsets.symmetric(
+                            const EdgeInsets
+                                .symmetric(
                           horizontal: 5,
                         ),
                         padding:
-                            const EdgeInsets.symmetric(
+                            const EdgeInsets
+                                .symmetric(
                           horizontal: 17,
                           vertical: 8,
                         ),
-                        decoration: BoxDecoration(
+                        decoration:
+                            BoxDecoration(
                           color: isSelected
                               ? Colors.redAccent
-                              : Colors.grey.shade100,
+                              : Colors.grey
+                                  .shade100,
                           borderRadius:
-                              BorderRadius.circular(20),
-                          border: Border.all(
+                              BorderRadius
+                                  .circular(
+                            20,
+                          ),
+                          border:
+                              Border.all(
                             color: isSelected
-                                ? Colors.redAccent
-                                : Colors.grey.shade300,
+                                ? Colors
+                                    .redAccent
+                                : Colors.grey
+                                    .shade300,
                           ),
                         ),
                         child: Center(
@@ -804,10 +1043,14 @@ class _HomePageState extends State<HomePage> {
                             style: TextStyle(
                               color: isSelected
                                   ? Colors.white
-                                  : Colors.black87,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
+                                  : Colors
+                                      .black87,
+                              fontWeight:
+                                  isSelected
+                                      ? FontWeight
+                                          .bold
+                                      : FontWeight
+                                          .w500,
                               fontSize: 14,
                             ),
                           ),
@@ -823,26 +1066,36 @@ class _HomePageState extends State<HomePage> {
               // =================================================
 
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('products')
-                      .snapshots(),
+                child:
+                    StreamBuilder<QuerySnapshot>(
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection(
+                              'products')
+                          .snapshots(),
 
-                  builder: (context, snapshot) {
+                  builder: (
+                    context,
+                    snapshot,
+                  ) {
                     if (snapshot.hasError) {
                       return const Center(
                         child: Text(
                           'Failed to load products',
-                          style: TextStyle(
+                          style:
+                              TextStyle(
                             fontSize: 16,
-                            color: Colors.grey,
+                            color:
+                                Colors.grey,
                           ),
                         ),
                       );
                     }
 
-                    if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
+                    if (snapshot
+                            .connectionState ==
+                        ConnectionState
+                            .waiting) {
                       return const Center(
                         child:
                             CircularProgressIndicator(),
@@ -850,65 +1103,74 @@ class _HomePageState extends State<HomePage> {
                     }
 
                     final allDocs =
-                        snapshot.data?.docs ?? [];
-
-                    // =================================================
-                    // CATEGORY + SEARCH FILTER
-                    // =================================================
+                        snapshot.data?.docs ??
+                            [];
 
                     final filteredDocs =
-                        allDocs.where((doc) {
-                      final data =
-                          doc.data()
-                              as Map<String, dynamic>;
+                        allDocs.where(
+                      (doc) {
+                        final data =
+                            doc.data()
+                                as Map<String,
+                                    dynamic>;
 
-                      if (!_matchesCategory(data)) {
-                        return false;
-                      }
+                        if (!_matchesCategory(
+                            data)) {
+                          return false;
+                        }
 
-                      if (_searchQuery.isEmpty) {
-                        return true;
-                      }
+                        if (_searchQuery
+                            .isEmpty) {
+                          return true;
+                        }
 
-                      final productName =
-                          data['name']
-                                  ?.toString()
-                                  .toLowerCase() ??
-                              '';
+                        final productName =
+                            data['name']
+                                    ?.toString()
+                                    .toLowerCase() ??
+                                '';
 
-                      return productName.contains(
-                        _searchQuery,
-                      );
-                    }).toList();
+                        return productName
+                            .contains(
+                          _searchQuery,
+                        );
+                      },
+                    ).toList();
 
-                    if (filteredDocs.isEmpty) {
+                    if (filteredDocs
+                        .isEmpty) {
                       return Center(
                         child: Text(
-                          _searchQuery.isNotEmpty
+                          _searchQuery
+                                  .isNotEmpty
                               ? 'No products found for "$_searchQuery"'
-                              : _selectedCategory == 0
+                              : _selectedCategory ==
+                                      0
                                   ? 'No products found yet'
                                   : 'No products found in ${categories[_selectedCategory]}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          textAlign:
+                              TextAlign.center,
+                          style:
+                              const TextStyle(
                             fontSize: 16,
-                            color: Colors.grey,
+                            color:
+                                Colors.grey,
                           ),
                         ),
                       );
                     }
 
-                    // =================================================
-                    // FAVORITES
-                    // =================================================
-
-                    return StreamBuilder<QuerySnapshot>(
+                    return StreamBuilder<
+                        QuerySnapshot>(
                       stream: user == null
                           ? null
-                          : FirebaseFirestore.instance
-                              .collection('users')
+                          : FirebaseFirestore
+                              .instance
+                              .collection(
+                                  'users')
                               .doc(user.uid)
-                              .collection('favorites')
+                              .collection(
+                                  'favorites')
                               .snapshots(),
 
                       builder: (
@@ -920,7 +1182,8 @@ class _HomePageState extends State<HomePage> {
 
                         for (final favoriteDoc
                             in favoriteSnapshot
-                                    .data?.docs ??
+                                    .data
+                                    ?.docs ??
                                 []) {
                           favoriteIds.add(
                             favoriteDoc.id,
@@ -929,12 +1192,14 @@ class _HomePageState extends State<HomePage> {
 
                         return GridView.builder(
                           padding:
-                              const EdgeInsets.all(8),
+                              const EdgeInsets
+                                  .all(8),
 
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            childAspectRatio: 0.75,
+                            childAspectRatio:
+                                0.75,
                             crossAxisSpacing: 8,
                             mainAxisSpacing: 8,
                           ),
@@ -945,7 +1210,8 @@ class _HomePageState extends State<HomePage> {
                           itemBuilder:
                               (context, index) {
                             final productDoc =
-                                filteredDocs[index];
+                                filteredDocs[
+                                    index];
 
                             final data =
                                 productDoc.data()
@@ -960,20 +1226,9 @@ class _HomePageState extends State<HomePage> {
                                         ?.toString() ??
                                     'Unnamed Product';
 
-                            final rawPrice =
-                                data['price'] is num
-                                    ? (data['price']
-                                            as num)
-                                        .toDouble()
-                                    : 0.0;
-
-                            // =================================================
-                            // BDT DISPLAY
-                            // =================================================
-
                             final displayPrice =
                                 _formatBdtPrice(
-                              rawPrice,
+                              data,
                             );
 
                             final imageUrl =
@@ -981,13 +1236,10 @@ class _HomePageState extends State<HomePage> {
                                     ?.toString();
 
                             final isFavorite =
-                                favoriteIds.contains(
+                                favoriteIds
+                                    .contains(
                               productId,
                             );
-
-                            // =================================================
-                            // PRODUCT CARD
-                            // =================================================
 
                             return Card(
                               elevation: 2,
@@ -996,74 +1248,59 @@ class _HomePageState extends State<HomePage> {
                               shape:
                                   RoundedRectangleBorder(
                                 borderRadius:
-                                    BorderRadius.circular(
+                                    BorderRadius
+                                        .circular(
                                   10,
                                 ),
                               ),
-
-                              child: InkWell(
+                              child:
+                                  InkWell(
                                 onTap: () {
                                   _openProductDetails(
                                     productId:
                                         productId,
-                                    product: data,
+                                    product:
+                                        data,
                                   );
                                 },
-
-                                child: Column(
+                                child:
+                                    Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment
                                           .start,
                                   children: [
-                                    // =================================================
-                                    // IMAGE
-                                    // =================================================
-
                                     Expanded(
-                                      child: Stack(
+                                      child:
+                                          Stack(
                                         children: [
                                           Container(
-                                            width:
-                                                double.infinity,
+                                            width: double
+                                                .infinity,
                                             decoration:
                                                 BoxDecoration(
                                               color: Colors
                                                   .grey[300],
                                             ),
-                                            child:
-                                                imageUrl !=
-                                                            null &&
-                                                        imageUrl
-                                                            .isNotEmpty
-                                                    ? Image
-                                                        .network(
-                                                        imageUrl,
-                                                        fit: BoxFit
-                                                            .cover,
-                                                        width:
-                                                            double.infinity,
-                                                        height:
-                                                            double.infinity,
-                                                        errorBuilder:
-                                                            (
-                                                          context,
-                                                          error,
-                                                          stackTrace,
-                                                        ) {
-                                                          return const Center(
-                                                            child:
-                                                                Icon(
-                                                              Icons
-                                                                  .image,
-                                                              size:
-                                                                  50,
-                                                              color:
-                                                                  Colors.grey,
-                                                            ),
-                                                          );
-                                                        },
-                                                      )
-                                                    : const Center(
+                                            child: imageUrl !=
+                                                        null &&
+                                                    imageUrl
+                                                        .isNotEmpty
+                                                ? Image
+                                                    .network(
+                                                    imageUrl,
+                                                    fit: BoxFit
+                                                        .cover,
+                                                    width:
+                                                        double.infinity,
+                                                    height:
+                                                        double.infinity,
+                                                    errorBuilder:
+                                                        (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) {
+                                                      return const Center(
                                                         child:
                                                             Icon(
                                                           Icons
@@ -1073,12 +1310,21 @@ class _HomePageState extends State<HomePage> {
                                                           color:
                                                               Colors.grey,
                                                         ),
-                                                      ),
+                                                      );
+                                                    },
+                                                  )
+                                                : const Center(
+                                                    child:
+                                                        Icon(
+                                                      Icons
+                                                          .image,
+                                                      size:
+                                                          50,
+                                                      color:
+                                                          Colors.grey,
+                                                    ),
+                                                  ),
                                           ),
-
-                                          // =================================================
-                                          // FAVORITE BUTTON
-                                          // =================================================
 
                                           Positioned(
                                             top: 8,
@@ -1095,7 +1341,6 @@ class _HomePageState extends State<HomePage> {
                                                   InkWell(
                                                 customBorder:
                                                     const CircleBorder(),
-
                                                 onTap:
                                                     () async {
                                                   final currentUser =
@@ -1124,12 +1369,10 @@ class _HomePageState extends State<HomePage> {
                                                         data,
                                                   );
                                                 },
-
                                                 child:
                                                     Padding(
                                                   padding:
-                                                      const EdgeInsets
-                                                          .all(
+                                                      const EdgeInsets.all(
                                                     7,
                                                   ),
                                                   child:
@@ -1139,11 +1382,10 @@ class _HomePageState extends State<HomePage> {
                                                             .favorite
                                                         : Icons
                                                             .favorite_border,
-                                                    color: isFavorite
-                                                        ? Colors
-                                                            .redAccent
-                                                        : Colors
-                                                            .grey,
+                                                    color:
+                                                        isFavorite
+                                                            ? Colors.redAccent
+                                                            : Colors.grey,
                                                     size:
                                                         21,
                                                   ),
@@ -1155,17 +1397,14 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
 
-                                    // =================================================
-                                    // PRODUCT INFO
-                                    // =================================================
-
                                     Padding(
                                       padding:
                                           const EdgeInsets
                                               .all(
                                         8,
                                       ),
-                                      child: Column(
+                                      child:
+                                          Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment
                                                 .start,
@@ -1175,10 +1414,10 @@ class _HomePageState extends State<HomePage> {
                                             style:
                                                 const TextStyle(
                                               fontWeight:
-                                                  FontWeight
-                                                      .bold,
+                                                  FontWeight.bold,
                                             ),
-                                            maxLines: 1,
+                                            maxLines:
+                                                1,
                                             overflow:
                                                 TextOverflow
                                                     .ellipsis,
@@ -1215,20 +1454,15 @@ class _HomePageState extends State<HomePage> {
                                               ),
 
                                               const SizedBox(
-                                                width: 5,
+                                                width:
+                                                    5,
                                               ),
-
-                                              // =================================================
-                                              // ADD TO CART
-                                              // =================================================
 
                                               InkWell(
                                                 borderRadius:
-                                                    BorderRadius
-                                                        .circular(
+                                                    BorderRadius.circular(
                                                   20,
                                                 ),
-
                                                 onTap:
                                                     () async {
                                                   final currentUser =
@@ -1248,6 +1482,13 @@ class _HomePageState extends State<HomePage> {
                                                     return;
                                                   }
 
+                                                  // Product price is
+                                                  // passed to Cart in BDT.
+                                                  final bdtPrice =
+                                                      _displayBdtPrice(
+                                                    data,
+                                                  );
+
                                                   await CartService
                                                       .addItem(
                                                     id:
@@ -1255,7 +1496,7 @@ class _HomePageState extends State<HomePage> {
                                                     name:
                                                         name,
                                                     price:
-                                                        rawPrice,
+                                                        bdtPrice,
                                                     imageUrl:
                                                         imageUrl,
                                                   );
@@ -1285,21 +1526,18 @@ class _HomePageState extends State<HomePage> {
                                                     ),
                                                   );
                                                 },
-
                                                 child:
                                                     Container(
                                                   padding:
-                                                      const EdgeInsets
-                                                          .all(
+                                                      const EdgeInsets.all(
                                                     6,
                                                   ),
                                                   decoration:
                                                       BoxDecoration(
-                                                    color: Colors
-                                                        .redAccent,
+                                                    color:
+                                                        Colors.redAccent,
                                                     borderRadius:
-                                                        BorderRadius
-                                                            .circular(
+                                                        BorderRadius.circular(
                                                       20,
                                                     ),
                                                   ),
@@ -1309,8 +1547,8 @@ class _HomePageState extends State<HomePage> {
                                                         .add_shopping_cart,
                                                     size:
                                                         16,
-                                                    color: Colors
-                                                        .white,
+                                                    color:
+                                                        Colors.white,
                                                   ),
                                                 ),
                                               ),
@@ -1342,13 +1580,15 @@ class _HomePageState extends State<HomePage> {
               : Container(
                   color: Colors.orangeAccent,
                   padding:
-                      const EdgeInsets.symmetric(
+                      const EdgeInsets
+                          .symmetric(
                     horizontal: 16,
                     vertical: 8,
                   ),
                   child: Row(
                     mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                        MainAxisAlignment
+                            .spaceBetween,
                     children: [
                       const Expanded(
                         child: Text(
@@ -1360,14 +1600,14 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                       ),
-
                       ElevatedButton(
                         style:
                             ElevatedButton.styleFrom(
                           backgroundColor:
                               Colors.white,
                           foregroundColor:
-                              Colors.orangeAccent,
+                              Colors
+                                  .orangeAccent,
                         ),
                         onPressed: () {
                           Navigator.push(
@@ -1379,7 +1619,9 @@ class _HomePageState extends State<HomePage> {
                           );
                         },
                         child:
-                            const Text('Sign In'),
+                            const Text(
+                          'Sign In',
+                        ),
                       ),
                     ],
                   ),
@@ -1391,7 +1633,8 @@ class _HomePageState extends State<HomePage> {
 
           bottomNavigationBar:
               BottomNavigationBar(
-            currentIndex: _selectedIndex,
+            currentIndex:
+                _selectedIndex,
             onTap: _onNavTap,
             selectedItemColor:
                 Colors.redAccent,
@@ -1402,29 +1645,31 @@ class _HomePageState extends State<HomePage> {
 
             items: const [
               BottomNavigationBarItem(
-                icon: Icon(Icons.home),
+                icon:
+                    Icon(Icons.home),
                 label: 'Home',
               ),
-
               BottomNavigationBarItem(
-                icon: Icon(Icons.category),
+                icon:
+                    Icon(Icons.category),
                 label: 'Categories',
               ),
-
-              BottomNavigationBarItem(
-                icon: Icon(Icons.video_library),
-                label: 'Videos',
-              ),
-
               BottomNavigationBarItem(
                 icon: Icon(
-                  Icons.shopping_cart_outlined,
+                  Icons.video_library,
+                ),
+                label: 'Videos',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(
+                  Icons
+                      .shopping_cart_outlined,
                 ),
                 label: 'Cart',
               ),
-
               BottomNavigationBarItem(
-                icon: Icon(Icons.person),
+                icon:
+                    Icon(Icons.person),
                 label: 'Profile',
               ),
             ],
