@@ -243,6 +243,10 @@ class _AddProductPageState extends State<AddProductPage> {
 
     final priceText = _priceController.text.trim();
 
+    // =======================================================
+    // PRICE IS NOW BDT
+    // =======================================================
+
     final price = double.tryParse(priceText);
 
     final description =
@@ -258,7 +262,7 @@ class _AddProductPageState extends State<AddProductPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Please enter product name, valid price and description.',
+            'Please enter product name, valid BDT price and description.',
           ),
         ),
       );
@@ -345,7 +349,16 @@ class _AddProductPageState extends State<AddProductPage> {
           .collection('products')
           .add({
         'name': title,
+
+        // ===================================================
+        // IMPORTANT:
+        // Price is stored directly as BDT.
+        // Example: 1500 = ৳1,500
+        // ===================================================
         'price': price,
+        'currency': 'BDT',
+        'currencySymbol': '৳',
+
         'description': description,
 
         // Cloudinary image
@@ -382,7 +395,10 @@ class _AddProductPageState extends State<AddProductPage> {
 
       if (!mounted) return;
 
-      // Clear fields
+      // =====================================================
+      // CLEAR FIELDS
+      // =====================================================
+
       _titleController.clear();
       _priceController.clear();
       _descriptionController.clear();
@@ -659,7 +675,7 @@ class _AddProductPageState extends State<AddProductPage> {
                         const SizedBox(height: 12),
 
                         // =================================================
-                        // PRICE
+                        // PRICE — BDT
                         // =================================================
 
                         TextField(
@@ -670,7 +686,10 @@ class _AddProductPageState extends State<AddProductPage> {
                           ),
                           decoration:
                               const InputDecoration(
-                            labelText: 'Price (₩)',
+                            labelText: 'Price (৳ BDT)',
+                            hintText:
+                                'Example: 1500',
+                            prefixText: '৳ ',
                             border:
                                 OutlineInputBorder(),
                           ),
