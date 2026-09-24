@@ -510,15 +510,59 @@ class SellerPage extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                Text(
-                                  'Seller ID: $sellerCode',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight:
-                                        FontWeight.w600,
+
+                                // =================================================
+                                // CLICKABLE SELLER ID
+                                // =================================================
+
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius:
+                                        BorderRadius.circular(8),
+                                    onTap: () {
+                                      _openSellerInformation(
+                                        context,
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding:
+                                          const EdgeInsets
+                                              .symmetric(
+                                        vertical: 4,
+                                        horizontal: 2,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize:
+                                            MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Seller ID: $sellerCode',
+                                            style:
+                                                const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight:
+                                                  FontWeight.w600,
+                                              color:
+                                                  Colors.redAccent,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          const Icon(
+                                            Icons
+                                                .arrow_forward_ios,
+                                            size: 12,
+                                            color:
+                                                Colors.redAccent,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
+
                                 const SizedBox(height: 4),
+
                                 Text(
                                   user.email ?? '',
                                   maxLines: 1,
@@ -621,10 +665,6 @@ class SellerPage extends StatelessWidget {
                       physics:
                           const NeverScrollableScrollPhysics(),
                       children: [
-                        // =================================================
-                        // PRODUCTS
-                        // =================================================
-
                         _statCard(
                           context: context,
                           title: 'Products',
@@ -636,10 +676,6 @@ class SellerPage extends StatelessWidget {
                             _openMyProducts(context);
                           },
                         ),
-
-                        // =================================================
-                        // STOCK
-                        // =================================================
 
                         _statCard(
                           context: context,
@@ -653,10 +689,6 @@ class SellerPage extends StatelessWidget {
                           },
                         ),
 
-                        // =================================================
-                        // SALES
-                        // =================================================
-
                         _statCard(
                           context: context,
                           title: 'Sales',
@@ -668,10 +700,6 @@ class SellerPage extends StatelessWidget {
                             _openSellerOrders(context);
                           },
                         ),
-
-                        // =================================================
-                        // VIEWS
-                        // =================================================
 
                         _statCard(
                           context: context,
@@ -740,10 +768,6 @@ class SellerPage extends StatelessWidget {
                       },
                     ),
 
-                    // =================================================
-                    // RETURN & REFUND
-                    // =================================================
-
                     _menuCard(
                       context: context,
                       icon:
@@ -756,10 +780,6 @@ class SellerPage extends StatelessWidget {
                         _openReturnRefundRequests(context);
                       },
                     ),
-
-                    // =================================================
-                    // VIDEOS
-                    // =================================================
 
                     _menuCard(
                       context: context,
@@ -774,10 +794,6 @@ class SellerPage extends StatelessWidget {
                       },
                     ),
 
-                    // =================================================
-                    // SALES ANALYTICS
-                    // =================================================
-
                     _menuCard(
                       context: context,
                       icon: Icons.analytics_outlined,
@@ -787,34 +803,6 @@ class SellerPage extends StatelessWidget {
                       enabled: isApproved,
                       onTap: () {
                         _openSellerAnalytics(context);
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // =================================================
-                    // SELLER INFORMATION
-                    // =================================================
-
-                    const Text(
-                      'Seller Information',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    _menuCard(
-                      context: context,
-                      icon: Icons.badge_outlined,
-                      title: 'Seller Information',
-                      subtitle:
-                          'View your Seller ID, name, email, phone and status.',
-                      enabled: true,
-                      onTap: () {
-                        _openSellerInformation(context);
                       },
                     ),
 
