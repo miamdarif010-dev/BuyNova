@@ -14,8 +14,7 @@ class GlobalNotificationsPage extends StatefulWidget {
 
 class _GlobalNotificationsPageState
     extends State<GlobalNotificationsPage> {
-  User? get _currentUser =>
-      FirebaseAuth.instance.currentUser;
+  User? get _currentUser => FirebaseAuth.instance.currentUser;
 
   // =========================================================
   // FORMAT BDT
@@ -37,8 +36,7 @@ class _GlobalNotificationsPageState
     String notificationId,
     Map<String, dynamic> notification,
   ) async {
-    final productId =
-        notification['productId']?.toString();
+    final productId = notification['productId']?.toString();
 
     if (productId == null || productId.isEmpty) {
       return;
@@ -66,12 +64,15 @@ class _GlobalNotificationsPageState
       }
     }
 
+    // ---------------------------------------------------------
+    // Open product
+    // ---------------------------------------------------------
+
     try {
-      final productSnapshot =
-          await FirebaseFirestore.instance
-              .collection('products')
-              .doc(productId)
-              .get();
+      final productSnapshot = await FirebaseFirestore.instance
+          .collection('products')
+          .doc(productId)
+          .get();
 
       if (!mounted) return;
 
@@ -86,8 +87,7 @@ class _GlobalNotificationsPageState
         return;
       }
 
-      final productData =
-          productSnapshot.data()!;
+      final productData = productSnapshot.data()!;
 
       Navigator.push(
         context,
@@ -125,8 +125,7 @@ class _GlobalNotificationsPageState
     }
 
     try {
-      final firestore =
-          FirebaseFirestore.instance;
+      final firestore = FirebaseFirestore.instance;
 
       final batch = firestore.batch();
 
@@ -181,8 +180,7 @@ class _GlobalNotificationsPageState
     }
 
     final createdAt = timestamp.toDate();
-    final difference =
-        DateTime.now().difference(createdAt);
+    final difference = DateTime.now().difference(createdAt);
 
     if (difference.inSeconds < 60) {
       return 'Just now';
@@ -200,14 +198,8 @@ class _GlobalNotificationsPageState
       return '${difference.inDays} day ago';
     }
 
-    final day = createdAt.day
-        .toString()
-        .padLeft(2, '0');
-
-    final month = createdAt.month
-        .toString()
-        .padLeft(2, '0');
-
+    final day = createdAt.day.toString().padLeft(2, '0');
+    final month = createdAt.month.toString().padLeft(2, '0');
     final year = createdAt.year.toString();
 
     return '$day/$month/$year';
@@ -246,8 +238,7 @@ class _GlobalNotificationsPageState
                 notificationSnapshot,
               ) {
                 final notifications =
-                    notificationSnapshot.data?.docs ??
-                        [];
+                    notificationSnapshot.data?.docs ?? [];
 
                 if (notifications.isEmpty) {
                   return const SizedBox.shrink();
@@ -268,7 +259,6 @@ class _GlobalNotificationsPageState
             ),
         ],
       ),
-
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('global_notifications')
@@ -277,7 +267,6 @@ class _GlobalNotificationsPageState
               isEqualTo: true,
             )
             .snapshots(),
-
         builder: (
           context,
           notificationSnapshot,
@@ -306,8 +295,7 @@ class _GlobalNotificationsPageState
           if (notifications.isEmpty) {
             return const Center(
               child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.notifications_none_rounded,
@@ -341,26 +329,25 @@ class _GlobalNotificationsPageState
           // -----------------------------------------------------
 
           notifications.sort((a, b) {
-            final aData =
-                a.data() as Map<String, dynamic>;
+            final aData = a.data() as Map<String, dynamic>;
+            final bData = b.data() as Map<String, dynamic>;
 
-            final bData =
-                b.data() as Map<String, dynamic>;
+            final aTime = aData['createdAt'] is Timestamp
+                ? (aData['createdAt'] as Timestamp)
+                    .millisecondsSinceEpoch
+                : 0;
 
-            final aTime =
-                aData['createdAt'] is Timestamp
-                    ? (aData['createdAt'] as Timestamp)
-                        .millisecondsSinceEpoch
-                    : 0;
-
-            final bTime =
-                bData['createdAt'] is Timestamp
-                    ? (bData['createdAt'] as Timestamp)
-                        .millisecondsSinceEpoch
-                    : 0;
+            final bTime = bData['createdAt'] is Timestamp
+                ? (bData['createdAt'] as Timestamp)
+                    .millisecondsSinceEpoch
+                : 0;
 
             return bTime.compareTo(aTime);
           });
+
+          // -----------------------------------------------------
+          // LOGGED OUT USER
+          // -----------------------------------------------------
 
           if (user == null) {
             return ListView.separated(
@@ -375,12 +362,9 @@ class _GlobalNotificationsPageState
                 context,
                 index,
               ) {
-                final doc =
-                    notifications[index];
+                final doc = notifications[index];
 
-                final data =
-                    doc.data()
-                        as Map<String, dynamic>;
+                final data = doc.data() as Map<String, dynamic>;
 
                 return _notificationCard(
                   context: context,
@@ -402,7 +386,6 @@ class _GlobalNotificationsPageState
                 .doc(user.uid)
                 .collection('globalNotificationReads')
                 .snapshots(),
-
             builder: (
               context,
               readSnapshot,
@@ -426,15 +409,11 @@ class _GlobalNotificationsPageState
                   context,
                   index,
                 ) {
-                  final doc =
-                      notifications[index];
+                  final doc = notifications[index];
 
-                  final data =
-                      doc.data()
-                          as Map<String, dynamic>;
+                  final data = doc.data() as Map<String, dynamic>;
 
-                  final isRead =
-                      readIds.contains(doc.id);
+                  final isRead = readIds.contains(doc.id);
 
                   return _notificationCard(
                     context: context,
@@ -462,38 +441,29 @@ class _GlobalNotificationsPageState
     required bool isRead,
   }) {
     final title =
-        data['title']?.toString() ??
-            'New Product Added';
+        data['title']?.toString() ?? 'New Product Added';
 
     final message =
         data['message']?.toString() ??
-            'A new product has been added to BuyNova.';
+        'A new product has been added to BuyNova.';
 
     final productName =
-        data['productName']?.toString() ??
-            'New Product';
+        data['productName']?.toString() ?? 'New Product';
 
     final imageUrl =
-        data['productImageUrl']?.toString() ??
-            '';
+        data['productImageUrl']?.toString() ?? '';
 
-    final price =
-        data['productPrice'];
+    final price = data['productPrice'];
 
-    final createdAt =
-        data['createdAt'];
+    final createdAt = data['createdAt'];
 
     return Material(
       color: isRead
-          ? Theme.of(context)
-              .colorScheme
-              .surface
-          : Colors.redAccent.withOpacity(0.08),
-      borderRadius:
-          BorderRadius.circular(14),
+          ? Theme.of(context).colorScheme.surface
+          : Colors.redAccent.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius:
-            BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14),
         onTap: () {
           _openProduct(
             notificationId,
@@ -503,16 +473,14 @@ class _GlobalNotificationsPageState
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // -------------------------------------------------
               // IMAGE
               // -------------------------------------------------
 
               ClipRRect(
-                borderRadius:
-                    BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
                 child: SizedBox(
                   width: 72,
                   height: 72,
@@ -526,19 +494,16 @@ class _GlobalNotificationsPageState
                             stackTrace,
                           ) {
                             return Container(
-                              color:
-                                  Colors.grey.shade200,
+                              color: Colors.grey.shade200,
                               child: const Icon(
-                                Icons
-                                    .image_not_supported_outlined,
+                                Icons.image_not_supported_outlined,
                                 color: Colors.grey,
                               ),
                             );
                           },
                         )
                       : Container(
-                          color:
-                              Colors.grey.shade200,
+                          color: Colors.grey.shade200,
                           child: const Icon(
                             Icons.shopping_bag_outlined,
                             color: Colors.grey,
@@ -555,12 +520,10 @@ class _GlobalNotificationsPageState
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Text(
@@ -573,18 +536,15 @@ class _GlobalNotificationsPageState
                             ),
                           ),
                         ),
-
                         if (!isRead)
                           Container(
                             width: 9,
                             height: 9,
-                            margin:
-                                const EdgeInsets.only(
+                            margin: const EdgeInsets.only(
                               left: 6,
                               top: 5,
                             ),
-                            decoration:
-                                const BoxDecoration(
+                            decoration: const BoxDecoration(
                               color: Colors.redAccent,
                               shape: BoxShape.circle,
                             ),
@@ -597,8 +557,7 @@ class _GlobalNotificationsPageState
                     Text(
                       productName,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -610,12 +569,10 @@ class _GlobalNotificationsPageState
                     Text(
                       message,
                       maxLines: 2,
-                      overflow:
-                          TextOverflow.ellipsis,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
-                        color:
-                            Colors.grey.shade600,
+                        color: Colors.grey.shade600,
                         height: 1.3,
                       ),
                     ),
@@ -626,23 +583,17 @@ class _GlobalNotificationsPageState
                       children: [
                         Text(
                           _formatBdt(price),
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.redAccent,
-                            fontWeight:
-                                FontWeight.bold,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-
                         const SizedBox(width: 10),
-
                         Text(
                           _timeAgo(createdAt),
                           style: TextStyle(
                             fontSize: 11,
-                            color:
-                                Colors.grey.shade500,
+                            color: Colors.grey.shade500,
                           ),
                         ),
                       ],
