@@ -244,7 +244,7 @@ class _AddProductPageState extends State<AddProductPage> {
     final priceText = _priceController.text.trim();
 
     // =======================================================
-    // PRICE IS NOW BDT
+    // PRICE IS BDT
     // =======================================================
 
     final price = double.tryParse(priceText);
@@ -342,56 +342,129 @@ class _AddProductPageState extends State<AddProductPage> {
       }
 
       // =====================================================
-      // CREATE PRODUCT
+      // SELLER NAME
       // =====================================================
 
-      await FirebaseFirestore.instance
-          .collection('products')
-          .add({
-        'name': title,
+      final sellerName =
+          userData?['name']?.toString().trim() ?? '';
 
-        // ===================================================
-        // IMPORTANT:
-        // Price is stored directly as BDT.
-        // Example: 1500 = ৳1,500
-        // ===================================================
-        'price': price,
-        'currency': 'BDT',
-        'currencySymbol': '৳',
+      // =====================================================
+      // CREATE PRODUCT + GLOBAL NOTIFICATION TOGETHER
+      // =====================================================
 
-        'description': description,
+      final firestore =
+          FirebaseFirestore.instance;
 
-        // Cloudinary image
-        'imageUrl': _uploadedImageUrl ?? '',
+      // Product document reference
+      // We create the ID first so the notification can store it.
+      final productRef =
+          firestore.collection('products').doc();
 
-        // Category
-        'category': category.isNotEmpty
-            ? category
-            : 'General',
+      // Global notification document reference
+      final notificationRef =
+          firestore.collection('global_notifications').doc();
 
-        // Seller information
-        'sellerId': user.uid,
-        'sellerCode': sellerCode,
-        'sellerEmail': user.email ?? '',
-        'sellerApproved': true,
+      final batch = firestore.batch();
 
-        // Product status
-        'active': true,
-        'status': 'active',
+      // =====================================================
+      // PRODUCT DATA
+      // =====================================================
 
-        // Product information
-        'rating': 5,
-        'reviewCount': 0,
-        'stock': 10,
+      batch.set(
+        productRef,
+        {
+          'name': title,
 
-        // Future marketplace fields
-        'views': 0,
-        'salesCount': 0,
+          // =================================================
+          // PRICE IS STORED DIRECTLY AS BDT
+          // Example: 1500 = ৳1,500
+          // =================================================
+          'price': price,
+          'currency': 'BDT',
+          'currencySymbol': '৳',
 
-        // Timestamp
-        'createdAt':
-            FieldValue.serverTimestamp(),
-      });
+          'description': description,
+
+          // Cloudinary image
+          'imageUrl': _uploadedImageUrl ?? '',
+
+          // Category
+          'category': category.isNotEmpty
+              ? category
+              : 'General',
+
+          // Seller information
+          'sellerId': user.uid,
+          'sellerCode': sellerCode,
+          'sellerEmail': user.email ?? '',
+          'sellerName': sellerName,
+          'sellerApproved': true,
+
+          // Product status
+          'active': true,
+          'status': 'active',
+
+          // Product information
+          'rating': 5,
+          'reviewCount': 0,
+          'stock': 10,
+
+          // Future marketplace fields
+          'views': 0,
+          'salesCount': 0,
+
+          // Timestamp
+          'createdAt':
+              FieldValue.serverTimestamp(),
+        },
+      );
+
+      // =====================================================
+      // GLOBAL NEW PRODUCT NOTIFICATION
+      // =====================================================
+
+      batch.set(
+        notificationRef,
+        {
+          // Notification type
+          'type': 'new_product',
+
+          // Notification title
+          'title': 'New Product Added',
+
+          // Notification message
+          'message':
+              '$title is now available on BuyNova.',
+
+          // Product information
+          'productId': productRef.id,
+          'productName': title,
+          'productImageUrl': _uploadedImageUrl ?? '',
+          'productPrice': price,
+
+          // Always BDT
+          'currency': 'BDT',
+          'currencySymbol': '৳',
+
+          // Seller information
+          'sellerId': user.uid,
+          'sellerCode': sellerCode,
+          'sellerName': sellerName,
+
+          // Notification status
+          'active': true,
+
+          // Timestamp
+          'createdAt':
+              FieldValue.serverTimestamp(),
+        },
+      );
+
+      // =====================================================
+      // SAVE BOTH AT THE SAME TIME
+      // =====================================================
+
+      await batch.commit();
 
       if (!mounted) return;
 
