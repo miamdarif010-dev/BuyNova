@@ -8,6 +8,8 @@ import 'seller_orders_page.dart';
 import 'seller_return_refund_page.dart';
 import 'news_feed_page.dart';
 import 'seller_information_page.dart';
+import 'seller_stock_page.dart';
+import 'seller_views_page.dart';
 
 class SellerPage extends StatelessWidget {
   const SellerPage({super.key});
@@ -38,59 +40,64 @@ class SellerPage extends StatelessWidget {
     required String title,
     required String value,
     required IconData icon,
+    required VoidCallback onTap,
   }) {
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(
-                  alpha: 0.10,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(
+                    alpha: 0.10,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                borderRadius: BorderRadius.circular(14),
+                child: Icon(
+                  icon,
+                  color: Colors.redAccent,
+                  size: 26,
+                ),
               ),
-              child: Icon(
-                icon,
-                color: Colors.redAccent,
-                size: 26,
+              const SizedBox(height: 12),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 3),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 13,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              title,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 13,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -220,6 +227,32 @@ class SellerPage extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => const SellerOrdersPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // OPEN STOCK
+  // =========================================================
+
+  void _openSellerStock(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SellerStockPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // OPEN VIEWS
+  // =========================================================
+
+  void _openSellerViews(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SellerViewsPage(),
       ),
     );
   }
@@ -574,6 +607,10 @@ class SellerPage extends StatelessWidget {
                       physics:
                           const NeverScrollableScrollPhysics(),
                       children: [
+                        // =================================================
+                        // PRODUCTS
+                        // =================================================
+
                         _statCard(
                           context: context,
                           title: 'Products',
@@ -581,7 +618,15 @@ class SellerPage extends StatelessWidget {
                               products.length.toString(),
                           icon:
                               Icons.inventory_2_outlined,
+                          onTap: () {
+                            _openMyProducts(context);
+                          },
                         ),
+
+                        // =================================================
+                        // STOCK
+                        // =================================================
+
                         _statCard(
                           context: context,
                           title: 'Stock',
@@ -589,7 +634,15 @@ class SellerPage extends StatelessWidget {
                               totalStock.toString(),
                           icon:
                               Icons.warehouse_outlined,
+                          onTap: () {
+                            _openSellerStock(context);
+                          },
                         ),
+
+                        // =================================================
+                        // SALES
+                        // =================================================
+
                         _statCard(
                           context: context,
                           title: 'Sales',
@@ -597,7 +650,15 @@ class SellerPage extends StatelessWidget {
                               totalSales.toString(),
                           icon:
                               Icons.shopping_cart_checkout,
+                          onTap: () {
+                            _openSellerOrders(context);
+                          },
                         ),
+
+                        // =================================================
+                        // VIEWS
+                        // =================================================
+
                         _statCard(
                           context: context,
                           title: 'Views',
@@ -605,6 +666,9 @@ class SellerPage extends StatelessWidget {
                               totalViews.toString(),
                           icon:
                               Icons.visibility_outlined,
+                          onTap: () {
+                            _openSellerViews(context);
+                          },
                         ),
                       ],
                     ),
