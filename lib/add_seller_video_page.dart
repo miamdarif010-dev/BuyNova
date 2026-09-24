@@ -146,7 +146,8 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
       if (fileSize > _maxVideoBytes) {
         if (!mounted) return;
 
-        final maxMb = (_maxVideoBytes / (1024 * 1024)).toStringAsFixed(0);
+        final maxMb =
+            (_maxVideoBytes / (1024 * 1024)).toStringAsFixed(0);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -301,11 +302,13 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
           streamedRequest.sink.add(chunk);
 
           if (contentLength > 0) {
-            // Reserve 0.15â€“0.80 of the overall progress bar for
+            // Reserve 0.15–0.80 of the overall progress bar for
             // the actual network upload portion.
             final fraction = bytesSent / contentLength;
             final scaled = 0.15 + (fraction * 0.65);
-            onProgress(scaled.clamp(0.15, 0.80));
+            onProgress(
+              scaled.clamp(0.15, 0.80),
+            );
           }
         },
         onDone: () {
@@ -328,6 +331,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
       } on TimeoutException {
         await subscription.cancel();
         client.close();
+
         throw Exception(
           'Upload timed out. Please check your connection and try again.',
         );
@@ -344,14 +348,15 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
         return null;
       }
 
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
       return data['secure_url']?.toString();
     } catch (e) {
-      if (e is Exception && e.toString().contains('timed out')) {
+      if (e is Exception &&
+          e.toString().contains('timed out')) {
         rethrow;
       }
+
       return null;
     }
   }
@@ -496,10 +501,12 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
       // CLOUDINARY UPLOAD (real progress via callback)
       // -------------------------------------------------------
 
-      final videoUrl = await _uploadVideoToCloudinary(
+      final videoUrl =
+          await _uploadVideoToCloudinary(
         _videoFile!,
         onProgress: (progress) {
           if (!mounted) return;
+
           setState(() {
             _uploadProgress = progress;
           });
@@ -786,7 +793,6 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
             onPressed: _handleBackAttempt,
           ),
         ),
-
         body: SafeArea(
           child: SingleChildScrollView(
             padding:
@@ -1254,7 +1260,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                                 height: 5,
                               ),
                               Text(
-                                'à§³${(_selectedProductPrice ?? 0).toStringAsFixed(0)}',
+                                '৳${(_selectedProductPrice ?? 0).toStringAsFixed(0)}',
                                 style:
                                     const TextStyle(
                                   fontWeight:
@@ -1321,7 +1327,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                       ),
                       Expanded(
                         child: Text(
-                          'Anyone with a BuyNova account can post videos. Videos are published immediately and appear in the common Videos/Reels feed and the uploaderâ€™s My Videos.',
+                          'Anyone with a BuyNova account can post videos. Videos are published immediately and appear in the common Videos/Reels feed and the uploader’s My Videos.',
                           style:
                               TextStyle(
                             fontSize: 13,
