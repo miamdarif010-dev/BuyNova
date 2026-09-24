@@ -7,6 +7,7 @@ import 'my_products_page.dart';
 import 'seller_orders_page.dart';
 import 'seller_return_refund_page.dart';
 import 'news_feed_page.dart';
+import 'seller_information_page.dart';
 
 class SellerPage extends StatelessWidget {
   const SellerPage({super.key});
@@ -248,6 +249,20 @@ class SellerPage extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => const NewsFeedPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // OPEN SELLER INFORMATION
+  // =========================================================
+
+  void _openSellerInformation(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const SellerInformationPage(),
       ),
     );
   }
@@ -720,103 +735,16 @@ class SellerPage extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius:
-                            BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(
-                              alpha: 0.04,
-                            ),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            ListTile(
-                              contentPadding:
-                                  EdgeInsets.zero,
-                              leading: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: Colors.redAccent
-                                      .withValues(alpha: 0.10),
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.badge_outlined,
-                                  color: Colors.redAccent,
-                                ),
-                              ),
-                              title:
-                                  const Text('Seller ID'),
-                              subtitle:
-                                  Text(sellerCode),
-                            ),
-                            const Divider(),
-                            ListTile(
-                              contentPadding:
-                                  EdgeInsets.zero,
-                              leading: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: Colors.redAccent
-                                      .withValues(alpha: 0.10),
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.email_outlined,
-                                  color: Colors.redAccent,
-                                ),
-                              ),
-                              title:
-                                  const Text('Email'),
-                              subtitle:
-                                  Text(user.email ?? ''),
-                            ),
-                            const Divider(),
-                            ListTile(
-                              contentPadding:
-                                  EdgeInsets.zero,
-                              leading: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: statusColor.withValues(
-                                    alpha: 0.10,
-                                  ),
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                ),
-                                child: Icon(
-                                  Icons.verified_outlined,
-                                  color: statusColor,
-                                ),
-                              ),
-                              title:
-                                  const Text('Status'),
-                              subtitle: Text(
-                                sellerStatus.toUpperCase(),
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _menuCard(
+                      context: context,
+                      icon: Icons.badge_outlined,
+                      title: 'Seller Information',
+                      subtitle:
+                          'View your Seller ID, name, email, phone and status.',
+                      enabled: true,
+                      onTap: () {
+                        _openSellerInformation(context);
+                      },
                     ),
 
                     const SizedBox(height: 30),
