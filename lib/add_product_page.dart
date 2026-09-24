@@ -30,7 +30,7 @@ class _AddProductPageState extends State<AddProductPage> {
   bool _isCheckingSeller = true;
   bool _isApprovedSeller = false;
 
-  String? _sellerCode;
+  String _sellerCode = '';
 
   // =========================================================
   // CLOUDINARY SETTINGS
@@ -71,8 +71,10 @@ class _AddProductPageState extends State<AddProductPage> {
 
       final data = snapshot.data();
 
-      final sellerStatus = data?['sellerStatus']?.toString();
-      final sellerCode = data?['sellerCode']?.toString();
+      final sellerStatus = data?['sellerStatus']?.toString().trim();
+
+      final sellerCode =
+          data?['sellerCode']?.toString().trim() ?? '';
 
       if (!mounted) return;
 
@@ -91,7 +93,9 @@ class _AddProductPageState extends State<AddProductPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not check seller status: $e'),
+          content: Text(
+            'Could not check seller status: $e',
+          ),
         ),
       );
     }
@@ -107,7 +111,9 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
-    if (_isUploadingPhoto || _isUploading) return;
+    if (_isUploadingPhoto || _isUploading) {
+      return;
+    }
 
     try {
       final XFile? picked = await _imagePicker.pickImage(
@@ -117,25 +123,35 @@ class _AddProductPageState extends State<AddProductPage> {
         maxHeight: 1200,
       );
 
-      if (picked == null) return;
+      if (picked == null) {
+        return;
+      }
 
-      await _uploadToCloudinary(File(picked.path));
+      await _uploadToCloudinary(
+        File(picked.path),
+      );
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not select photo: $e'),
+          content: Text(
+            'Could not select photo: $e',
+          ),
         ),
       );
     }
   }
 
   // =========================================================
-  // CLOUDINARY UPLOAD
+  // CLOUDINARY IMAGE UPLOAD
   // =========================================================
 
-  Future<void> _uploadToCloudinary(File imageFile) async {
+  Future<void> _uploadToCloudinary(
+    File imageFile,
+  ) async {
+    if (!mounted) return;
+
     setState(() {
       _pickedImage = imageFile;
       _isUploadingPhoto = true;
@@ -191,8 +207,21 @@ class _AddProductPageState extends State<AddProductPage> {
       setState(() {
         _uploadedImageUrl = secureUrl;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Product image uploaded successfully.',
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
+
+      setState(() {
+        _pickedImage = null;
+        _uploadedImageUrl = null;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -201,11 +230,6 @@ class _AddProductPageState extends State<AddProductPage> {
           ),
         ),
       );
-
-      setState(() {
-        _pickedImage = null;
-        _uploadedImageUrl = null;
-      });
     } finally {
       if (mounted) {
         setState(() {
@@ -240,20 +264,17 @@ class _AddProductPageState extends State<AddProductPage> {
     }
 
     final title = _titleController.text.trim();
-
     final priceText = _priceController.text.trim();
+    final description =
+        _descriptionController.text.trim();
+    final category =
+        _categoryController.text.trim();
 
     // =======================================================
-    // PRICE IS BDT
+    // VALIDATE PRICE
     // =======================================================
 
     final price = double.tryParse(priceText);
-
-    final description =
-        _descriptionController.text.trim();
-
-    final category =
-        _categoryController.text.trim();
 
     if (title.isEmpty ||
         price == null ||
@@ -270,6 +291,10 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
+    // =======================================================
+    // WAIT FOR IMAGE UPLOAD
+    // =======================================================
+
     if (_isUploadingPhoto) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -282,8 +307,11 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
-    final user =
-        FirebaseAuth.instance.currentUser;
+    // =======================================================
+    // CURRENT USER
+    // =======================================================
+
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -297,16 +325,7 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
-    if (_sellerCode == null ||
-        _sellerCode!.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Seller ID is missing. Please contact BuyNova Admin.',
-          ),
-        ),
-      );
-
+    if (_isUploading) {
       return;
     }
 
@@ -315,29 +334,31 @@ class _AddProductPageState extends State<AddProductPage> {
     });
 
     try {
+      // =====================================================
+      // READ CURRENT USER DATA AGAIN
+      // =====================================================
+
       final userSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
-      final userData = userSnapshot.data();
+      final userData = userSnapshot.data() ?? {};
 
       final sellerStatus =
-          userData?['sellerStatus']?.toString();
+          userData['sellerStatus']?.toString().trim() ?? '';
 
+      // sellerCode is OPTIONAL.
+      //
+      // Firebase UID is the real seller identity.
+      // Therefore, a missing sellerCode must NOT block
+      // product creation.
       final sellerCode =
-          userData?['sellerCode']?.toString();
+          userData['sellerCode']?.toString().trim() ?? '';
 
       if (sellerStatus != 'approved') {
         throw Exception(
           'Your seller account is not approved.',
-        );
-      }
-
-      if (sellerCode == null ||
-          sellerCode.trim().isEmpty) {
-        throw Exception(
-          'Seller ID is missing.',
         );
       }
 
@@ -346,132 +367,170 @@ class _AddProductPageState extends State<AddProductPage> {
       // =====================================================
 
       final sellerName =
-          userData?['name']?.toString().trim() ?? '';
+          userData['name']?.toString().trim() ?? '';
 
       // =====================================================
-      // CREATE PRODUCT + GLOBAL NOTIFICATION TOGETHER
+      // SELLER EMAIL
+      // =====================================================
+
+      final sellerEmail =
+          user.email ?? '';
+
+      // =====================================================
+      // PRODUCT DOCUMENT
       // =====================================================
 
       final firestore =
           FirebaseFirestore.instance;
 
-      // Product document reference
-      // We create the ID first so the notification can store it.
       final productRef =
           firestore.collection('products').doc();
-
-      // Global notification document reference
-      final notificationRef =
-          firestore.collection('global_notifications').doc();
-
-      final batch = firestore.batch();
 
       // =====================================================
       // PRODUCT DATA
       // =====================================================
 
-      batch.set(
-        productRef,
-        {
-          'name': title,
+      final productData = <String, dynamic>{
+        // Basic product information
+        'name': title,
 
-          // =================================================
-          // PRICE IS STORED DIRECTLY AS BDT
-          // Example: 1500 = ৳1,500
-          // =================================================
-          'price': price,
-          'currency': 'BDT',
-          'currencySymbol': '৳',
+        // ===================================================
+        // PRICE
+        // Directly stored as BDT
+        // Example: 2000 = ৳2,000
+        // ===================================================
 
-          'description': description,
+        'price': price,
+        'currency': 'BDT',
+        'currencySymbol': '৳',
 
-          // Cloudinary image
-          'imageUrl': _uploadedImageUrl ?? '',
+        // Product description
+        'description': description,
 
-          // Category
-          'category': category.isNotEmpty
-              ? category
-              : 'General',
+        // Cloudinary image
+        'imageUrl': _uploadedImageUrl ?? '',
 
-          // Seller information
-          'sellerId': user.uid,
-          'sellerCode': sellerCode,
-          'sellerEmail': user.email ?? '',
-          'sellerName': sellerName,
-          'sellerApproved': true,
+        // Category
+        'category': category.isNotEmpty
+            ? category
+            : 'General',
 
-          // Product status
-          'active': true,
-          'status': 'active',
+        // ===================================================
+        // SELLER INFORMATION
+        // ===================================================
 
-          // Product information
-          'rating': 5,
-          'reviewCount': 0,
-          'stock': 10,
+        // IMPORTANT:
+        // Firebase UID is the primary seller identifier.
+        'sellerId': user.uid,
 
-          // Future marketplace fields
-          'views': 0,
-          'salesCount': 0,
+        // Seller code is optional.
+        'sellerCode': sellerCode,
 
-          // Timestamp
-          'createdAt':
-              FieldValue.serverTimestamp(),
-        },
+        'sellerEmail': sellerEmail,
+        'sellerName': sellerName,
+        'sellerApproved': true,
+
+        // ===================================================
+        // PRODUCT STATUS
+        // ===================================================
+
+        'active': true,
+        'status': 'active',
+
+        // ===================================================
+        // PRODUCT STATS
+        // ===================================================
+
+        'rating': 5,
+        'reviewCount': 0,
+        'stock': 10,
+        'views': 0,
+        'salesCount': 0,
+
+        // ===================================================
+        // TIMESTAMP
+        // ===================================================
+
+        'createdAt':
+            FieldValue.serverTimestamp(),
+      };
+
+      // =====================================================
+      // SAVE PRODUCT FIRST
+      // =====================================================
+      //
+      // Product creation is NOT dependent on the
+      // global notification system.
+      //
+      // This is important because if notification rules
+      // have a problem, the product should still be saved.
+      // =====================================================
+
+      await productRef.set(
+        productData,
       );
 
       // =====================================================
-      // GLOBAL NEW PRODUCT NOTIFICATION
+      // CREATE GLOBAL NOTIFICATION SEPARATELY
       // =====================================================
 
-      batch.set(
-        notificationRef,
-        {
-          // Notification type
-          'type': 'new_product',
+      try {
+        final notificationRef =
+            firestore
+                .collection('global_notifications')
+                .doc();
 
-          // Notification title
-          'title': 'New Product Added',
+        await notificationRef.set(
+          {
+            'type': 'new_product',
+            'title': 'New Product Added',
+            'message':
+                '$title is now available on BuyNova.',
 
-          // Notification message
-          'message':
-              '$title is now available on BuyNova.',
+            // Product information
+            'productId': productRef.id,
+            'productName': title,
+            'productImageUrl':
+                _uploadedImageUrl ?? '',
+            'productPrice': price,
 
-          // Product information
-          'productId': productRef.id,
-          'productName': title,
-          'productImageUrl': _uploadedImageUrl ?? '',
-          'productPrice': price,
+            // BDT
+            'currency': 'BDT',
+            'currencySymbol': '৳',
 
-          // Always BDT
-          'currency': 'BDT',
-          'currencySymbol': '৳',
+            // Seller information
+            'sellerId': user.uid,
+            'sellerCode': sellerCode,
+            'sellerName': sellerName,
 
-          // Seller information
-          'sellerId': user.uid,
-          'sellerCode': sellerCode,
-          'sellerName': sellerName,
+            // Notification status
+            'active': true,
 
-          // Notification status
-          'active': true,
+            // Timestamp
+            'createdAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+      } catch (notificationError) {
+        // ===================================================
+        // IMPORTANT:
+        // Notification failure must NOT delete/fail
+        // the already-created product.
+        // ===================================================
 
-          // Timestamp
-          'createdAt':
-              FieldValue.serverTimestamp(),
-        },
-      );
+        debugPrint(
+          'Global notification creation failed: '
+          '$notificationError',
+        );
+      }
 
       // =====================================================
-      // SAVE BOTH AT THE SAME TIME
+      // SUCCESS
       // =====================================================
-
-      await batch.commit();
 
       if (!mounted) return;
 
-      // =====================================================
-      // CLEAR FIELDS
-      // =====================================================
-
+      // Clear fields
       _titleController.clear();
       _priceController.clear();
       _descriptionController.clear();
@@ -482,8 +541,6 @@ class _AddProductPageState extends State<AddProductPage> {
         _uploadedImageUrl = null;
       });
 
-      Navigator.pop(context);
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -491,13 +548,23 @@ class _AddProductPageState extends State<AddProductPage> {
           ),
         ),
       );
+
+      // Give the SnackBar a moment to appear before leaving.
+      await Future<void>.delayed(
+        const Duration(milliseconds: 500),
+      );
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 5),
           content: Text(
-            'Upload failed: $e',
+            'Product upload failed:\n$e',
           ),
         ),
       );
@@ -525,7 +592,7 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   // =========================================================
-  // SELLER NOT APPROVED PAGE
+  // SELLER NOT APPROVED VIEW
   // =========================================================
 
   Widget _sellerNotApprovedView() {
@@ -632,11 +699,13 @@ class _AddProductPageState extends State<AddProductPage> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      'Seller ID: ${_sellerCode ?? 'N/A'}',
+                                      _sellerCode.isNotEmpty
+                                          ? 'Seller ID: $_sellerCode'
+                                          : 'Seller ID: ${FirebaseAuth.instance.currentUser?.uid ?? 'N/A'}',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Colors.grey
-                                            .shade600,
+                                        color: Colors
+                                            .grey.shade600,
                                       ),
                                     ),
                                   ],
@@ -675,11 +744,14 @@ class _AddProductPageState extends State<AddProductPage> {
                                 if (_pickedImage != null)
                                   ClipRRect(
                                     borderRadius:
-                                        BorderRadius.circular(10),
+                                        BorderRadius.circular(
+                                      10,
+                                    ),
                                     child: Image.file(
                                       _pickedImage!,
                                       fit: BoxFit.cover,
-                                      width: double.infinity,
+                                      width:
+                                          double.infinity,
                                       height: 180,
                                     ),
                                   )
@@ -692,8 +764,8 @@ class _AddProductPageState extends State<AddProductPage> {
                                         Icons
                                             .add_a_photo_outlined,
                                         size: 40,
-                                        color:
-                                            Colors.grey.shade600,
+                                        color: Colors
+                                            .grey.shade600,
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
@@ -709,13 +781,16 @@ class _AddProductPageState extends State<AddProductPage> {
                                   Container(
                                     decoration:
                                         BoxDecoration(
-                                      color: Colors.black45,
+                                      color:
+                                          Colors.black45,
                                       borderRadius:
-                                          BorderRadius.circular(
+                                          BorderRadius
+                                              .circular(
                                         10,
                                       ),
                                     ),
-                                    child: const Center(
+                                    child:
+                                        const Center(
                                       child:
                                           CircularProgressIndicator(
                                         color: Colors.white,
@@ -754,7 +829,8 @@ class _AddProductPageState extends State<AddProductPage> {
                         TextField(
                           controller: _priceController,
                           keyboardType:
-                              const TextInputType.numberWithOptions(
+                              const TextInputType
+                                  .numberWithOptions(
                             decimal: true,
                           ),
                           decoration:
@@ -775,7 +851,8 @@ class _AddProductPageState extends State<AddProductPage> {
                         // =================================================
 
                         TextField(
-                          controller: _categoryController,
+                          controller:
+                              _categoryController,
                           textInputAction:
                               TextInputAction.next,
                           decoration:
