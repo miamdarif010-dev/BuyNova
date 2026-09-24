@@ -37,17 +37,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
+  // =========================================================
+  // ADMIN CHECK
+  // =========================================================
+
   bool get _isAdmin {
-    return _role == 'admin' ||
+    return _role.toLowerCase() == 'admin' ||
         currentUser?.email?.toLowerCase() ==
             'miamdarif010@gmail.com';
   }
 
   bool get _isSellerApproved =>
-      _sellerStatus == 'approved';
+      _sellerStatus.toLowerCase() == 'approved';
 
   bool get _isEntrepreneurApproved =>
-      _entrepreneurStatus == 'approved';
+      _entrepreneurStatus.toLowerCase() == 'approved';
+
+  // =========================================================
+  // INIT / DISPOSE
+  // =========================================================
 
   @override
   void initState() {
@@ -69,11 +77,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final user = currentUser;
 
     if (user == null) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
       return;
     }
 
@@ -107,11 +116,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final user = currentUser;
 
     if (user == null) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
       return;
     }
 
@@ -151,8 +161,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (rawPoints is num) {
       points = rawPoints.toInt();
     } else if (rawPoints != null) {
-      points =
-          int.tryParse(rawPoints.toString()) ?? 0;
+      points = int.tryParse(
+            rawPoints.toString(),
+          ) ??
+          0;
     }
 
     setState(() {
@@ -167,8 +179,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           (data?['sellerStatus'] ?? '').toString();
 
       _entrepreneurStatus =
-          (data?['entrepreneurStatus'] ?? '')
-              .toString();
+          (data?['entrepreneurStatus'] ?? '').toString();
 
       _role = (data?['role'] ?? '').toString();
 
@@ -183,46 +194,51 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // =========================================================
 
   void _push(Widget page) {
-    Navigator.push(
-      context,
+    Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => page,
+        builder: (_) => page,
       ),
     );
   }
 
   void _openEditProfile() {
-    Navigator.push(
-      context,
+    Navigator.of(context)
+        .push(
       MaterialPageRoute(
-        builder: (context) =>
-            const EditProfilePage(),
+        builder: (_) => const EditProfilePage(),
       ),
-    ).then((_) {
+    )
+        .then((_) {
       _loadUserData();
     });
   }
 
+  // ADMIN → DIRECT PAGE
   void _openAdmin() {
     _push(const AdminPanelPage());
   }
 
+  // BUYER → DIRECT PAGE
   void _openBuyer() {
     _push(const BuyerPage());
   }
 
+  // RESELLER → DIRECT PAGE
   void _openReseller() {
     _push(const EntrepreneurPage());
   }
 
+  // SELLER → DIRECT PAGE
   void _openSeller() {
     _push(const SellerPage());
   }
 
+  // EARN → DIRECT PAGE
   void _openEarn() {
     _push(const WatchEarnPage());
   }
 
+  // SETTINGS → DIRECT PAGE
   void _openSettings() {
     _push(const SettingsPage());
   }
@@ -429,7 +445,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // MAIN PROFILE SECTION CARD
+  // PROFILE MENU CARD
   // =========================================================
 
   Widget _sectionCard({
@@ -439,6 +455,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     required VoidCallback onTap,
     Color? iconColor,
   }) {
+    final color = iconColor ?? Colors.redAccent;
+
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
@@ -451,14 +469,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            color: (iconColor ?? Colors.redAccent)
-                .withValues(alpha: 0.10),
-            borderRadius:
-                BorderRadius.circular(14),
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
             icon,
-            color: iconColor ?? Colors.redAccent,
+            color: color,
           ),
         ),
         title: Text(
@@ -601,12 +617,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       const Padding(
                         padding:
                             EdgeInsets.only(bottom: 10),
-                        child:
-                            LinearProgressIndicator(),
+                        child: LinearProgressIndicator(),
                       ),
 
                     // =================================================
-                    // PROFILE CARD
+                    // PROFILE
                     // =================================================
 
                     Card(
@@ -617,34 +632,27 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         child: Column(
                           children: [
                             GestureDetector(
-                              onTap:
-                                  _openEditProfile,
+                              onTap: _openEditProfile,
                               child: Container(
                                 width: 84,
                                 height: 84,
                                 decoration:
                                     BoxDecoration(
-                                  shape:
-                                      BoxShape.circle,
-                                  color: Colors
-                                      .grey
-                                      .shade200,
+                                  shape: BoxShape.circle,
+                                  color:
+                                      Colors.grey.shade200,
                                 ),
-                                child:
-                                    _profileImage(),
+                                child: _profileImage(),
                               ),
                             ),
 
-                            const SizedBox(
-                              height: 12,
-                            ),
+                            const SizedBox(height: 12),
 
                             Text(
                               _name.isNotEmpty
                                   ? _name
                                   : 'BuyNova User',
-                              style:
-                                  const TextStyle(
+                              style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight:
                                     FontWeight.bold,
@@ -656,9 +664,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             Text(
                               user.email ?? '',
                               style: TextStyle(
-                                color: Colors
-                                    .grey
-                                    .shade600,
+                                color:
+                                    Colors.grey.shade600,
                               ),
                             ),
 
@@ -667,26 +674,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               Text(
                                 _phone,
                                 style: TextStyle(
-                                  color: Colors
-                                      .grey
-                                      .shade600,
+                                  color:
+                                      Colors.grey.shade600,
                                 ),
                               ),
                             ],
 
-                            const SizedBox(
-                              height: 14,
-                            ),
+                            const SizedBox(height: 14),
 
                             SizedBox(
                               width: double.infinity,
-                              child:
-                                  OutlinedButton.icon(
+                              child: OutlinedButton.icon(
                                 onPressed:
                                     _openEditProfile,
                                 icon: const Icon(
-                                  Icons
-                                      .edit_outlined,
+                                  Icons.edit_outlined,
                                 ),
                                 label: const Text(
                                   'Edit Profile',
@@ -701,7 +703,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     const SizedBox(height: 16),
 
                     // =================================================
-                    // ADMIN
+                    // ADMIN PANEL
+                    // EDIT PROFILE-এর ঠিক নিচে
                     // =================================================
 
                     if (_isAdmin)
@@ -712,10 +715,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         subtitle:
                             'Manage BuyNova from the admin panel.',
                         onTap: _openAdmin,
+                        iconColor: Colors.red,
                       ),
 
                     // =================================================
-                    // BUYER
+                    // BUYER / CUSTOMER
+                    // DIRECT PAGE
+                    // কোনো EXPAND / DROPDOWN নেই
                     // =================================================
 
                     _sectionCard(
@@ -725,10 +731,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       subtitle:
                           'Shopping, orders, favorites and buyer tools.',
                       onTap: _openBuyer,
+                      iconColor: Colors.redAccent,
                     ),
 
                     // =================================================
                     // RESELLER
+                    // DIRECT PAGE
                     // =================================================
 
                     _sectionCard(
@@ -751,6 +759,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
                     // =================================================
                     // SELLER
+                    // DIRECT PAGE
                     // =================================================
 
                     _sectionCard(
