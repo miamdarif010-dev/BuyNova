@@ -58,7 +58,7 @@ class _ProductDetailsPageState
         'No description available.';
   }
 
-  double get price {
+  double get rawPrice {
     final value =
         widget.product['price'] ??
         widget.product['sellingPrice'] ??
@@ -69,6 +69,41 @@ class _ProductDetailsPageState
     }
 
     return double.tryParse(value.toString()) ?? 0;
+  }
+
+  // =========================================================
+  // CURRENCY
+  // =========================================================
+
+  String get currency {
+    return widget.product['currency']
+            ?.toString()
+            .trim()
+            .toUpperCase() ??
+        '';
+  }
+
+  bool get isBdt {
+    return currency == 'BDT';
+  }
+
+  // Legacy products created before BDT update may not have
+  // currency field. Those prices are treated as KRW and
+  // converted to BDT.
+  double get price {
+    if (isBdt) {
+      return rawPrice;
+    }
+
+    return rawPrice * 0.09;
+  }
+
+  String get formattedPrice {
+    return '৳${price.toStringAsFixed(2)}';
+  }
+
+  String get formattedWholePrice {
+    return '৳${price.toStringAsFixed(0)}';
   }
 
   String get sellerCode {
@@ -85,6 +120,10 @@ class _ProductDetailsPageState
 
   double get subtotal {
     return price * _quantity;
+  }
+
+  String get formattedSubtotal {
+    return '৳${subtotal.toStringAsFixed(2)}';
   }
 
   // =========================================================
@@ -184,7 +223,12 @@ class _ProductDetailsPageState
           'productName': productName,
           'productImageUrl': imageUrl,
           'category': category,
+
+          // Store the actual BDT price in favorites.
           'price': price,
+          'currency': 'BDT',
+          'currencySymbol': '৳',
+
           'userId': user.uid,
           'createdAt':
               FieldValue.serverTimestamp(),
@@ -243,7 +287,10 @@ class _ProductDetailsPageState
         await CartService.addItem(
           id: widget.productId,
           name: productName,
+
+          // Always send BDT price to cart.
           price: price,
+
           imageUrl:
               imageUrl.isEmpty ? null : imageUrl,
         );
@@ -300,7 +347,10 @@ class _ProductDetailsPageState
             CheckoutItem(
               id: widget.productId,
               name: productName,
+
+              // Always send BDT price to checkout.
               price: price,
+
               imageUrl:
                   imageUrl.isEmpty ? null : imageUrl,
               quantity: _quantity,
@@ -1287,7 +1337,7 @@ class _ProductDetailsPageState
                   const SizedBox(height: 12),
 
                   Text(
-                    'ট${price.toStringAsFixed(0)}',
+                    formattedPrice,
                     style:
                         const TextStyle(
                       fontSize: 25,
@@ -1400,7 +1450,7 @@ class _ProductDetailsPageState
                       ),
 
                       Text(
-                        'Total: ট${subtotal.toStringAsFixed(0)}',
+                        'Total: ${formattedSubtotal}',
                         style:
                             const TextStyle(
                           fontSize: 18,
