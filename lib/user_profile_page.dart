@@ -21,7 +21,6 @@ class UserProfilePage extends StatefulWidget {
 
 class _UserProfilePageState extends State<UserProfilePage> {
   bool _isLoading = true;
-  bool _isSubmitting = false;
 
   String _name = '';
   String _phone = '';
@@ -30,8 +29,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String _sellerStatus = '';
   String _entrepreneurStatus = '';
   String _role = '';
-
-  int _pointsBalance = 0;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
 
@@ -47,14 +44,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
             'miamdarif010@gmail.com';
   }
 
-  bool get _isSellerApproved =>
-      _sellerStatus.toLowerCase() == 'approved';
+  bool get _isSellerApproved {
+    return _sellerStatus.toLowerCase() == 'approved';
+  }
 
-  bool get _isEntrepreneurApproved =>
-      _entrepreneurStatus.toLowerCase() == 'approved';
+  bool get _isEntrepreneurApproved {
+    return _entrepreneurStatus.toLowerCase() == 'approved';
+  }
 
   // =========================================================
-  // INIT / DISPOSE
+  // INIT
   // =========================================================
 
   @override
@@ -62,6 +61,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     super.initState();
     _listenUserData();
   }
+
+  // =========================================================
+  // DISPOSE
+  // =========================================================
 
   @override
   void dispose() {
@@ -112,6 +115,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  // =========================================================
+  // LOAD USER DATA
+  // =========================================================
+
   Future<void> _loadUserData() async {
     final user = currentUser;
 
@@ -149,23 +156,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
+  // =========================================================
+  // APPLY USER DATA
+  // =========================================================
+
   void _applyUserData(
     Map<String, dynamic>? data,
   ) {
     if (!mounted) return;
-
-    final rawPoints = data?['pointsBalance'];
-
-    int points = 0;
-
-    if (rawPoints is num) {
-      points = rawPoints.toInt();
-    } else if (rawPoints != null) {
-      points = int.tryParse(
-            rawPoints.toString(),
-          ) ??
-          0;
-    }
 
     setState(() {
       _name = (data?['name'] ?? '').toString();
@@ -183,14 +181,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
       _role = (data?['role'] ?? '').toString();
 
-      _pointsBalance = points;
-
       _isLoading = false;
     });
   }
 
   // =========================================================
-  // NAVIGATION
+  // COMMON NAVIGATION
   // =========================================================
 
   void _push(Widget page) {
@@ -200,6 +196,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       ),
     );
   }
+
+  // =========================================================
+  // EDIT PROFILE
+  // =========================================================
 
   void _openEditProfile() {
     Navigator.of(context)
@@ -213,152 +213,55 @@ class _UserProfilePageState extends State<UserProfilePage> {
     });
   }
 
-  // ADMIN → DIRECT PAGE
+  // =========================================================
+  // ADMIN PANEL
+  // =========================================================
+
   void _openAdmin() {
     _push(const AdminPanelPage());
   }
 
-  // BUYER → DIRECT PAGE
+  // =========================================================
+  // BUYER / CUSTOMER
+  // DIRECT PAGE
+  // =========================================================
+
   void _openBuyer() {
     _push(const BuyerPage());
   }
 
-  // RESELLER → DIRECT PAGE
+  // =========================================================
+  // RESELLER
+  // DIRECT PAGE
+  // =========================================================
+
   void _openReseller() {
     _push(const EntrepreneurPage());
   }
 
-  // SELLER → DIRECT PAGE
+  // =========================================================
+  // SELLER
+  // DIRECT PAGE
+  // =========================================================
+
   void _openSeller() {
     _push(const SellerPage());
   }
 
-  // EARN → DIRECT PAGE
+  // =========================================================
+  // EARN & REWARDS
+  // =========================================================
+
   void _openEarn() {
     _push(const WatchEarnPage());
   }
 
-  // SETTINGS → DIRECT PAGE
+  // =========================================================
+  // SETTINGS
+  // =========================================================
+
   void _openSettings() {
     _push(const SettingsPage());
-  }
-
-  // =========================================================
-  // SELLER APPLICATION
-  // =========================================================
-
-  Future<void> _becomeSeller() async {
-    final user = currentUser;
-
-    if (user == null || _isSubmitting) return;
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set(
-        {
-          'name': _name.isNotEmpty
-              ? _name
-              : 'BuyNova User',
-          'email': user.email ?? '',
-          'sellerStatus': 'pending',
-          'sellerRequestedAt':
-              FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Seller request submitted successfully.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not submit seller request: $error',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
-  }
-
-  // =========================================================
-  // RESELLER APPLICATION
-  // =========================================================
-
-  Future<void> _becomeEntrepreneur() async {
-    final user = currentUser;
-
-    if (user == null || _isSubmitting) return;
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set(
-        {
-          'name': _name.isNotEmpty
-              ? _name
-              : 'BuyNova User',
-          'email': user.email ?? '',
-          'entrepreneurStatus': 'pending',
-          'entrepreneurRequestedAt':
-              FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Reseller request submitted successfully.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not submit reseller request: $error',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
   }
 
   // =========================================================
@@ -445,7 +348,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // =========================================================
-  // PROFILE MENU CARD
+  // PROFILE SECTION CARD
   // =========================================================
 
   Widget _sectionCard({
@@ -575,10 +478,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Widget build(BuildContext context) {
     final user = currentUser;
 
+    // =======================================================
+    // NOT LOGGED IN
+    // =======================================================
+
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('My Profile'),
+          title: const Text(
+            'My Profile',
+          ),
           centerTitle: true,
         ),
         body: const Center(
@@ -588,6 +497,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
         ),
       );
     }
+
+    // =======================================================
+    // PROFILE PAGE
+    // =======================================================
 
     return Scaffold(
       appBar: AppBar(
@@ -613,15 +526,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
-                    if (_isSubmitting)
-                      const Padding(
-                        padding:
-                            EdgeInsets.only(bottom: 10),
-                        child: LinearProgressIndicator(),
-                      ),
-
                     // =================================================
-                    // PROFILE
+                    // PROFILE CARD
                     // =================================================
 
                     Card(
@@ -632,63 +538,80 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         child: Column(
                           children: [
                             GestureDetector(
-                              onTap: _openEditProfile,
+                              onTap:
+                                  _openEditProfile,
                               child: Container(
                                 width: 84,
                                 height: 84,
                                 decoration:
                                     BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color:
-                                      Colors.grey.shade200,
+                                  shape:
+                                      BoxShape.circle,
+                                  color: Colors
+                                      .grey
+                                      .shade200,
                                 ),
-                                child: _profileImage(),
+                                child:
+                                    _profileImage(),
                               ),
                             ),
 
-                            const SizedBox(height: 12),
+                            const SizedBox(
+                              height: 12,
+                            ),
 
                             Text(
                               _name.isNotEmpty
                                   ? _name
                                   : 'BuyNova User',
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontSize: 22,
                                 fontWeight:
                                     FontWeight.bold,
                               ),
                             ),
 
-                            const SizedBox(height: 5),
+                            const SizedBox(
+                              height: 5,
+                            ),
 
                             Text(
                               user.email ?? '',
                               style: TextStyle(
-                                color:
-                                    Colors.grey.shade600,
+                                color: Colors
+                                    .grey
+                                    .shade600,
                               ),
                             ),
 
                             if (_phone.isNotEmpty) ...[
-                              const SizedBox(height: 4),
+                              const SizedBox(
+                                height: 4,
+                              ),
                               Text(
                                 _phone,
                                 style: TextStyle(
-                                  color:
-                                      Colors.grey.shade600,
+                                  color: Colors
+                                      .grey
+                                      .shade600,
                                 ),
                               ),
                             ],
 
-                            const SizedBox(height: 14),
+                            const SizedBox(
+                              height: 14,
+                            ),
 
                             SizedBox(
                               width: double.infinity,
-                              child: OutlinedButton.icon(
+                              child:
+                                  OutlinedButton.icon(
                                 onPressed:
                                     _openEditProfile,
                                 icon: const Icon(
-                                  Icons.edit_outlined,
+                                  Icons
+                                      .edit_outlined,
                                 ),
                                 label: const Text(
                                   'Edit Profile',
@@ -700,7 +623,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(
+                      height: 16,
+                    ),
 
                     // =================================================
                     // ADMIN PANEL
@@ -721,7 +646,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     // =================================================
                     // BUYER / CUSTOMER
                     // DIRECT PAGE
-                    // কোনো EXPAND / DROPDOWN নেই
                     // =================================================
 
                     _sectionCard(
@@ -793,7 +717,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       iconColor: Colors.orange,
                     ),
 
-                    const SizedBox(height: 6),
+                    const SizedBox(
+                      height: 6,
+                    ),
 
                     // =================================================
                     // SETTINGS
@@ -816,7 +742,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       onTap: _showLogoutDialog,
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(
+                      height: 20,
+                    ),
                   ],
                 ),
               ),
