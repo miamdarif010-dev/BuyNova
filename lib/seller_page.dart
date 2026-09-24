@@ -10,6 +10,7 @@ import 'news_feed_page.dart';
 import 'seller_information_page.dart';
 import 'seller_stock_page.dart';
 import 'seller_views_page.dart';
+import 'seller_analytics_page.dart';
 
 class SellerPage extends StatelessWidget {
   const SellerPage({super.key});
@@ -253,6 +254,19 @@ class SellerPage extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => const SellerViewsPage(),
+      ),
+    );
+  }
+
+  // =========================================================
+  // OPEN SALES ANALYTICS
+  // =========================================================
+
+  void _openSellerAnalytics(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SellerAnalyticsPage(),
       ),
     );
   }
@@ -772,14 +786,7 @@ class SellerPage extends StatelessWidget {
                           'View sales and product performance.',
                       enabled: isApproved,
                       onTap: () {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Sales Analytics will be added next.',
-                            ),
-                          ),
-                        );
+                        _openSellerAnalytics(context);
                       },
                     ),
 
