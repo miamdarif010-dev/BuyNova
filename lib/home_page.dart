@@ -40,6 +40,31 @@ class _HomePageState extends State<HomePage> {
   ];
 
   // =========================================================
+  // CATEGORY MATCH
+  // =========================================================
+
+  bool _matchesCategory(
+    Map<String, dynamic> productData,
+  ) {
+    final selectedCategory =
+        categories[_selectedCategory];
+
+    if (selectedCategory == 'All') {
+      return true;
+    }
+
+    final productCategory =
+        productData['category']?.toString().trim() ?? '';
+
+    if (productCategory.isEmpty) {
+      return false;
+    }
+
+    return productCategory.toLowerCase() ==
+        selectedCategory.toLowerCase();
+  }
+
+  // =========================================================
   // CURRENCY SYMBOL
   // =========================================================
 
@@ -597,21 +622,7 @@ class _HomePageState extends State<HomePage> {
                 ),
 
                 actions: [
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        right: 2,
-                      ),
-                      child: Text(
-                        _currencySymbol(currency),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+                  // ₩ currency symbol removed.
 
                   IconButton(
                     icon: const Icon(
@@ -851,14 +862,30 @@ class _HomePageState extends State<HomePage> {
                           );
                         }
 
-                        final docs =
+                        final allDocs =
                             snapshot.data?.docs ?? [];
 
-                        if (docs.isEmpty) {
-                          return const Center(
+                        // =================================================
+                        // REAL CATEGORY FILTER
+                        // =================================================
+
+                        final filteredDocs =
+                            allDocs.where((doc) {
+                          final data =
+                              doc.data()
+                                  as Map<String, dynamic>;
+
+                          return _matchesCategory(data);
+                        }).toList();
+
+                        if (filteredDocs.isEmpty) {
+                          return Center(
                             child: Text(
-                              'No products found yet',
-                              style: TextStyle(
+                              _selectedCategory == 0
+                                  ? 'No products found yet'
+                                  : 'No products found in ${categories[_selectedCategory]}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey,
                               ),
@@ -907,12 +934,13 @@ class _HomePageState extends State<HomePage> {
                                 mainAxisSpacing: 8,
                               ),
 
-                              itemCount: docs.length,
+                              itemCount:
+                                  filteredDocs.length,
 
                               itemBuilder:
                                   (context, index) {
                                 final productDoc =
-                                    docs[index];
+                                    filteredDocs[index];
 
                                 final data =
                                     productDoc.data()
