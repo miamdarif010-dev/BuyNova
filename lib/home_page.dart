@@ -23,6 +23,11 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   int _selectedCategory = 0;
 
+  final TextEditingController _searchController =
+      TextEditingController();
+
+  String _searchQuery = '';
+
   final List<String> categories = [
     'All',
     'Phones',
@@ -38,6 +43,16 @@ class _HomePageState extends State<HomePage> {
     'Toys',
     'Grocery',
   ];
+
+  // =========================================================
+  // DISPOSE
+  // =========================================================
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   // =========================================================
   // CATEGORY MATCH
@@ -622,7 +637,7 @@ class _HomePageState extends State<HomePage> {
                 ),
 
                 actions: [
-                  // ₩ currency symbol removed.
+                  // Top ₩ currency symbol removed.
 
                   IconButton(
                     icon: const Icon(
@@ -743,16 +758,40 @@ class _HomePageState extends State<HomePage> {
                         borderRadius:
                             BorderRadius.circular(21),
                       ),
-                      child: const TextField(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery =
+                                value.trim().toLowerCase();
+                          });
+                        },
                         decoration: InputDecoration(
                           hintText: 'Search products...',
-                          prefixIcon: Icon(
+                          prefixIcon: const Icon(
                             Icons.search,
                             color: Colors.grey,
                           ),
+                          suffixIcon:
+                              _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        color: Colors.grey,
+                                      ),
+                                      onPressed: () {
+                                        _searchController
+                                            .clear();
+
+                                        setState(() {
+                                          _searchQuery = '';
+                                        });
+                                      },
+                                    )
+                                  : null,
                           border: InputBorder.none,
                           contentPadding:
-                              EdgeInsets.symmetric(
+                              const EdgeInsets.symmetric(
                             vertical: 8,
                           ),
                         ),
@@ -866,7 +905,7 @@ class _HomePageState extends State<HomePage> {
                             snapshot.data?.docs ?? [];
 
                         // =================================================
-                        // REAL CATEGORY FILTER
+                        // CATEGORY + SEARCH FILTER
                         // =================================================
 
                         final filteredDocs =
@@ -875,15 +914,35 @@ class _HomePageState extends State<HomePage> {
                               doc.data()
                                   as Map<String, dynamic>;
 
-                          return _matchesCategory(data);
+                          // Category filter
+                          if (!_matchesCategory(data)) {
+                            return false;
+                          }
+
+                          // Search filter
+                          if (_searchQuery.isEmpty) {
+                            return true;
+                          }
+
+                          final productName =
+                              data['name']
+                                      ?.toString()
+                                      .toLowerCase() ??
+                                  '';
+
+                          return productName.contains(
+                            _searchQuery,
+                          );
                         }).toList();
 
                         if (filteredDocs.isEmpty) {
                           return Center(
                             child: Text(
-                              _selectedCategory == 0
-                                  ? 'No products found yet'
-                                  : 'No products found in ${categories[_selectedCategory]}',
+                              _searchQuery.isNotEmpty
+                                  ? 'No products found for "$_searchQuery"'
+                                  : _selectedCategory == 0
+                                      ? 'No products found yet'
+                                      : 'No products found in ${categories[_selectedCategory]}',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontSize: 16,
