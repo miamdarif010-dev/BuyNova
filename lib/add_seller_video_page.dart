@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
@@ -13,57 +13,60 @@ class AddSellerVideoPage extends StatefulWidget {
   const AddSellerVideoPage({super.key});
 
   @override
-  State<AddSellerVideoPage> createState() =>
-      _AddSellerVideoPageState();
+  State<AddSellerVideoPage> createState() => _AddSellerVideoPageState();
 }
 
 class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
-  // =========================================================
-  // CLOUDINARY
-  // =========================================================
+  // ============================================================
+  // CLOUDINARY SETTINGS
+  // ============================================================
 
   static const String _cloudName = 'riassg6d';
+
+  // Updated Cloudinary unsigned upload preset
   static const String _uploadPreset = 'buynova_upload';
 
-  // Maximum allowed video file size (in bytes). 60 MB.
   static const int _maxVideoBytes = 60 * 1024 * 1024;
 
-  // Network timeout for the Cloudinary upload request.
   static const Duration _uploadTimeout = Duration(minutes: 3);
 
-  // =========================================================
+  // ============================================================
   // CONTROLLERS
-  // =========================================================
+  // ============================================================
+
+  final ImagePicker _picker = ImagePicker();
 
   final TextEditingController _captionController =
       TextEditingController();
 
-  final ImagePicker _picker = ImagePicker();
+  // ============================================================
+  // VIDEO
+  // ============================================================
 
-  // =========================================================
-  // STATE
-  // =========================================================
-
-  File? _videoFile;
+  XFile? _selectedVideo;
 
   VideoPlayerController? _videoController;
 
-  bool _uploading = false;
+  bool _isUploading = false;
 
-  double _uploadProgress = 0;
+  double _uploadProgress = 0.0;
+
+  // ============================================================
+  // PRODUCTS
+  // ============================================================
+
+  List<Map<String, dynamic>> _myProducts = [];
+
+  bool _loadingProducts = false;
 
   String? _selectedProductId;
   String? _selectedProductName;
   double? _selectedProductPrice;
-  String? _selectedProductImage;
+  String? _selectedProductImageUrl;
 
-  List<Map<String, dynamic>> _myProducts = [];
-
-  bool _loadingProducts = true;
-
-  // =========================================================
+  // ============================================================
   // INIT
-  // =========================================================
+  // ============================================================
 
   @override
   void initState() {
@@ -71,36 +74,31 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
     _loadMyProducts();
   }
 
-  // =========================================================
-  // LOAD MY PRODUCTS
-  // =========================================================
+  // ============================================================
+  // LOAD SELLER PRODUCTS
+  // ============================================================
 
   Future<void> _loadMyProducts() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      if (!mounted) return;
-
-      setState(() {
-        _loadingProducts = false;
-      });
-
       return;
     }
+
+    setState(() {
+      _loadingProducts = true;
+    });
 
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('products')
-          .where(
-            'sellerId',
-            isEqualTo: user.uid,
-          )
+          .where('sellerId', isEqualTo: user.uid)
           .get();
 
       final products = snapshot.docs.map((doc) {
         final data = doc.data();
 
-        return <String, dynamic>{
+        return {
           'id': doc.id,
           ...data,
         };
@@ -110,9 +108,18 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
 
       setState(() {
         _myProducts = products;
-        _loadingProducts = false;
       });
-    } catch (_) {
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not load products: $e',
+          ),
+        ),
+      );
+    } finally {
       if (!mounted) return;
 
       setState(() {
@@ -121,38 +128,33 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
     }
   }
 
-  // =========================================================
+  // ============================================================
   // PICK VIDEO
-  // =========================================================
+  // ============================================================
 
   Future<void> _pickVideo() async {
-    if (_uploading) return;
+    if (_isUploading) return;
 
     try {
-      final XFile? picked = await _picker.pickVideo(
+      final XFile? video = await _picker.pickVideo(
         source: ImageSource.gallery,
       );
 
-      if (picked == null) return;
+      if (video == null) {
+        return;
+      }
 
-      final file = File(picked.path);
-
-      // -------------------------------------------------------
-      // File size check (max 60 MB)
-      // -------------------------------------------------------
+      final file = File(video.path);
 
       final fileSize = await file.length();
 
       if (fileSize > _maxVideoBytes) {
         if (!mounted) return;
 
-        final maxMb =
-            (_maxVideoBytes / (1024 * 1024)).toStringAsFixed(0);
-
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
-              'Video file is too large. Maximum size is $maxMb MB.',
+              'Video size must be 60 MB or less.',
             ),
           ),
         );
@@ -160,19 +162,14 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
         return;
       }
 
-      // -------------------------------------------------------
-      // Single controller: used both to check duration and,
-      // if valid, kept as the preview controller (no double
-      // decode of the same video file).
-      // -------------------------------------------------------
+      // Dispose old controller
+      await _videoController?.dispose();
 
       final controller = VideoPlayerController.file(file);
 
       await controller.initialize();
 
       final duration = controller.value.duration;
-
-      // Maximum exactly 90 seconds
 
       if (duration > const Duration(seconds: 90)) {
         await controller.dispose();
@@ -190,18 +187,17 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
         return;
       }
 
+      controller.setLooping(true);
+
+      await controller.play();
+
       if (!mounted) {
         await controller.dispose();
         return;
       }
 
-      await _videoController?.dispose();
-
-      await controller.setLooping(true);
-      await controller.play();
-
       setState(() {
-        _videoFile = file;
+        _selectedVideo = video;
         _videoController = controller;
       });
     } catch (e) {
@@ -217,209 +213,286 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
     }
   }
 
-  // =========================================================
+  // ============================================================
   // SELECT PRODUCT
-  // =========================================================
+  // ============================================================
 
-  void _selectProduct(
-    Map<String, dynamic>? product,
-  ) {
-    if (product == null) {
+  void _selectProduct(String? productId) {
+    if (productId == null) {
       setState(() {
         _selectedProductId = null;
         _selectedProductName = null;
         _selectedProductPrice = null;
-        _selectedProductImage = null;
+        _selectedProductImageUrl = null;
       });
 
       return;
     }
 
+    Map<String, dynamic>? selected;
+
+    for (final product in _myProducts) {
+      if (product['id'] == productId) {
+        selected = product;
+        break;
+      }
+    }
+
+    if (selected == null) {
+      return;
+    }
+
     setState(() {
-      _selectedProductId = product['id']?.toString();
+      _selectedProductId = productId;
 
       _selectedProductName =
-          product['name']?.toString();
+          (selected!['name'] ?? 'Product').toString();
 
       _selectedProductPrice =
-          _toDouble(product['price']);
+          _toDouble(selected['price']);
 
-      _selectedProductImage =
-          product['imageUrl']?.toString();
+      _selectedProductImageUrl =
+          selected['imageUrl']?.toString();
     });
   }
 
-  // =========================================================
-  // UPLOAD VIDEO TO CLOUDINARY (with real progress + timeout)
-  // =========================================================
+  // ============================================================
+  // CLOUDINARY VIDEO UPLOAD
+  // ============================================================
 
   Future<String?> _uploadVideoToCloudinary(
-    File file, {
-    required void Function(double progress) onProgress,
-  }) async {
+    File file,
+  ) async {
+    final uri = Uri.parse(
+      'https://api.cloudinary.com/v1_1/$_cloudName/video/upload',
+    );
+
+    http.Client? client;
+
     try {
-      final url = Uri.parse(
-        'https://api.cloudinary.com/v1_1/'
-        '$_cloudName/video/upload',
-      );
-
-      final request = http.MultipartRequest(
+      final multipartRequest = http.MultipartRequest(
         'POST',
-        url,
+        uri,
       );
 
-      request.fields['upload_preset'] =
+      multipartRequest.fields['upload_preset'] =
           _uploadPreset;
 
-      request.files.add(
+      multipartRequest.files.add(
         await http.MultipartFile.fromPath(
           'file',
           file.path,
         ),
       );
 
-      final contentLength = request.contentLength;
+      final streamedMultipart = multipartRequest.finalize();
 
-      // Rebuild the request as a StreamedRequest so we can
-      // observe how many bytes have actually been sent and
-      // report real upload progress instead of fake fixed steps.
+      final contentLength = multipartRequest.contentLength;
 
       final streamedRequest = http.StreamedRequest(
-        request.method,
-        request.url,
+        'POST',
+        uri,
       );
 
-      streamedRequest.headers.addAll(request.headers);
+      streamedRequest.headers.addAll(
+        multipartRequest.headers,
+      );
+
       streamedRequest.contentLength = contentLength;
 
       int bytesSent = 0;
 
-      final byteStream = request.finalize();
+      final completer = Completer<void>();
 
-      final subscription = byteStream.listen(
+      streamedMultipart.listen(
         (chunk) {
-          bytesSent += chunk.length;
+          if (chunk.isEmpty) return;
+
           streamedRequest.sink.add(chunk);
 
-          if (contentLength > 0) {
-            // Reserve 0.15–0.80 of the overall progress bar for
-            // the actual network upload portion.
-            final fraction = bytesSent / contentLength;
-            final scaled = 0.15 + (fraction * 0.65);
-            onProgress(
-              scaled.clamp(0.15, 0.80),
+          bytesSent += chunk.length;
+
+          if (contentLength > 0 && mounted) {
+            final uploadRatio =
+                bytesSent / contentLength;
+
+            setState(() {
+              // Upload section is approximately 15% to 80%
+              _uploadProgress =
+                  0.15 + (uploadRatio * 0.65);
+            });
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!completer.isCompleted) {
+            completer.completeError(
+              error,
+              stackTrace,
             );
           }
         },
         onDone: () {
           streamedRequest.sink.close();
-        },
-        onError: (Object e, StackTrace st) {
-          streamedRequest.sink.addError(e, st);
+
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
         },
         cancelOnError: true,
       );
 
-      final client = http.Client();
+      await completer.future;
 
-      late final http.StreamedResponse streamedResponse;
+      client = http.Client();
 
-      try {
-        streamedResponse = await client
-            .send(streamedRequest)
-            .timeout(_uploadTimeout);
-      } on TimeoutException {
-        await subscription.cancel();
-        client.close();
+      final response = await client
+          .send(streamedRequest)
+          .timeout(_uploadTimeout);
 
-        throw Exception(
-          'Upload timed out. Please check your connection and try again.',
-        );
-      } finally {
-        client.close();
-      }
+      final responseBody =
+          await response.stream.bytesToString();
 
-      final response = await http.Response.fromStream(
-        streamedResponse,
-      );
+      // ========================================================
+      // IMPORTANT:
+      // SHOW REAL CLOUDINARY ERROR
+      // ========================================================
 
       if (response.statusCode < 200 ||
           response.statusCode >= 300) {
-        return null;
+        String errorMessage = responseBody;
+
+        try {
+          final decoded =
+              jsonDecode(responseBody);
+
+          if (decoded is Map<String, dynamic>) {
+            final error = decoded['error'];
+
+            if (error is Map<String, dynamic>) {
+              errorMessage =
+                  error['message']?.toString() ??
+                      responseBody;
+            } else if (error != null) {
+              errorMessage = error.toString();
+            }
+          }
+        } catch (_) {
+          // Keep original response body
+        }
+
+        throw Exception(
+          'Cloudinary upload failed '
+          '(HTTP ${response.statusCode}): '
+          '$errorMessage',
+        );
       }
 
-      final data = jsonDecode(response.body);
+      final decoded =
+          jsonDecode(responseBody);
 
-      return data['secure_url']?.toString();
+      final secureUrl =
+          decoded['secure_url']?.toString();
+
+      if (secureUrl == null ||
+          secureUrl.isEmpty) {
+        throw Exception(
+          'Cloudinary did not return a video URL.',
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 0.82;
+        });
+      }
+
+      return secureUrl;
+    } on TimeoutException {
+      throw Exception(
+        'Video upload timed out. '
+        'Please check your internet connection '
+        'and try again.',
+      );
+    } on SocketException catch (e) {
+      throw Exception(
+        'Network error while uploading video: $e',
+      );
     } catch (e) {
-      if (e is Exception &&
-          e.toString().contains('timed out')) {
-        rethrow;
-      }
-
-      return null;
+      // Do not hide the real Cloudinary error
+      throw Exception(
+        e.toString().replaceFirst(
+          'Exception: ',
+          '',
+        ),
+      );
+    } finally {
+      client?.close();
     }
   }
 
-  // =========================================================
-  // CREATE CLOUDINARY THUMBNAIL URL
-  // =========================================================
+  // ============================================================
+  // CREATE VIDEO THUMBNAIL URL
+  // ============================================================
 
-  String _createThumbnailUrl(
-    String videoUrl,
-  ) {
+  String _createThumbnailUrl(String videoUrl) {
     try {
       final uri = Uri.parse(videoUrl);
 
       final path = uri.path;
 
       if (!path.contains('/video/upload/')) {
-        return '';
+        return videoUrl;
       }
 
-      final newPath = path.replaceFirst(
+      final thumbnailPath = path.replaceFirst(
         '/video/upload/',
         '/video/upload/so_0/',
       );
 
-      final withoutExtension =
-          newPath.replaceFirst(
-        RegExp(r'\.[^./]+$'),
-        '',
-      );
+      final lastDot =
+          thumbnailPath.lastIndexOf('.');
+
+      String finalPath = thumbnailPath;
+
+      if (lastDot != -1) {
+        finalPath =
+            '${thumbnailPath.substring(0, lastDot)}.jpg';
+      } else {
+        finalPath = '$thumbnailPath.jpg';
+      }
 
       return uri.replace(
-        path: '$withoutExtension.jpg',
+        path: finalPath,
       ).toString();
     } catch (_) {
-      return '';
+      return videoUrl;
     }
   }
 
-  // =========================================================
+  // ============================================================
   // GET USER NAME
-  // =========================================================
+  // ============================================================
 
   Future<String> _getUserName(
     User user,
   ) async {
     try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
-      final data = snapshot.data();
+      final data = doc.data();
 
       final name =
-          data?['name']?.toString();
+          data?['name']?.toString().trim();
 
-      if (name != null &&
-          name.trim().isNotEmpty) {
-        return name.trim();
+      if (name != null && name.isNotEmpty) {
+        return name;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Continue with Auth data
+    }
 
     final displayName =
         user.displayName?.trim();
@@ -432,31 +505,28 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
     final email =
         user.email?.trim();
 
-    if (email != null &&
-        email.isNotEmpty) {
+    if (email != null && email.isNotEmpty) {
       return email;
     }
 
     return 'BuyNova User';
   }
 
-  // =========================================================
+  // ============================================================
   // POST VIDEO
-  // =========================================================
+  // ============================================================
 
   Future<void> _postVideo() async {
-    if (_uploading) return;
+    if (_isUploading) return;
 
     final user =
         FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Please login before posting a video.',
+            'Please login first.',
           ),
         ),
       );
@@ -464,9 +534,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
       return;
     }
 
-    if (_videoFile == null) {
-      if (!mounted) return;
-
+    if (_selectedVideo == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -478,169 +546,102 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
       return;
     }
 
+    final caption =
+        _captionController.text.trim();
+
     setState(() {
-      _uploading = true;
+      _isUploading = true;
       _uploadProgress = 0.05;
     });
 
     try {
-      // -------------------------------------------------------
-      // USER NAME
-      // -------------------------------------------------------
-
       final userName =
           await _getUserName(user);
 
-      if (!mounted) return;
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 0.10;
+        });
+      }
 
-      setState(() {
-        _uploadProgress = 0.15;
-      });
-
-      // -------------------------------------------------------
-      // CLOUDINARY UPLOAD (real progress via callback)
-      // -------------------------------------------------------
+      final videoFile =
+          File(_selectedVideo!.path);
 
       final videoUrl =
           await _uploadVideoToCloudinary(
-        _videoFile!,
-        onProgress: (progress) {
-          if (!mounted) return;
-
-          setState(() {
-            _uploadProgress = progress;
-          });
-        },
+        videoFile,
       );
 
       if (videoUrl == null ||
           videoUrl.isEmpty) {
         throw Exception(
-          'Video upload failed.',
+          'Cloudinary did not return a valid video URL.',
         );
       }
 
-      if (!mounted) return;
-
-      setState(() {
-        _uploadProgress = 0.85;
-      });
-
-      // -------------------------------------------------------
-      // THUMBNAIL
-      // -------------------------------------------------------
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 0.88;
+        });
+      }
 
       final thumbnailUrl =
           _createThumbnailUrl(videoUrl);
 
-      // -------------------------------------------------------
-      // FIRESTORE VIDEO DATA
-      // -------------------------------------------------------
-
       final videoData =
           <String, dynamic>{
-        // =====================================================
-        // VIDEO
-        // =====================================================
-
-        'videoUrl': videoUrl,
-
-        'thumbnailUrl': thumbnailUrl,
-
-        'caption':
-            _captionController.text.trim(),
-
-        // =====================================================
-        // OWNER
-        // =====================================================
-
-        'userId': user.uid,
-
-        // Compatibility with existing seller video system.
         'sellerId': user.uid,
-
-        'userName': userName,
-
         'sellerName': userName,
 
-        'userEmail':
-            user.email ?? '',
+        'caption': caption,
 
-        'sellerEmail':
-            user.email ?? '',
-
-        // =====================================================
-        // PUBLISH STATUS
-        // =====================================================
+        'videoUrl': videoUrl,
+        'thumbnailUrl': thumbnailUrl,
 
         'status': 'published',
 
-        'moderationStatus': 'none',
-
-        // =====================================================
-        // WATCH & EARN
-        // =====================================================
-
-        // New uploads are not automatically reward eligible.
-        'rewardEligible': false,
-
-        // =====================================================
-        // ENGAGEMENT COUNTERS
-        // =====================================================
-
-        'viewCount': 0,
-        'likeCount': 0,
-        'commentCount': 0,
-        'shareCount': 0,
-
-        // Compatibility with older documents/UI.
-        'views': 0,
         'likes': 0,
         'comments': 0,
-        'shares': 0,
-
-        // =====================================================
-        // PRODUCT
-        // =====================================================
-
-        'productId':
-            _selectedProductId ?? '',
-
-        'productName':
-            _selectedProductName ?? '',
-
-        'productPrice':
-            _selectedProductPrice ?? 0,
-
-        'productImageUrl':
-            _selectedProductImage ?? '',
-
-        // =====================================================
-        // CREATED TIME
-        // =====================================================
+        'views': 0,
 
         'createdAt':
             FieldValue.serverTimestamp(),
+
+        'updatedAt':
+            FieldValue.serverTimestamp(),
       };
 
-      // =======================================================
-      // SAVE TO COMMON VIDEO COLLECTION
-      // =======================================================
+      // ========================================================
+      // ATTACHED PRODUCT
+      // ========================================================
+
+      if (_selectedProductId != null) {
+        videoData['productId'] =
+            _selectedProductId;
+
+        videoData['productName'] =
+            _selectedProductName;
+
+        videoData['productPrice'] =
+            _selectedProductPrice;
+
+        videoData['productImageUrl'] =
+            _selectedProductImageUrl;
+      }
+
+      // ========================================================
+      // FIRESTORE
+      // ========================================================
 
       await FirebaseFirestore.instance
           .collection('sellerVideos')
           .add(videoData);
 
-      if (!mounted) return;
-
-      setState(() {
-        _uploadProgress = 1.0;
-      });
-
-      // Give the UI a tiny moment to show 100%.
-      await Future<void>.delayed(
-        const Duration(milliseconds: 250),
-      );
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 1.0;
+        });
+      }
 
       if (!mounted) return;
 
@@ -649,83 +650,81 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
           content: Text(
             'Video posted successfully!',
           ),
-          behavior:
-              SnackBarBehavior.floating,
+          backgroundColor: Colors.green,
         ),
       );
 
-      // =======================================================
-      // CLEAN UP
-      // =======================================================
-
-      _captionController.clear();
-
-      await _videoController?.dispose();
+      await Future.delayed(
+        const Duration(milliseconds: 500),
+      );
 
       if (!mounted) return;
 
-      setState(() {
-        _videoFile = null;
-        _videoController = null;
+      await _cleanupVideo();
 
-        _selectedProductId = null;
-        _selectedProductName = null;
-        _selectedProductPrice = null;
-        _selectedProductImage = null;
-
-        _uploading = false;
-        _uploadProgress = 0;
-      });
-
-      // =======================================================
-      // RETURN TO PREVIOUS PAGE
-      // =======================================================
-
-      Navigator.pop(context);
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        _uploading = false;
-        _uploadProgress = 0;
-      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not post video: $e',
+            'Could not post video:\n$e',
           ),
-          behavior:
-              SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _uploadProgress = 0.0;
+        });
+      }
     }
   }
 
-  // =========================================================
+  // ============================================================
   // REMOVE SELECTED VIDEO
-  // =========================================================
+  // ============================================================
 
   Future<void> _removeSelectedVideo() async {
-    if (_uploading) return;
+    if (_isUploading) return;
+
+    await _videoController?.pause();
 
     await _videoController?.dispose();
+
+    _videoController = null;
 
     if (!mounted) return;
 
     setState(() {
-      _videoFile = null;
-      _videoController = null;
+      _selectedVideo = null;
     });
   }
 
-  // =========================================================
-  // HELPERS
-  // =========================================================
+  // ============================================================
+  // CLEANUP
+  // ============================================================
 
-  double _toDouble(dynamic value) {
-    if (value is double) {
-      return value;
+  Future<void> _cleanupVideo() async {
+    await _videoController?.pause();
+
+    await _videoController?.dispose();
+
+    _videoController = null;
+
+    _selectedVideo = null;
+  }
+
+  // ============================================================
+  // DOUBLE CONVERTER
+  // ============================================================
+
+  double? _toDouble(dynamic value) {
+    if (value == null) {
+      return null;
     }
 
     if (value is num) {
@@ -733,54 +732,58 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
     }
 
     return double.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
-  }
-
-  // =========================================================
-  // BLOCK BACK NAVIGATION WHILE UPLOADING
-  // =========================================================
-
-  Future<void> _handleBackAttempt() async {
-    if (!_uploading) {
-      Navigator.of(context).pop();
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Please wait until the upload finishes before leaving.',
-        ),
-      ),
+      value.toString(),
     );
   }
 
-  // =========================================================
+  // ============================================================
+  // BACK BUTTON
+  // ============================================================
+
+  Future<bool> _handleBackAttempt() async {
+    if (_isUploading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please wait until the video upload finishes.',
+          ),
+        ),
+      );
+
+      return false;
+    }
+
+    return true;
+  }
+
+  // ============================================================
   // DISPOSE
-  // =========================================================
+  // ============================================================
 
   @override
   void dispose() {
     _captionController.dispose();
+
     _videoController?.dispose();
+
     super.dispose();
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
+  // ============================================================
+  // UI
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // Block the system/hardware back gesture while uploading
-      // so an in-progress upload can't be abandoned mid-way.
-      canPop: !_uploading,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handleBackAttempt();
+      canPop: !_isUploading,
+      onPopInvokedWithResult: (
+        didPop,
+        result,
+      ) {
+        if (!didPop && _isUploading) {
+          _handleBackAttempt();
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -788,56 +791,30 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
             'Post Video',
           ),
           centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _handleBackAttempt,
-          ),
         ),
         body: SafeArea(
           child: SingleChildScrollView(
-            padding:
-                const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  CrossAxisAlignment.stretch,
               children: [
-                // =================================================
-                // VIDEO
-                // =================================================
+                // ==================================================
+                // VIDEO PICKER / PREVIEW
+                // ==================================================
 
-                const Text(
-                  'Video',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 10,
-                ),
-
-                if (_videoFile == null)
+                if (_selectedVideo == null)
                   GestureDetector(
-                    onTap: _uploading
-                        ? null
-                        : _pickVideo,
+                    onTap: _pickVideo,
                     child: Container(
-                      width:
-                          double.infinity,
-                      height: 280,
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            Colors.grey.shade200,
+                      height: 260,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
                         borderRadius:
-                            BorderRadius.circular(
-                          18,
-                        ),
+                            BorderRadius.circular(18),
                         border: Border.all(
                           color:
-                              Colors.grey.shade400,
+                              Colors.grey.shade300,
                         ),
                       ),
                       child: const Column(
@@ -845,32 +822,23 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                             MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.video_library,
+                            Icons.video_library_outlined,
                             size: 60,
-                            color:
-                                Colors.grey,
                           ),
-                          SizedBox(
-                            height: 12,
-                          ),
+                          SizedBox(height: 12),
                           Text(
                             'Select Video',
-                            style:
-                                TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight:
-                                  FontWeight.bold,
+                                  FontWeight.w600,
                             ),
                           ),
-                          SizedBox(
-                            height: 5,
-                          ),
+                          SizedBox(height: 6),
                           Text(
-                            'Maximum 90 seconds',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.grey,
+                            'Maximum 60 MB • 90 seconds',
+                            style: TextStyle(
+                              color: Colors.grey,
                             ),
                           ),
                         ],
@@ -878,134 +846,118 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                     ),
                   )
                 else
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius:
-                            BorderRadius.circular(
-                          18,
-                        ),
-                        child: Container(
-                          width:
-                              double.infinity,
-                          height: 420,
-                          color:
-                              Colors.black,
-                          child:
-                              _videoController !=
-                                          null &&
-                                      _videoController!
-                                          .value
-                                          .isInitialized
-                                  ? Center(
-                                      child:
-                                          AspectRatio(
-                                        aspectRatio:
-                                            _videoController!
-                                                .value
-                                                .aspectRatio,
-                                        child:
-                                            VideoPlayer(
-                                          _videoController!,
-                                        ),
-                                      ),
-                                    )
-                                  : const Center(
-                                      child:
-                                          CircularProgressIndicator(
-                                        color:
-                                            Colors.white,
-                                      ),
-                                    ),
-                        ),
-                      ),
+                  Container(
+                    height: 360,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius:
+                          BorderRadius.circular(18),
+                    ),
+                    clipBehavior:
+                        Clip.antiAlias,
+                    child: Stack(
+                      alignment:
+                          Alignment.center,
+                      children: [
+                        if (_videoController !=
+                                null &&
+                            _videoController!
+                                .value
+                                .isInitialized)
+                          GestureDetector(
+                            onTap: () {
+                              if (_videoController!
+                                  .value
+                                  .isPlaying) {
+                                _videoController!
+                                    .pause();
+                              } else {
+                                _videoController!
+                                    .play();
+                              }
 
-                      if (!_uploading)
+                              setState(() {});
+                            },
+                            child: AspectRatio(
+                              aspectRatio:
+                                  _videoController!
+                                      .value
+                                      .aspectRatio,
+                              child:
+                                  VideoPlayer(
+                                _videoController!,
+                              ),
+                            ),
+                          ),
+
                         Positioned(
                           top: 10,
                           right: 10,
-                          child:
-                              CircleAvatar(
-                            backgroundColor:
-                                Colors.black54,
-                            child:
-                                IconButton(
+                          child: Material(
+                            color: Colors.black54,
+                            shape:
+                                const CircleBorder(),
+                            child: IconButton(
                               onPressed:
                                   _removeSelectedVideo,
-                              icon:
-                                  const Icon(
+                              icon: const Icon(
                                 Icons.close,
-                                color:
-                                    Colors.white,
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ),
 
-                      Positioned(
-                        bottom: 12,
-                        left: 12,
-                        child:
-                            Container(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration:
-                              BoxDecoration(
-                            color:
-                                Colors.black54,
-                            borderRadius:
-                                BorderRadius.circular(
-                              20,
+                        if (_videoController !=
+                                null &&
+                            !_videoController!
+                                .value
+                                .isPlaying)
+                          const IgnorePointer(
+                            child: Icon(
+                              Icons.play_circle_fill,
+                              size: 70,
+                              color: Colors.white,
                             ),
                           ),
-                          child:
-                              const Text(
-                            'Up to 90 seconds',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.white,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
 
-                const SizedBox(
-                  height: 22,
-                ),
+                const SizedBox(height: 18),
 
-                // =================================================
+                // ==================================================
+                // CHANGE VIDEO
+                // ==================================================
+
+                if (_selectedVideo != null)
+                  OutlinedButton.icon(
+                    onPressed: _isUploading
+                        ? null
+                        : _pickVideo,
+                    icon: const Icon(
+                      Icons.video_file,
+                    ),
+                    label: const Text(
+                      'Change Video',
+                    ),
+                  ),
+
+                const SizedBox(height: 18),
+
+                // ==================================================
                 // CAPTION
-                // =================================================
-
-                const Text(
-                  'Caption',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 10,
-                ),
+                // ==================================================
 
                 TextField(
                   controller:
                       _captionController,
                   maxLines: 4,
                   maxLength: 500,
-                  enabled: !_uploading,
+                  enabled: !_isUploading,
                   decoration:
                       InputDecoration(
+                    labelText: 'Caption',
                     hintText:
                         'Write something about your video...',
                     border:
@@ -1018,154 +970,87 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                   ),
                 ),
 
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 12),
 
-                // =================================================
-                // PRODUCT
-                // =================================================
-
-                const Text(
-                  'Attach Product',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 6,
-                ),
-
-                const Text(
-                  'Optional. You can post a video without a product.',
-                  style: TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 10,
-                ),
+                // ==================================================
+                // PRODUCT DROPDOWN
+                // ==================================================
 
                 if (_loadingProducts)
-                  const Center(
-                    child:
-                        CircularProgressIndicator(),
+                  const Padding(
+                    padding:
+                        EdgeInsets.symmetric(
+                      vertical: 12,
+                    ),
+                    child: Center(
+                      child:
+                          CircularProgressIndicator(),
+                    ),
                   )
                 else
-                  Container(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal: 12,
-                    ),
+                  DropdownButtonFormField<
+                      String>(
+                    value: _selectedProductId,
+                    isExpanded: true,
                     decoration:
-                        BoxDecoration(
-                      border: Border.all(
-                        color:
-                            Colors.grey.shade400,
-                      ),
-                      borderRadius:
-                          BorderRadius.circular(
-                        14,
-                      ),
-                    ),
-                    child:
-                        DropdownButtonHideUnderline(
-                      child:
-                          DropdownButton<String>(
-                        isExpanded:
-                            true,
-                        value:
-                            _selectedProductId,
-                        hint:
-                            const Text(
-                          'No product selected',
+                        InputDecoration(
+                      labelText:
+                          'Attach Product',
+                      border:
+                          OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(
+                          14,
                         ),
-                        items: [
-                          const DropdownMenuItem<
-                              String>(
-                            value: null,
-                            child: Text(
-                              'No product',
-                            ),
-                          ),
-                          ..._myProducts.map(
-                            (
-                              product,
-                            ) {
-                              return DropdownMenuItem<
-                                  String>(
-                                value:
-                                    product[
-                                            'id']
-                                        ?.toString(),
-                                child:
-                                    Text(
-                                  product['name']
-                                          ?.toString() ??
-                                      'Product',
-                                  maxLines: 1,
-                                  overflow:
-                                      TextOverflow
-                                          .ellipsis,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                        onChanged:
-                            _uploading
-                                ? null
-                                : (
-                                    value,
-                                  ) {
-                                    if (value ==
-                                        null) {
-                                      _selectProduct(
-                                        null,
-                                      );
-                                      return;
-                                    }
-
-                                    final product =
-                                        _myProducts
-                                            .firstWhere(
-                                      (
-                                        item,
-                                      ) =>
-                                          item[
-                                                  'id']
-                                              ?.toString() ==
-                                          value,
-                                    );
-
-                                    _selectProduct(
-                                      product,
-                                    );
-                                  },
                       ),
                     ),
+                    items: [
+                      const DropdownMenuItem<
+                          String>(
+                        value: null,
+                        child: Text(
+                          'No product',
+                        ),
+                      ),
+                      ..._myProducts.map(
+                        (product) {
+                          final id =
+                              product['id']
+                                  .toString();
+
+                          final name =
+                              product['name']
+                                      ?.toString() ??
+                                  'Product';
+
+                          return DropdownMenuItem<
+                              String>(
+                            value: id,
+                            child: Text(
+                              name,
+                              overflow:
+                                  TextOverflow
+                                      .ellipsis,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    onChanged: _isUploading
+                        ? null
+                        : _selectProduct,
                   ),
 
-                // =================================================
+                // ==================================================
                 // SELECTED PRODUCT
-                // =================================================
+                // ==================================================
 
-                if (_selectedProductId !=
-                    null) ...[
-                  const SizedBox(
-                    height: 14,
-                  ),
+                if (_selectedProductId != null) ...[
+                  const SizedBox(height: 12),
 
                   Container(
                     padding:
-                        const EdgeInsets.all(
-                      12,
-                    ),
+                        const EdgeInsets.all(12),
                     decoration:
                         BoxDecoration(
                       color:
@@ -1177,36 +1062,37 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                     ),
                     child: Row(
                       children: [
-                        if (_selectedProductImage !=
+                        if (_selectedProductImageUrl !=
                                 null &&
-                            _selectedProductImage!
+                            _selectedProductImageUrl!
                                 .isNotEmpty)
                           ClipRRect(
                             borderRadius:
-                                BorderRadius.circular(
+                                BorderRadius
+                                    .circular(
                               10,
                             ),
-                            child:
-                                Image.network(
-                              _selectedProductImage!,
-                              width: 65,
-                              height: 65,
+                            child: Image.network(
+                              _selectedProductImageUrl!,
+                              width: 60,
+                              height: 60,
                               fit: BoxFit.cover,
                               errorBuilder:
                                   (
-                                _,
-                                __,
-                                ___,
+                                context,
+                                error,
+                                stackTrace,
                               ) {
                                 return Container(
-                                  width: 65,
-                                  height: 65,
+                                  width: 60,
+                                  height: 60,
                                   color: Colors
                                       .grey
                                       .shade300,
                                   child:
                                       const Icon(
-                                    Icons.image,
+                                    Icons
+                                        .image_not_supported,
                                   ),
                                 );
                               },
@@ -1214,21 +1100,23 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                           )
                         else
                           Container(
-                            width: 65,
-                            height: 65,
+                            width: 60,
+                            height: 60,
                             decoration:
                                 BoxDecoration(
                               color: Colors
                                   .grey
                                   .shade300,
                               borderRadius:
-                                  BorderRadius.circular(
+                                  BorderRadius
+                                      .circular(
                                 10,
                               ),
                             ),
                             child:
                                 const Icon(
-                              Icons.shopping_bag,
+                              Icons
+                                  .inventory_2_outlined,
                             ),
                           ),
 
@@ -1237,8 +1125,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                         ),
 
                         Expanded(
-                          child:
-                              Column(
+                          child: Column(
                             crossAxisAlignment:
                                 CrossAxisAlignment
                                     .start,
@@ -1253,35 +1140,25 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                                 style:
                                     const TextStyle(
                                   fontWeight:
-                                      FontWeight.bold,
+                                      FontWeight
+                                          .w600,
                                 ),
                               ),
                               const SizedBox(
                                 height: 5,
                               ),
-                              Text(
-                                '৳${(_selectedProductPrice ?? 0).toStringAsFixed(0)}',
-                                style:
-                                    const TextStyle(
-                                  fontWeight:
-                                      FontWeight.w600,
+                              if (_selectedProductPrice !=
+                                  null)
+                                Text(
+                                  '৳${_selectedProductPrice!.toStringAsFixed(2)}',
+                                  style:
+                                      const TextStyle(
+                                    fontWeight:
+                                        FontWeight
+                                            .bold,
+                                  ),
                                 ),
-                              ),
                             ],
-                          ),
-                        ),
-
-                        IconButton(
-                          onPressed:
-                              _uploading
-                                  ? null
-                                  : () =>
-                                      _selectProduct(
-                                        null,
-                                      ),
-                          icon:
-                              const Icon(
-                            Icons.close,
                           ),
                         ),
                       ],
@@ -1289,21 +1166,15 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                   ),
                 ],
 
-                const SizedBox(
-                  height: 28,
-                ),
+                const SizedBox(height: 18),
 
-                // =================================================
-                // INFO
-                // =================================================
+                // ==================================================
+                // INFO CARD
+                // ==================================================
 
                 Container(
-                  width:
-                      double.infinity,
                   padding:
-                      const EdgeInsets.all(
-                    14,
-                  ),
+                      const EdgeInsets.all(16),
                   decoration:
                       BoxDecoration(
                     color:
@@ -1315,22 +1186,18 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                   ),
                   child: const Row(
                     crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                        CrossAxisAlignment.start,
                     children: [
                       Icon(
                         Icons.info_outline,
                         color: Colors.blue,
                       ),
-                      SizedBox(
-                        width: 10,
-                      ),
+                      SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Anyone with a BuyNova account can post videos. Videos are published immediately and appear in the common Videos/Reels feed and the uploader’s My Videos.',
-                          style:
-                              TextStyle(
-                            fontSize: 13,
+                          'Anyone with a BuyNova account can post videos. Videos are published immediately after a successful upload.',
+                          style: TextStyle(
+                            height: 1.4,
                           ),
                         ),
                       ),
@@ -1338,88 +1205,81 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                   ),
                 ),
 
-                const SizedBox(
-                  height: 20,
-                ),
-
-                // =================================================
+                // ==================================================
                 // UPLOAD PROGRESS
-                // =================================================
+                // ==================================================
 
-                if (_uploading) ...[
-                  LinearProgressIndicator(
-                    value:
-                        _uploadProgress > 0
-                            ? _uploadProgress
-                            : null,
-                  ),
+                if (_isUploading) ...[
+                  const SizedBox(height: 20),
 
-                  const SizedBox(
-                    height: 10,
-                  ),
-
-                  Center(
-                    child: Text(
-                      'Uploading... '
-                      '${(_uploadProgress * 100).toInt()}%',
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.w600,
-                      ),
+                  Text(
+                    'Uploading video... '
+                    '${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.w600,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 15,
+                  const SizedBox(height: 8),
+
+                  LinearProgressIndicator(
+                    value: _uploadProgress,
+                    minHeight: 8,
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
                   ),
                 ],
 
-                // =================================================
+                const SizedBox(height: 24),
+
+                // ==================================================
                 // POST BUTTON
-                // =================================================
+                // ==================================================
 
                 SizedBox(
-                  width:
-                      double.infinity,
                   height: 54,
-                  child:
-                      ElevatedButton.icon(
-                    onPressed:
-                        _uploading
-                            ? null
-                            : _postVideo,
-                    icon: _uploading
+                  child: ElevatedButton.icon(
+                    onPressed: _isUploading
+                        ? null
+                        : _postVideo,
+                    icon: _isUploading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
                             child:
                                 CircularProgressIndicator(
                               strokeWidth: 2,
-                              color:
-                                  Colors.white,
                             ),
                           )
                         : const Icon(
-                            Icons.upload,
+                            Icons
+                                .publish_outlined,
                           ),
                     label: Text(
-                      _uploading
-                          ? 'Posting Video...'
+                      _isUploading
+                          ? 'Uploading...'
                           : 'Post Video',
-                      style:
-                          const TextStyle(
-                        fontSize: 17,
-                        fontWeight:
-                            FontWeight.bold,
+                    ),
+                    style:
+                        ElevatedButton.styleFrom(
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(
+                          14,
+                        ),
                       ),
                     ),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 25,
-                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
