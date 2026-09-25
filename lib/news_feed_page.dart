@@ -10,6 +10,8 @@ import 'login_page.dart';
 import 'cart_page.dart';
 import 'add_seller_video_page.dart';
 import 'watch_earn_page.dart';
+import 'categories_page.dart';
+import 'user_profile_page.dart';
 
 class NewsFeedPage extends StatefulWidget {
   const NewsFeedPage({super.key});
@@ -73,6 +75,57 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
         builder: (context) => const WatchEarnPage(),
       ),
     );
+  }
+
+  // ==========================================================
+  // BOTTOM NAVIGATION
+  // ==========================================================
+
+  void _onBottomNavigationTap(int index) {
+    switch (index) {
+      case 0:
+        // Return to the Home Page.
+        Navigator.of(context).popUntil(
+          (route) => route.isFirst,
+        );
+        break;
+
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CategoriesPage(),
+          ),
+        );
+        break;
+
+      case 2:
+        // The center + button opens Add Video.
+        _openPostVideo();
+        break;
+
+      case 3:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CartPage(),
+          ),
+        );
+        break;
+
+      case 4:
+        if (currentUser == null) {
+          _openLogin();
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UserProfilePage(),
+            ),
+          );
+        }
+        break;
+    }
   }
 
   // ==========================================================
@@ -160,20 +213,11 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: Row(
-                      children: [
-                        _topButton(
-                          icon: Icons.add,
-                          onPressed: _openPostVideo,
-                        ),
-                        const SizedBox(width: 8),
-                        _topButton(
-                          icon: Icons.close,
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                        ),
-                      ],
+                    child: _topButton(
+                      icon: Icons.close,
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
                     ),
                   ),
                 ],
@@ -186,38 +230,46 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
               return Stack(
                 children: [
                   Center(
-                    child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.video_library_outlined,
-                          color: Colors.white,
-                          size: 70,
-                        ),
-                        const SizedBox(height: 15),
-                        const Text(
-                          'No videos yet',
-                          style: TextStyle(
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        left: 24,
+                        right: 24,
+                        bottom: 80,
+                      ),
+                      child: Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.video_library_outlined,
                             color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                            size: 70,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Be the first to post a video!',
-                          style: TextStyle(
-                            color: Colors.white70,
+                          const SizedBox(height: 15),
+                          const Text(
+                            'No videos yet',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: _openPostVideo,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Post Video'),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Be the first to post a video!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: _openPostVideo,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Post Video'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   Positioned(
@@ -228,20 +280,11 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: Row(
-                      children: [
-                        _topButton(
-                          icon: Icons.add,
-                          onPressed: _openPostVideo,
-                        ),
-                        const SizedBox(width: 8),
-                        _topButton(
-                          icon: Icons.close,
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                        ),
-                      ],
+                    child: _topButton(
+                      icon: Icons.close,
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
                     ),
                   ),
                 ],
@@ -276,7 +319,7 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 ),
 
                 // ==================================================
-                // WATCH & EARN CIRCLE
+                // WATCH & EARN
                 // ==================================================
 
                 Positioned(
@@ -286,31 +329,224 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 ),
 
                 // ==================================================
-                // ADD + CLOSE
+                // CLOSE
                 // ==================================================
 
                 Positioned(
                   top: 10,
                   right: 10,
-                  child: Row(
-                    children: [
-                      _topButton(
-                        icon: Icons.add,
-                        onPressed: _openPostVideo,
-                      ),
-                      const SizedBox(width: 8),
-                      _topButton(
-                        icon: Icons.close,
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ],
+                  child: _topButton(
+                    icon: Icons.close,
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
                   ),
                 ),
               ],
             );
           },
+        ),
+      ),
+
+      // ========================================================
+      // BUY NOVA VIDEO PAGE BOTTOM NAVIGATION
+      // ========================================================
+
+      bottomNavigationBar: _buildVideoBottomNavigation(),
+    );
+  }
+
+  // ==========================================================
+  // VIDEO BOTTOM NAVIGATION
+  // ==========================================================
+
+  Widget _buildVideoBottomNavigation() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 78,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border(
+            top: BorderSide(
+              color: Colors.white.withValues(alpha: 0.10),
+              width: 0.8,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _bottomNavItem(
+                icon: Icons.home_outlined,
+                label: 'Home',
+                onTap: () {
+                  _onBottomNavigationTap(0);
+                },
+              ),
+            ),
+            Expanded(
+              child: _bottomNavItem(
+                icon: Icons.category_outlined,
+                label: 'Categories',
+                onTap: () {
+                  _onBottomNavigationTap(1);
+                },
+              ),
+            ),
+
+            // ==================================================
+            // CENTER TIKTOK-STYLE COLORED PLUS
+            // ==================================================
+
+            Expanded(
+              child: Center(
+                child: _coloredPlusButton(),
+              ),
+            ),
+
+            Expanded(
+              child: _bottomNavItem(
+                icon: Icons.shopping_cart_outlined,
+                label: 'Cart',
+                onTap: () {
+                  _onBottomNavigationTap(3);
+                },
+              ),
+            ),
+            Expanded(
+              child: _bottomNavItem(
+                icon: Icons.person_outline,
+                label: 'Profile',
+                onTap: () {
+                  _onBottomNavigationTap(4);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // COLORED PLUS BUTTON
+  // ==========================================================
+
+  Widget _coloredPlusButton() {
+    return GestureDetector(
+      onTap: _openPostVideo,
+      child: Container(
+        width: 70,
+        height: 48,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF00E5FF).withValues(
+                alpha: 0.50,
+              ),
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
+            BoxShadow(
+              color: const Color(0xFFFF2D7A).withValues(
+                alpha: 0.45,
+              ),
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Cyan layer
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(
+                width: 63,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E5FF),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+            ),
+
+            // Pink layer
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(
+                width: 63,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF2D7A),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+            ),
+
+            // White center
+            Positioned(
+              left: 7,
+              right: 7,
+              top: 2,
+              bottom: 2,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.add,
+                    color: Color(0xFF171717),
+                    size: 38,
+                    weight: 800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // BOTTOM NAV ITEM
+  // ==========================================================
+
+  Widget _bottomNavItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: SizedBox(
+        height: 70,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 25,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -411,8 +647,7 @@ class _ReelsVideoItem extends StatefulWidget {
       _ReelsVideoItemState();
 }
 
-class _ReelsVideoItemState
-    extends State<_ReelsVideoItem> {
+class _ReelsVideoItemState extends State<_ReelsVideoItem> {
   VideoPlayerController? _controller;
 
   Timer? _watchTimer;
@@ -535,7 +770,6 @@ class _ReelsVideoItemState
 
       await controller.initialize();
 
-      // Loop video.
       await controller.setLooping(true);
 
       if (!mounted) {
@@ -1048,8 +1282,6 @@ class _ReelsVideoItemState
 
     final user = currentUser;
 
-    // Guest users can watch videos,
-    // but unique view tracking is only for logged-in users.
     if (user == null) {
       return;
     }
@@ -1140,7 +1372,6 @@ class _ReelsVideoItemState
 
       await Share.share(shareText);
 
-      // Count the share after the share action completes.
       final videoRef =
           FirebaseFirestore.instance
               .collection('sellerVideos')
@@ -1541,8 +1772,6 @@ class _ReelsVideoItemState
       return;
     }
 
-    // Kept compatible with the current CartPage
-    // so no unrelated file needs to be changed.
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1660,7 +1889,7 @@ class _ReelsVideoItemState
           left: 0,
           right: 0,
           bottom: 0,
-          height: 280,
+          height: 320,
           child: IgnorePointer(
             child: Container(
               decoration: BoxDecoration(
@@ -1671,7 +1900,7 @@ class _ReelsVideoItemState
                       Alignment.topCenter,
                   colors: [
                     Colors.black.withValues(
-                      alpha: 0.85,
+                      alpha: 0.88,
                     ),
                     Colors.transparent,
                   ],
@@ -1697,7 +1926,7 @@ class _ReelsVideoItemState
 
         Positioned(
           right: 12,
-          bottom: 130,
+          bottom: 155,
           child: Column(
             children: [
               _actionButton(
@@ -1739,7 +1968,7 @@ class _ReelsVideoItemState
         Positioned(
           left: 15,
           right: 75,
-          bottom: 25,
+          bottom: 92,
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
@@ -2059,3 +2288,4 @@ class _ReelsVideoItemState
     );
   }
 }
+
