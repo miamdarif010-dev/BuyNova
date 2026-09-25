@@ -77,7 +77,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ============================================================
   // DELIVERY FEE
-  // Inside Dhaka: à§³60, Outside Dhaka: à§³120
+  // Inside Dhaka: ৳60, Outside Dhaka: ৳120
   // ============================================================
 
   String get _deliveryZone {
@@ -103,7 +103,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         '${address['city'] ?? ''} ${address['district'] ?? ''}'
             .toLowerCase();
 
-    return text.contains('dhaka') || text.contains('à¦¢à¦¾à¦•à¦¾');
+    return text.contains('dhaka') ||
+        text.contains('ঢাকা');
   }
 
   double get _deliveryFee {
@@ -278,7 +279,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // ============================================================
 
   Future<void> _checkCoupon() async {
-    final code = _couponController.text.trim().toUpperCase();
+    final code =
+        _couponController.text.trim().toUpperCase();
 
     if (code.isEmpty) {
       setState(() {
@@ -320,7 +322,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         setState(() {
           _discount = 0;
           _couponCode = null;
-          _couponMessage = 'This coupon is not active.';
+          _couponMessage =
+              'This coupon is not active.';
         });
 
         return;
@@ -330,7 +333,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           (data['discountType'] ?? 'fixed').toString();
 
       final double discountValue =
-          ((data['discountValue'] ?? 0) as num).toDouble();
+          ((data['discountValue'] ?? 0) as num)
+              .toDouble();
 
       double calculatedDiscount = 0;
 
@@ -349,7 +353,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         _discount = calculatedDiscount;
         _couponCode = code;
         _couponMessage =
-            'Coupon applied. Discount: à§³${calculatedDiscount.toStringAsFixed(2)}';
+            'Coupon applied. Discount: ৳${calculatedDiscount.toStringAsFixed(2)}';
       });
     } catch (e) {
       setState(() {
@@ -380,12 +384,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
       await showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Insufficient Wallet Balance'),
+          title: const Text(
+            'Insufficient Wallet Balance',
+          ),
           content: Text(
             'Your BuyNova Wallet balance is '
-            'à§³${_walletBalance.toStringAsFixed(2)}, '
+            '৳${_walletBalance.toStringAsFixed(2)}, '
             'but this order requires '
-            'à§³${grandTotal.toStringAsFixed(2)}.',
+            '৳${grandTotal.toStringAsFixed(2)}.',
           ),
           actions: [
             TextButton(
@@ -485,12 +491,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'quantity': item.quantity,
           'total': item.total,
           'imageUrl': item.imageUrl,
-          'isResellerProduct': item.isResellerProduct,
-          'entrepreneurUid': item.entrepreneurUid,
+          'isResellerProduct':
+              item.isResellerProduct,
+          'entrepreneurUid':
+              item.entrepreneurUid,
           'sellerId': item.sellerId,
-          'supplierProductId': item.supplierProductId,
-          'supplierPrice': item.supplierPrice,
-          'resellerProfit': item.resellerProfit,
+          'supplierProductId':
+              item.supplierProductId,
+          'supplierPrice':
+              item.supplierPrice,
+          'resellerProfit':
+              item.resellerProfit,
         });
       }
 
@@ -511,15 +522,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
         'paymentStatus': 'pending',
         'orderStatus': 'placed',
         'address': _selectedAddress,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt':
+            FieldValue.serverTimestamp(),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
       };
 
       // ----------------------------------------------------------
       // GROUP SELLER ORDERS
       // ----------------------------------------------------------
 
-      final Map<String, List<CheckoutItem>> sellerGroups = {};
+      final Map<String, List<CheckoutItem>>
+          sellerGroups = {};
 
       for (final item in widget.items) {
         if (item.isResellerProduct) continue;
@@ -534,11 +548,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 .get();
 
             if (productDoc.exists) {
-              final productData = productDoc.data();
+              final productData =
+                  productDoc.data();
 
               sellerId =
-                  productData?['sellerId']?.toString() ??
-                  productData?['ownerId']?.toString();
+                  productData?['sellerId']
+                          ?.toString() ??
+                      productData?['ownerId']
+                          ?.toString();
             }
           } catch (_) {}
         }
@@ -559,7 +576,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // GROUP RESELLER ORDERS
       // ----------------------------------------------------------
 
-      final Map<String, List<CheckoutItem>> resellerGroups = {};
+      final Map<String, List<CheckoutItem>>
+          resellerGroups = {};
 
       for (final item in widget.items) {
         if (!item.isResellerProduct) continue;
@@ -594,23 +612,28 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // SELLER ORDERS
       // ----------------------------------------------------------
 
-      for (final entry in sellerGroups.entries) {
+      for (final entry
+          in sellerGroups.entries) {
         final sellerId = entry.key;
         final items = entry.value;
 
-        final sellerSubtotal = items.fold<double>(
+        final sellerSubtotal =
+            items.fold<double>(
           0,
           (sum, item) => sum + item.total,
         );
 
         final sellerOrderRef =
-            _firestore.collection('seller_orders').doc();
+            _firestore
+                .collection('seller_orders')
+                .doc();
 
         batch.set(
           sellerOrderRef,
           {
             'orderId': orderId,
-            'sellerOrderId': sellerOrderRef.id,
+            'sellerOrderId':
+                sellerOrderRef.id,
             'sellerId': sellerId,
             'buyerId': user.uid,
             'customerId': user.uid,
@@ -627,11 +650,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
             }).toList(),
             'subtotal': sellerSubtotal,
             'currency': 'BDT',
-            'paymentMethod': _paymentMethod,
+            'paymentMethod':
+                _paymentMethod,
             'paymentStatus': 'pending',
             'orderStatus': 'placed',
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
+            'createdAt':
+                FieldValue.serverTimestamp(),
+            'updatedAt':
+                FieldValue.serverTimestamp(),
           },
         );
       }
@@ -640,23 +666,28 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // RESELLER / ENTREPRENEUR ORDERS
       // ----------------------------------------------------------
 
-      for (final entry in resellerGroups.entries) {
+      for (final entry
+          in resellerGroups.entries) {
         final items = entry.value;
 
         if (items.isEmpty) continue;
 
         final entrepreneurUid =
-            items.first.entrepreneurUid ?? user.uid;
+            items.first.entrepreneurUid ??
+                user.uid;
 
         final sellerId =
-            items.first.sellerId ?? 'unknown_seller';
+            items.first.sellerId ??
+                'unknown_seller';
 
-        final sellingTotal = items.fold<double>(
+        final sellingTotal =
+            items.fold<double>(
           0,
           (sum, item) => sum + item.total,
         );
 
-        final supplierTotal = items.fold<double>(
+        final supplierTotal =
+            items.fold<double>(
           0,
           (sum, item) {
             final supplierPrice =
@@ -671,7 +702,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
             sellingTotal - supplierTotal;
 
         final resellerOrderRef =
-            _firestore.collection('reseller_orders').doc();
+            _firestore
+                .collection('reseller_orders')
+                .doc();
 
         batch.set(
           resellerOrderRef,
@@ -686,12 +719,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'userId': user.uid,
             'sellerId': sellerId,
             'customerName':
-                _selectedAddress?['name']?.toString() ?? '',
+                _selectedAddress?['name']
+                        ?.toString() ??
+                    '',
             'customerPhone':
-                _selectedAddress?['phone']?.toString() ?? '',
+                _selectedAddress?['phone']
+                        ?.toString() ??
+                    '',
             'address':
-                _selectedAddress?['address']?.toString() ?? '',
-            'deliveryZone': _deliveryZone,
+                _selectedAddress?['address']
+                        ?.toString() ??
+                    '',
+            'deliveryZone':
+                _deliveryZone,
             'items': items.map((item) {
               return {
                 'productId': item.id,
@@ -708,16 +748,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     item.resellerProfit,
               };
             }).toList(),
-            'sellingTotal': sellingTotal,
-            'supplierTotal': supplierTotal,
-            'resellerProfit': resellerProfit,
-            'profit': resellerProfit,
+            'sellingTotal':
+                sellingTotal,
+            'supplierTotal':
+                supplierTotal,
+            'resellerProfit':
+                resellerProfit,
+            'profit':
+                resellerProfit,
             'currency': 'BDT',
-            'paymentMethod': _paymentMethod,
+            'paymentMethod':
+                _paymentMethod,
             'paymentStatus': 'pending',
             'orderStatus': 'placed',
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
+            'createdAt':
+                FieldValue.serverTimestamp(),
+            'updatedAt':
+                FieldValue.serverTimestamp(),
           },
         );
       }
@@ -732,7 +779,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // BUY NOVA WALLET PAYMENT
       // ----------------------------------------------------------
 
-      if (_paymentMethod == 'BuyNova Wallet') {
+      if (_paymentMethod ==
+          'BuyNova Wallet') {
         final callable =
             FirebaseFunctions.instanceFor(
           region: 'asia-northeast3',
@@ -740,7 +788,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'placeWalletOrder',
         );
 
-        final result = await callable.call({
+        final result =
+            await callable.call({
           'orderId': orderId,
         });
 
@@ -751,7 +800,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
         final bool success =
             resultData['success'] == true ||
-            resultData['alreadyPaid'] == true;
+                resultData['alreadyPaid'] ==
+                    true;
 
         if (!success) {
           throw Exception(
@@ -785,7 +835,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ],
           ),
           content: Text(
-            _paymentMethod == 'BuyNova Wallet'
+            _paymentMethod ==
+                    'BuyNova Wallet'
                 ? 'Your order has been placed and paid successfully using BuyNova Wallet.'
                 : 'Your order has been placed successfully.',
           ),
@@ -794,7 +845,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: const Text('Continue'),
+              child:
+                  const Text('Continue'),
             ),
           ],
         ),
@@ -805,7 +857,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const MyOrdersPage(),
+          builder: (_) =>
+              const MyOrdersPage(),
         ),
       );
     } catch (e) {
@@ -816,20 +869,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       final errorText = e.toString();
 
-      if (errorText.contains('insufficient') ||
-          errorText.contains('Insufficient')) {
+      if (errorText.contains(
+              'insufficient') ||
+          errorText.contains(
+              'Insufficient')) {
         message =
             'Your BuyNova Wallet balance is not enough for this order.';
-      } else if (errorText.contains('unauthenticated')) {
+      } else if (errorText.contains(
+          'unauthenticated')) {
         message = 'Please login again.';
-      } else if (errorText.contains('not-found')) {
-        message = 'Order or Wallet service was not found.';
+      } else if (errorText.contains(
+          'not-found')) {
+        message =
+            'Order or Wallet service was not found.';
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(message),
-          duration: const Duration(seconds: 4),
+          duration:
+              const Duration(seconds: 4),
         ),
       );
     } finally {
@@ -877,7 +937,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
         content: Text(message),
       ),
@@ -887,28 +948,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget _buildAddressCard() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.location_on),
+                const Icon(
+                  Icons.location_on,
+                ),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'Delivery Address',
                     style: TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                 ),
                 TextButton(
-                  onPressed: _openAddressBook,
+                  onPressed:
+                      _openAddressBook,
                   child: Text(
-                    _selectedAddress == null
+                    _selectedAddress ==
+                            null
                         ? 'Add'
                         : 'Change',
                   ),
@@ -932,32 +999,43 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   Widget _buildAddressText() {
-    final address = _selectedAddress!;
+    final address =
+        _selectedAddress!;
 
     final name =
-        address['name']?.toString() ?? '';
+        address['name']?.toString() ??
+            '';
 
     final phone =
-        address['phone']?.toString() ?? '';
+        address['phone']?.toString() ??
+            '';
 
     final line1 =
-        address['address']?.toString() ??
-        address['addressLine1']?.toString() ??
-        '';
+        address['address']
+                ?.toString() ??
+            address['addressLine1']
+                ?.toString() ??
+            '';
 
     final city =
-        address['city']?.toString() ?? '';
+        address['city']?.toString() ??
+            '';
 
     final postalCode =
-        address['postalCode']?.toString() ??
-        address['zipCode']?.toString() ??
-        '';
+        address['postalCode']
+                ?.toString() ??
+            address['zipCode']
+                ?.toString() ??
+            '';
 
-    final zoneText = _deliveryZone == 'inside_dhaka'
-        ? 'Inside Dhaka'
-        : _deliveryZone == 'outside_dhaka'
-            ? 'Outside Dhaka'
-            : '';
+    final zoneText =
+        _deliveryZone ==
+                'inside_dhaka'
+            ? 'Inside Dhaka'
+            : _deliveryZone ==
+                    'outside_dhaka'
+                ? 'Outside Dhaka'
+                : '';
 
     return Column(
       crossAxisAlignment:
@@ -966,34 +1044,45 @@ class _CheckoutPageState extends State<CheckoutPage> {
         if (name.isNotEmpty)
           Text(
             name,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
+            style:
+                const TextStyle(
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
         if (phone.isNotEmpty)
           Padding(
             padding:
-                const EdgeInsets.only(top: 3),
+                const EdgeInsets.only(
+              top: 3,
+            ),
             child: Text(phone),
           ),
         if (line1.isNotEmpty)
           Padding(
             padding:
-                const EdgeInsets.only(top: 3),
+                const EdgeInsets.only(
+              top: 3,
+            ),
             child: Text(line1),
           ),
         if (city.isNotEmpty ||
             postalCode.isNotEmpty)
           Padding(
             padding:
-                const EdgeInsets.only(top: 3),
+                const EdgeInsets.only(
+              top: 3,
+            ),
             child: Text(
               '$city ${postalCode.isNotEmpty ? postalCode : ''}'
                   .trim(),
             ),
           ),
         Padding(
-          padding: const EdgeInsets.only(top: 3),
+          padding:
+              const EdgeInsets.only(
+            top: 3,
+          ),
           child: Text(
             zoneText.isEmpty
                 ? 'Delivery area not set. Tap Change, then edit '
@@ -1014,7 +1103,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget _buildPaymentSection() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -1023,59 +1113,75 @@ class _CheckoutPageState extends State<CheckoutPage> {
               'Payment Method',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
             const SizedBox(height: 10),
 
             RadioGroup<String>(
-              groupValue: _paymentMethod,
-              onChanged: (value) async {
-                if (value == null) return;
+              groupValue:
+                  _paymentMethod,
+              onChanged:
+                  (value) async {
+                if (value == null) {
+                  return;
+                }
 
                 setState(() {
-                  _paymentMethod = value;
+                  _paymentMethod =
+                      value;
                 });
 
-                if (value == 'BuyNova Wallet') {
+                if (value ==
+                    'BuyNova Wallet') {
                   await _loadWalletBalance();
                 }
               },
               child: Column(
                 children: [
                   RadioListTile<String>(
-                    value: 'Cash on Delivery',
+                    value:
+                        'Cash on Delivery',
                     title: const Text(
                       'Cash on Delivery',
                     ),
-                    subtitle: const Text(
+                    subtitle:
+                        const Text(
                       'Pay when your order arrives.',
                     ),
-                    secondary: const Icon(
-                      Icons.local_shipping,
+                    secondary:
+                        const Icon(
+                      Icons
+                          .local_shipping,
                     ),
                   ),
                   RadioListTile<String>(
-                    value: 'BuyNova Wallet',
+                    value:
+                        'BuyNova Wallet',
                     title: const Text(
                       'BuyNova Wallet',
                     ),
-                    subtitle: _loadingWalletBalance
-                        ? const Text(
-                            'Checking wallet balance...',
-                          )
-                        : Text(
-                            'Balance: '
-                            'à§³${_walletBalance.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              color:
-                                  Colors.green,
-                              fontWeight:
-                                  FontWeight.w600,
-                            ),
-                          ),
-                    secondary: const Icon(
-                      Icons.account_balance_wallet,
+                    subtitle:
+                        _loadingWalletBalance
+                            ? const Text(
+                                'Checking wallet balance...',
+                              )
+                            : Text(
+                                'Balance: '
+                                '৳${_walletBalance.toStringAsFixed(2)}',
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.green,
+                                  fontWeight:
+                                      FontWeight.w600,
+                                ),
+                              ),
+                    secondary:
+                        const Icon(
+                      Icons
+                          .account_balance_wallet,
                     ),
                   ),
                 ],
@@ -1086,30 +1192,44 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 'BuyNova Wallet') ...[
               const SizedBox(height: 6),
               Container(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.all(12),
-                decoration: BoxDecoration(
+                    const EdgeInsets.all(
+                  12,
+                ),
+                decoration:
+                    BoxDecoration(
                   borderRadius:
-                      BorderRadius.circular(12),
-                  color: _walletHasEnoughBalance
-                      ? Colors.green
-                          .withValues(alpha: 0.08)
-                      : Colors.red
-                          .withValues(alpha: 0.08),
+                      BorderRadius.circular(
+                    12,
+                  ),
+                  color:
+                      _walletHasEnoughBalance
+                          ? Colors.green
+                              .withValues(
+                              alpha: 0.08,
+                            )
+                          : Colors.red
+                              .withValues(
+                              alpha: 0.08,
+                            ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       _walletHasEnoughBalance
-                          ? Icons.check_circle
+                          ? Icons
+                              .check_circle
                           : Icons.warning,
                       color:
                           _walletHasEnoughBalance
                               ? Colors.green
                               : Colors.red,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(
+                      width: 10,
+                    ),
                     Expanded(
                       child: Text(
                         _walletHasEnoughBalance
@@ -1121,7 +1241,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ? Colors.green
                                   : Colors.red,
                           fontWeight:
-                              FontWeight.w600,
+                              FontWeight
+                                  .w600,
                         ),
                       ),
                     ),
@@ -1138,7 +1259,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget _buildCouponSection() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -1147,7 +1269,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
               'Coupon',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
             const SizedBox(height: 10),
@@ -1158,7 +1281,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     controller:
                         _couponController,
                     textCapitalization:
-                        TextCapitalization.characters,
+                        TextCapitalization
+                            .characters,
                     decoration:
                         const InputDecoration(
                       hintText:
@@ -1168,34 +1292,42 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(
+                  width: 10,
+                ),
                 ElevatedButton(
                   onPressed:
                       _checkingCoupon
                           ? null
                           : _checkCoupon,
-                  child: _checkingCoupon
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text('Apply'),
+                  child:
+                      _checkingCoupon
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth:
+                                    2,
+                              ),
+                            )
+                          : const Text(
+                              'Apply',
+                            ),
                 ),
               ],
             ),
-            if (_couponMessage != null) ...[
-              const SizedBox(height: 8),
+            if (_couponMessage !=
+                null) ...[
+              const SizedBox(
+                height: 8,
+              ),
               Text(
                 _couponMessage!,
                 style: TextStyle(
-                  color:
-                      _discount > 0
-                          ? Colors.green
-                          : Colors.red,
+                  color: _discount > 0
+                      ? Colors.green
+                      : Colors.red,
                 ),
               ),
             ],
@@ -1208,7 +1340,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget _buildOrderItems() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -1217,10 +1350,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
               'Order Items',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
             ...widget.items.map(
               (item) {
                 return Padding(
@@ -1236,13 +1372,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         decoration:
                             BoxDecoration(
                           borderRadius:
-                              BorderRadius.circular(
+                              BorderRadius
+                                  .circular(
                             10,
                           ),
-                          color:
-                              Colors.grey.shade200,
+                          color: Colors
+                              .grey
+                              .shade200,
                         ),
-                        child: item.imageUrl !=
+                        child: item
+                                        .imageUrl !=
                                     null &&
                                 item.imageUrl!
                                     .isNotEmpty
@@ -1255,9 +1394,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 child:
                                     Image.network(
                                   item.imageUrl!,
-                                  fit: BoxFit.cover,
+                                  fit: BoxFit
+                                      .cover,
                                   errorBuilder:
-                                      (_, __, ___) {
+                                      (
+                                    _,
+                                    __,
+                                    ___,
+                                  ) {
                                     return const Icon(
                                       Icons
                                           .image_not_supported,
@@ -1266,10 +1410,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 ),
                               )
                             : const Icon(
-                                Icons.shopping_bag,
+                                Icons
+                                    .shopping_bag,
                               ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(
+                        width: 12,
+                      ),
                       Expanded(
                         child: Column(
                           crossAxisAlignment:
@@ -1285,7 +1432,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               style:
                                   const TextStyle(
                                 fontWeight:
-                                    FontWeight.w600,
+                                    FontWeight
+                                        .w600,
                               ),
                             ),
                             const SizedBox(
@@ -1303,7 +1451,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ),
                       ),
                       Text(
-                        'à§³${item.total.toStringAsFixed(2)}',
+                        '৳${item.total.toStringAsFixed(2)}',
                         style:
                             const TextStyle(
                           fontWeight:
@@ -1324,14 +1472,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget _buildSummary() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           children: [
             _summaryRow(
               'Subtotal',
               subtotal,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(
+              height: 8,
+            ),
             _summaryRow(
               _hasDeliveryZone
                   ? 'Delivery Fee (${_isInsideDhaka ? 'Inside' : 'Outside'} Dhaka)'
@@ -1339,30 +1490,38 @@ class _CheckoutPageState extends State<CheckoutPage> {
               _deliveryFee,
             ),
             if (_discount > 0) ...[
-              const SizedBox(height: 8),
+              const SizedBox(
+                height: 8,
+              ),
               _summaryRow(
                 'Discount',
                 -_discount,
                 color: Colors.green,
               ),
             ],
-            const Divider(height: 24),
+            const Divider(
+              height: 24,
+            ),
             Row(
               mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+                  MainAxisAlignment
+                      .spaceBetween,
               children: [
                 const Text(
                   'Grand Total',
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
                 Text(
-                  'à§³${grandTotal.toStringAsFixed(2)}',
-                  style: const TextStyle(
+                  '৳${grandTotal.toStringAsFixed(2)}',
+                  style:
+                      const TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ],
@@ -1378,15 +1537,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
     double value, {
     Color? color,
   }) {
-    final prefix = value < 0 ? '- ' : '';
+    final prefix =
+        value < 0 ? '- ' : '';
 
     return Row(
       mainAxisAlignment:
-          MainAxisAlignment.spaceBetween,
+          MainAxisAlignment
+              .spaceBetween,
       children: [
         Text(title),
         Text(
-          '$prefixà§³${value.abs().toStringAsFixed(2)}',
+          '$prefix৳${value.abs().toStringAsFixed(2)}',
           style: TextStyle(
             color: color,
             fontWeight:
@@ -1403,12 +1564,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Checkout'),
+        title:
+            const Text('Checkout'),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(12),
+          padding:
+              const EdgeInsets.all(12),
           children: [
             _buildAddressCard(),
             const SizedBox(height: 12),
@@ -1438,14 +1601,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         height: 24,
                         child:
                             CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
+                          strokeWidth:
+                              2.5,
+                          color:
+                              Colors.white,
                         ),
                       )
                     : Text(
                         _paymentMethod ==
                                 'BuyNova Wallet'
-                            ? 'Pay à§³${grandTotal.toStringAsFixed(2)} with Wallet'
+                            ? 'Pay ৳${grandTotal.toStringAsFixed(2)} with Wallet'
                             : 'Place Order',
                         style:
                             const TextStyle(
@@ -1457,7 +1622,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(
+              height: 30,
+            ),
           ],
         ),
       ),
