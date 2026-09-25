@@ -84,7 +84,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
   void _onBottomNavigationTap(int index) {
     switch (index) {
       case 0:
-        // Return to the Home Page.
         Navigator.of(context).popUntil(
           (route) => route.isFirst,
         );
@@ -100,7 +99,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
         break;
 
       case 2:
-        // The center + button opens Add Video.
         _openPostVideo();
         break;
 
@@ -129,6 +127,43 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
   }
 
   // ==========================================================
+  // SORT VIDEOS LOCALLY
+  //
+  // Firestore query এখন composite index ছাড়াই করা হচ্ছে।
+  // এখানে createdAt অনুযায়ী নতুন ভিডিও আগে সাজানো হচ্ছে।
+  // ==========================================================
+
+  List<QueryDocumentSnapshot> _sortVideos(
+    List<QueryDocumentSnapshot> documents,
+  ) {
+    final docs = List<QueryDocumentSnapshot>.from(documents);
+
+    docs.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+
+      final aTime = aData['createdAt'];
+      final bTime = bData['createdAt'];
+
+      if (aTime is Timestamp && bTime is Timestamp) {
+        return bTime.compareTo(aTime);
+      }
+
+      if (aTime is Timestamp) {
+        return -1;
+      }
+
+      if (bTime is Timestamp) {
+        return 1;
+      }
+
+      return 0;
+    });
+
+    return docs;
+  }
+
+  // ==========================================================
   // BUILD
   // ==========================================================
 
@@ -138,17 +173,27 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
       backgroundColor: Colors.black,
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot>(
+          // ====================================================
+          // IMPORTANT:
+          // orderBy('createdAt') এখানে ইচ্ছাকৃতভাবে নেই।
+          //
+          // কারণ:
+          // status == published + orderBy(createdAt)
+          // composite index চাইতে পারে।
+          //
+          // এখন শুধু published ভিডিও নেওয়া হচ্ছে এবং
+          // _sortVideos() দিয়ে Dart-এ createdAt অনুযায়ী
+          // সাজানো হচ্ছে।
+          // ====================================================
+
           stream: FirebaseFirestore.instance
               .collection('sellerVideos')
               .where(
                 'status',
                 isEqualTo: 'published',
               )
-              .orderBy(
-                'createdAt',
-                descending: true,
-              )
               .snapshots(),
+
           builder: (context, snapshot) {
             if (snapshot.connectionState ==
                 ConnectionState.waiting) {
@@ -224,7 +269,17 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
               );
             }
 
-            final docs = snapshot.data?.docs ?? [];
+            // ==================================================
+            // GET + SORT VIDEOS LOCALLY
+            // ==================================================
+
+            final rawDocs = snapshot.data?.docs ?? [];
+
+            final docs = _sortVideos(rawDocs);
+
+            // ==================================================
+            // NO VIDEOS
+            // ==================================================
 
             if (docs.isEmpty) {
               return Stack(
@@ -290,6 +345,10 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 ],
               );
             }
+
+            // ==================================================
+            // VIDEO FEED
+            // ==================================================
 
             return Stack(
               children: [
@@ -460,7 +519,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
         ),
         child: Stack(
           children: [
-            // Cyan layer
             Positioned(
               left: 0,
               top: 0,
@@ -473,8 +531,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 ),
               ),
             ),
-
-            // Pink layer
             Positioned(
               right: 0,
               top: 0,
@@ -487,8 +543,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 ),
               ),
             ),
-
-            // White center
             Positioned(
               left: 7,
               right: 7,
@@ -1792,7 +1846,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
   }
 
   // ==========================================================
-  // BUILD
+  // BUILD REELS ITEM
   // ==========================================================
 
   @override
@@ -1839,9 +1893,9 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                     child: AspectRatio(
                       aspectRatio:
                           _controller!
-                              .value
-                              .aspectRatio >
-                          0
+                                      .value
+                                      .aspectRatio >
+                                  0
                               ? _controller!
                                   .value
                                   .aspectRatio
@@ -2288,4 +2342,3 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     );
   }
 }
-
