@@ -23,7 +23,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
   // =========================================================
 
   static const String _cloudName = 'riassg6d';
-  static const String _uploadPreset = 'buynova_products';
+  static const String _uploadPreset = 'buynova_upload';
 
   // Maximum allowed video file size (in bytes). 60 MB.
   static const int _maxVideoBytes = 60 * 1024 * 1024;
