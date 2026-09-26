@@ -8,9 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import 'login_page.dart';
 import 'cart_page.dart';
-import 'add_seller_video_page.dart';
 import 'watch_earn_page.dart';
-import 'categories_page.dart';
 import 'user_profile_page.dart';
 
 class NewsFeedPage extends StatefulWidget {
@@ -38,8 +36,8 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     final sorted = List<QueryDocumentSnapshot>.from(docs);
 
     sorted.sort((a, b) {
-      final aData = a.data() as Map<String, dynamic>;
-      final bData = b.data() as Map<String, dynamic>;
+      final aData = a.data();
+      final bData = b.data();
 
       final aTimestamp = aData['createdAt'];
       final bTimestamp = bData['createdAt'];
@@ -132,6 +130,20 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
 
           final docs = _sortVideos(rawDocs);
 
+          if (_currentPage >= docs.length) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+
+              final newIndex = docs.isEmpty ? 0 : docs.length - 1;
+
+              if (_currentPage != newIndex) {
+                setState(() {
+                  _currentPage = newIndex;
+                });
+              }
+            });
+          }
+
           return Stack(
             children: [
               PageView.builder(
@@ -147,7 +159,7 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 },
                 itemBuilder: (context, index) {
                   final doc = docs[index];
-                  final data = doc.data() as Map<String, dynamic>;
+                  final data = doc.data();
 
                   return _ReelsVideoItem(
                     key: ValueKey(doc.id),
@@ -158,7 +170,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                   );
                 },
               ),
-
               Positioned(
                 top: 8,
                 left: 10,
@@ -177,7 +188,7 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.55),
+                        color: Colors.black.withValues(alpha: 0.55),
                         borderRadius: BorderRadius.circular(22),
                       ),
                       child: const Row(
@@ -202,7 +213,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                   ),
                 ),
               ),
-
               Positioned(
                 top: 10,
                 right: 10,
@@ -475,11 +485,11 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             return;
           }
 
-          final data =
-              videoSnapshot.data() as Map<String, dynamic>?;
+          final data = videoSnapshot.data();
 
-          final currentCount =
-              _toInt(data?['viewCount']);
+          final currentCount = _toInt(
+            data?['viewCount'],
+          );
 
           transaction.set(viewRef, {
             'userId': user.uid,
@@ -551,10 +561,11 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
 
           if (!videoSnapshot.exists) return;
 
-          final data =
-              videoSnapshot.data() as Map<String, dynamic>?;
+          final data = videoSnapshot.data();
 
-          int count = _toInt(data?['likeCount']);
+          int count = _toInt(
+            data?['likeCount'],
+          );
 
           if (likeSnapshot.exists) {
             transaction.delete(likeRef);
@@ -610,9 +621,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       builder: (sheetContext) {
         return Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetContext)
-                .viewInsets
-                .bottom,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
           ),
           child: SafeArea(
             child: SizedBox(
@@ -667,8 +676,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                           );
                         }
 
-                        final docs =
-                            snapshot.data?.docs ?? [];
+                        final docs = snapshot.data?.docs ?? [];
 
                         if (docs.isEmpty) {
                           return const Center(
@@ -681,12 +689,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                         return ListView.builder(
                           itemCount: docs.length,
                           itemBuilder: (context, index) {
-                            final data = docs[index].data()
-                                as Map<String, dynamic>;
+                            final data = docs[index].data();
 
                             final name =
-                                data['userName']?.toString() ??
-                                    'User';
+                                data['userName']?.toString() ?? 'User';
 
                             final text =
                                 data['text']?.toString() ?? '';
@@ -723,8 +729,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                             decoration: InputDecoration(
                               hintText: 'Write a comment...',
                               border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(25),
+                                borderRadius: BorderRadius.circular(25),
                               ),
                             ),
                           ),
@@ -732,8 +737,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                         const SizedBox(width: 8),
                         IconButton(
                           onPressed: () async {
-                            final text =
-                                controller.text.trim();
+                            final text = controller.text.trim();
 
                             if (text.isEmpty) return;
 
@@ -748,8 +752,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                               await commentRef.set({
                                 'userId': user.uid,
                                 'userName':
-                                    user.displayName ??
-                                        'BuyNova User',
+                                    user.displayName ?? 'BuyNova User',
                                 'text': text,
                                 'createdAt':
                                     FieldValue.serverTimestamp(),
@@ -862,8 +865,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
         builder: (_) => UserProfilePage(
           userId: sellerId,
           initialName: sellerName,
-          initialProfileImageUrl:
-              sellerProfileImageUrl,
+          initialProfileImageUrl: sellerProfileImageUrl,
         ),
       ),
     );
@@ -925,8 +927,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             },
             child: Center(
               child: AspectRatio(
-                aspectRatio:
-                    controller.value.aspectRatio,
+                aspectRatio: controller.value.aspectRatio,
                 child: VideoPlayer(controller),
               ),
             ),
@@ -945,7 +946,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.9),
+                    Colors.black.withValues(alpha: 0.9),
                   ],
                 ),
               ),
@@ -970,7 +971,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                 vertical: 8,
               ),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.55),
+                color: Colors.black.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: const Row(
@@ -994,7 +995,6 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
           ),
         ),
 
-        // RIGHT SIDE ACTION BUTTONS
         Positioned(
           right: 12,
           bottom: 22,
@@ -1022,9 +1022,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                 _actionButton(
                   icon: Icons.share,
                   label: _shareCount.toString(),
-                  onTap: _isSharing
-                      ? () {}
-                      : _shareVideo,
+                  onTap: _isSharing ? () {} : _shareVideo,
                 ),
                 const SizedBox(height: 14),
                 _actionButton(
@@ -1037,47 +1035,41 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
           ),
         ),
 
-        // PROFILE + VIDEO INFORMATION
         Positioned(
           left: 15,
           right: 80,
           bottom: 22,
           child: SafeArea(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // SELLER PROFILE
                 GestureDetector(
                   onTap: _openSellerProfile,
                   child: Row(
                     children: [
                       CircleAvatar(
                         radius: 20,
-                        backgroundColor:
-                            Colors.grey.shade800,
+                        backgroundColor: Colors.grey.shade800,
                         backgroundImage:
                             sellerProfileImageUrl.isNotEmpty
                                 ? NetworkImage(
                                     sellerProfileImageUrl,
                                   )
                                 : null,
-                        child:
-                            sellerProfileImageUrl.isEmpty
-                                ? const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                  )
-                                : null,
+                        child: sellerProfileImageUrl.isEmpty
+                            ? const Icon(
+                                Icons.person,
+                                color: Colors.white,
+                              )
+                            : null,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           sellerName,
                           maxLines: 1,
-                          overflow:
-                              TextOverflow.ellipsis,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -1094,9 +1086,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
                 if (caption.isNotEmpty)
                   Text(
                     caption,
@@ -1107,7 +1097,6 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                       fontSize: 14,
                     ),
                   ),
-
                 if (productName.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   GestureDetector(
@@ -1118,9 +1107,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius:
-                            BorderRadius.circular(10),
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: Colors.white24,
                         ),
@@ -1140,12 +1128,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                                   ? productName
                                   : '$productName • $productPrice',
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight:
-                                    FontWeight.w600,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -1176,7 +1162,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.35),
+              color: Colors.black.withValues(alpha: 0.35),
               shape: BoxShape.circle,
             ),
             child: Icon(
