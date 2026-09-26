@@ -17,6 +17,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isLoading = false;
   bool _isResettingPassword = false;
+  bool _isResendingVerification = false;
   bool _obscurePassword = true;
 
   @override
@@ -28,10 +29,15 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      _showMessage('Please enter your email and password.');
+    if (email.isEmpty) {
+      _showMessage('Please enter your email address.');
+      return;
+    }
+
+    if (password.isEmpty) {
+      _showMessage('Please enter your password.');
       return;
     }
 
@@ -40,10 +46,37 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final credential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+
+      final user = credential.user;
+
+      if (user == null) {
+        _showMessage('Unable to login. Please try again.');
+        return;
+      }
+
+      await user.reload();
+
+      final refreshedUser = FirebaseAuth.instance.currentUser;
+
+      if (refreshedUser == null) {
+        _showMessage('Unable to verify your account.');
+        return;
+      }
+
+      if (!refreshedUser.emailVerified) {
+        await FirebaseAuth.instance.signOut();
+
+        if (!mounted) return;
+
+        await _showVerificationDialog(email);
+
+        return;
+      }
 
       if (!mounted) return;
 
@@ -85,6 +118,121 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showVerificationDialog(String email) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Email Verification Required'),
+          content: Text(
+            'Please verify your email address before logging in.\n\n'
+            'Verification email: $email',
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isResendingVerification
+                  ? null
+                  : () {
+                      Navigator.of(dialogContext).pop();
+                    },
+              child: const Text('Close'),
+            ),
+            TextButton(
+              onPressed: _isResendingVerification
+                  ? null
+                  : () async {
+                      await _resendVerificationEmail(
+                        email,
+                        dialogContext,
+                      );
+                    },
+              child: _isResendingVerification
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text('Resend Email'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _resendVerificationEmail(
+    String email,
+    BuildContext dialogContext,
+  ) async {
+    setState(() {
+      _isResendingVerification = true;
+    });
+
+    try {
+      final credential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: _passwordController.text,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'verification-failed',
+        );
+      }
+
+      await user.sendEmailVerification();
+
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      Navigator.of(dialogContext).pop();
+
+      _showMessage(
+        'A new verification email has been sent.',
+        isError: false,
+      );
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Unable to resend verification email.';
+
+      switch (e.code) {
+        case 'invalid-email':
+          errorMessage = 'Please enter a valid email address.';
+          break;
+        case 'wrong-password':
+          errorMessage = 'The password is incorrect.';
+          break;
+        case 'invalid-credential':
+          errorMessage = 'Invalid email or password.';
+          break;
+        case 'too-many-requests':
+          errorMessage = 'Too many requests. Please try again later.';
+          break;
+        case 'network-request-failed':
+          errorMessage = 'Network error. Please check your connection.';
+          break;
+      }
+
+      if (mounted) {
+        _showMessage(errorMessage);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResendingVerification = false;
         });
       }
     }
