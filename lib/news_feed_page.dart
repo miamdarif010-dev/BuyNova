@@ -20,6 +20,7 @@ class NewsFeedPage extends StatefulWidget {
 
 class _NewsFeedPageState extends State<NewsFeedPage> {
   final PageController _pageController = PageController();
+
   int _currentPage = 0;
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
@@ -30,14 +31,22 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     super.dispose();
   }
 
+  Map<String, dynamic> _toMap(Object? value) {
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return <String, dynamic>{};
+  }
+
   List<QueryDocumentSnapshot> _sortVideos(
     List<QueryDocumentSnapshot> docs,
   ) {
     final sorted = List<QueryDocumentSnapshot>.from(docs);
 
     sorted.sort((a, b) {
-      final aData = a.data();
-      final bData = b.data();
+      final aData = _toMap(a.data());
+      final bData = _toMap(b.data());
 
       final aTimestamp = aData['createdAt'];
       final bTimestamp = bData['createdAt'];
@@ -134,13 +143,9 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
 
-              final newIndex = docs.isEmpty ? 0 : docs.length - 1;
-
-              if (_currentPage != newIndex) {
-                setState(() {
-                  _currentPage = newIndex;
-                });
-              }
+              setState(() {
+                _currentPage = docs.isEmpty ? 0 : docs.length - 1;
+              });
             });
           }
 
@@ -159,7 +164,8 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 },
                 itemBuilder: (context, index) {
                   final doc = docs[index];
-                  final data = doc.data();
+
+                  final data = _toMap(doc.data());
 
                   return _ReelsVideoItem(
                     key: ValueKey(doc.id),
@@ -170,6 +176,7 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                   );
                 },
               ),
+
               Positioned(
                 top: 8,
                 left: 10,
@@ -213,6 +220,7 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                   ),
                 ),
               ),
+
               Positioned(
                 top: 10,
                 right: 10,
@@ -491,14 +499,20 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             data?['viewCount'],
           );
 
-          transaction.set(viewRef, {
-            'userId': user.uid,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
+          transaction.set(
+            viewRef,
+            {
+              'userId': user.uid,
+              'createdAt': FieldValue.serverTimestamp(),
+            },
+          );
 
-          transaction.update(videoRef, {
-            'viewCount': currentCount + 1,
-          });
+          transaction.update(
+            videoRef,
+            {
+              'viewCount': currentCount + 1,
+            },
+          );
         },
       );
 
@@ -559,7 +573,9 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
           final likeSnapshot = await transaction.get(likeRef);
           final videoSnapshot = await transaction.get(videoRef);
 
-          if (!videoSnapshot.exists) return;
+          if (!videoSnapshot.exists) {
+            return;
+          }
 
           final data = videoSnapshot.data();
 
@@ -574,17 +590,23 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
               count--;
             }
           } else {
-            transaction.set(likeRef, {
-              'userId': user.uid,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
+            transaction.set(
+              likeRef,
+              {
+                'userId': user.uid,
+                'createdAt': FieldValue.serverTimestamp(),
+              },
+            );
 
             count++;
           }
 
-          transaction.update(videoRef, {
-            'likeCount': count,
-          });
+          transaction.update(
+            videoRef,
+            {
+              'likeCount': count,
+            },
+          );
         },
       );
 
@@ -689,10 +711,13 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                         return ListView.builder(
                           itemCount: docs.length,
                           itemBuilder: (context, index) {
-                            final data = docs[index].data();
+                            final data = _toMap(
+                              docs[index].data(),
+                            );
 
                             final name =
-                                data['userName']?.toString() ?? 'User';
+                                data['userName']?.toString() ??
+                                    'User';
 
                             final text =
                                 data['text']?.toString() ?? '';
@@ -749,24 +774,29 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                                       .collection('comments')
                                       .doc();
 
-                              await commentRef.set({
-                                'userId': user.uid,
-                                'userName':
-                                    user.displayName ?? 'BuyNova User',
-                                'text': text,
-                                'createdAt':
-                                    FieldValue.serverTimestamp(),
-                              });
+                              await commentRef.set(
+                                {
+                                  'userId': user.uid,
+                                  'userName':
+                                      user.displayName ??
+                                          'BuyNova User',
+                                  'text': text,
+                                  'createdAt':
+                                      FieldValue.serverTimestamp(),
+                                },
+                              );
 
                               final videoRef =
                                   FirebaseFirestore.instance
                                       .collection('sellerVideos')
                                       .doc(widget.videoId);
 
-                              await videoRef.update({
-                                'commentCount':
-                                    FieldValue.increment(1),
-                              });
+                              await videoRef.update(
+                                {
+                                  'commentCount':
+                                      FieldValue.increment(1),
+                                },
+                              );
 
                               controller.clear();
 
@@ -824,9 +854,11 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
         await FirebaseFirestore.instance
             .collection('sellerVideos')
             .doc(widget.videoId)
-            .update({
-          'shareCount': FieldValue.increment(1),
-        });
+            .update(
+          {
+            'shareCount': FieldValue.increment(1),
+          },
+        );
 
         if (mounted) {
           setState(() {
@@ -834,10 +866,14 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
           });
         }
       } catch (e) {
-        debugPrint('Share count error: $e');
+        debugPrint(
+          'Share count error: $e',
+        );
       }
     } catch (e) {
-      debugPrint('Share error: $e');
+      debugPrint(
+        'Share error: $e',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -865,7 +901,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
         builder: (_) => UserProfilePage(
           userId: sellerId,
           initialName: sellerName,
-          initialProfileImageUrl: sellerProfileImageUrl,
+          initialProfileImageUrl:
+              sellerProfileImageUrl,
         ),
       ),
     );
@@ -895,7 +932,9 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Container(color: Colors.black),
+        Container(
+          color: Colors.black,
+        ),
 
         if (_isLoading)
           const Center(
@@ -927,7 +966,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             },
             child: Center(
               child: AspectRatio(
-                aspectRatio: controller.value.aspectRatio,
+                aspectRatio:
+                    controller.value.aspectRatio,
                 child: VideoPlayer(controller),
               ),
             ),
@@ -1022,7 +1062,9 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                 _actionButton(
                   icon: Icons.share,
                   label: _shareCount.toString(),
-                  onTap: _isSharing ? () {} : _shareVideo,
+                  onTap: _isSharing
+                      ? () {}
+                      : _shareVideo,
                 ),
                 const SizedBox(height: 14),
                 _actionButton(
@@ -1041,7 +1083,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
           bottom: 22,
           child: SafeArea(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 GestureDetector(
@@ -1050,26 +1093,29 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                     children: [
                       CircleAvatar(
                         radius: 20,
-                        backgroundColor: Colors.grey.shade800,
+                        backgroundColor:
+                            Colors.grey.shade800,
                         backgroundImage:
                             sellerProfileImageUrl.isNotEmpty
                                 ? NetworkImage(
                                     sellerProfileImageUrl,
                                   )
                                 : null,
-                        child: sellerProfileImageUrl.isEmpty
-                            ? const Icon(
-                                Icons.person,
-                                color: Colors.white,
-                              )
-                            : null,
+                        child:
+                            sellerProfileImageUrl.isEmpty
+                                ? const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                  )
+                                : null,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           sellerName,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          overflow:
+                              TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -1086,7 +1132,9 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 10),
+
                 if (caption.isNotEmpty)
                   Text(
                     caption,
@@ -1097,6 +1145,7 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                       fontSize: 14,
                     ),
                   ),
+
                 if (productName.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   GestureDetector(
@@ -1108,7 +1157,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius:
+                            BorderRadius.circular(10),
                         border: Border.all(
                           color: Colors.white24,
                         ),
@@ -1128,10 +1178,12 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                                   ? productName
                                   : '$productName • $productPrice',
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              overflow:
+                                  TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                                fontWeight:
+                                    FontWeight.w600,
                               ),
                             ),
                           ),
