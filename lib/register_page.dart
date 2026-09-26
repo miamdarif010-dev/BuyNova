@@ -34,42 +34,35 @@ class _RegisterPageState extends State<RegisterPage> {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final confirmPassword =
-        _confirmPasswordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
     if (name.isEmpty) {
-      _showMessage('আপনার নাম লিখুন');
+      _showMessage('Please enter your full name.');
       return;
     }
 
     if (email.isEmpty) {
-      _showMessage('আপনার ইমেইল লিখুন');
+      _showMessage('Please enter your email address.');
       return;
     }
 
     if (password.isEmpty) {
-      _showMessage('একটি পাসওয়ার্ড দিন');
+      _showMessage('Please enter a password.');
       return;
     }
 
     if (password.length < 6) {
-      _showMessage(
-        'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে',
-      );
+      _showMessage('Password must be at least 6 characters.');
       return;
     }
 
     if (confirmPassword.isEmpty) {
-      _showMessage(
-        'পাসওয়ার্ড আবার লিখুন',
-      );
+      _showMessage('Please confirm your password.');
       return;
     }
 
     if (password != confirmPassword) {
-      _showMessage(
-        'দুইটি পাসওয়ার্ড একই নয়',
-      );
+      _showMessage('Passwords do not match.');
       return;
     }
 
@@ -77,16 +70,16 @@ class _RegisterPageState extends State<RegisterPage> {
       _isLoading = true;
     });
 
-    UserCredential? credential;
+    UserCredential? userCredential;
 
     try {
-      credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
+      userCredential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      final user = credential.user;
+      final user = userCredential.user;
 
       if (user == null) {
         throw FirebaseAuthException(
@@ -115,67 +108,61 @@ class _RegisterPageState extends State<RegisterPage> {
         SetOptions(merge: true),
       );
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      await Future.delayed(
-        const Duration(milliseconds: 500),
-      );
+      await user.sendEmailVerification();
 
       if (!mounted) return;
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(),
-        ),
-        (route) => false,
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Verify Your Email'),
+            content: const Text(
+              'A verification email has been sent to your email address. '
+              'Please verify your email before logging in.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
       );
+
+      if (!mounted) return;
+
+      await FirebaseAuth.instance.signOut();
+
+      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      String errorMessage =
-          'অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে';
+      String errorMessage = 'Unable to create your account.';
 
-      if (e.code == 'email-already-in-use') {
-        errorMessage =
-            'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট আছে';
-      } else if (e.code == 'invalid-email') {
-        errorMessage =
-            'ইমেইল ফরম্যাট সঠিক নয়';
-      } else if (e.code == 'weak-password') {
-        errorMessage =
-            'পাসওয়ার্ডটি খুব দুর্বল। আরও শক্তিশালী পাসওয়ার্ড দিন';
-      } else if (e.code == 'operation-not-allowed') {
-        errorMessage =
-            'Email/Password Login Firebase-এ চালু করা নেই';
-      } else if (e.code == 'network-request-failed') {
-        errorMessage =
-            'ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন';
-      } else if (e.code == 'too-many-requests') {
-        errorMessage =
-            'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন';
+      switch (e.code) {
+        case 'email-already-in-use':
+          errorMessage = 'An account already exists with this email.';
+          break;
+        case 'invalid-email':
+          errorMessage = 'Please enter a valid email address.';
+          break;
+        case 'weak-password':
+          errorMessage = 'The password is too weak.';
+          break;
+        case 'operation-not-allowed':
+          errorMessage = 'Email and password authentication is disabled.';
+          break;
+        case 'network-request-failed':
+          errorMessage = 'Network error. Please check your connection.';
+          break;
       }
 
-      if (mounted) {
-        _showMessage(
-          errorMessage,
-          isError: true,
-        );
-      }
+      _showMessage(errorMessage);
     } catch (e) {
-      if (mounted) {
-        _showMessage(
-          'অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে',
-          isError: true,
-        );
-      }
+      _showMessage('Something went wrong. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -185,17 +172,15 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  void _showMessage(
-    String message, {
-    bool isError = false,
-  }) {
+  void _showMessage(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor:
-              isError ? Colors.red : null,
+          backgroundColor: Colors.red,
         ),
       );
   }
@@ -208,218 +193,160 @@ class _RegisterPageState extends State<RegisterPage> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 20,
-          ),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 10),
-
-              const CircleAvatar(
-                radius: 40,
-                backgroundColor:
-                    Color(0xFFDCE8F8),
-                child: Icon(
-                  Icons.person_add,
-                  size: 40,
-                  color: Color(0xFF326295),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              const Text(
-                'Create your BuyNova account',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 6),
-
-              const Text(
-                'Join BuyNova and start shopping',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              TextField(
-                controller: _nameController,
-                textCapitalization:
-                    TextCapitalization.words,
-                textInputAction:
-                    TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(
-                    Icons.person_outline,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Color(0xFFDCE8F8),
+                  child: Icon(
+                    Icons.person_add_alt_1,
+                    size: 40,
+                    color: Color(0xFF326295),
                   ),
-                  border: OutlineInputBorder(),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: _emailController,
-                keyboardType:
-                    TextInputType.emailAddress,
-                textInputAction:
-                    TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(
-                    Icons.email_outlined,
+                const SizedBox(height: 20),
+                const Text(
+                  'Create your BuyNova account',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
-                  border: OutlineInputBorder(),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                textInputAction:
-                    TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: const Icon(
-                    Icons.lock_outline,
+                const SizedBox(height: 8),
+                const Text(
+                  'Join BuyNova and start shopping.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey,
                   ),
-                  suffixIcon: IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword =
-                            !_obscurePassword;
-                      });
-                    },
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                ),
+                const SizedBox(height: 30),
+                TextField(
+                  controller: _nameController,
+                  textInputAction: TextInputAction.next,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
+                    border: const OutlineInputBorder(),
                   ),
-                  border:
-                      const OutlineInputBorder(),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller:
-                    _confirmPasswordController,
-                obscureText:
-                    _obscureConfirmPassword,
-                textInputAction:
-                    TextInputAction.done,
-                onSubmitted: (_) {
-                  if (!_isLoading) {
-                    _handleRegister();
-                  }
-                },
-                decoration: InputDecoration(
-                  labelText:
-                      'Confirm Password',
-                  prefixIcon: const Icon(
-                    Icons.lock_reset,
-                  ),
-                  suffixIcon: IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _obscureConfirmPassword =
-                            !_obscureConfirmPassword;
-                      });
-                    },
-                    icon: Icon(
-                      _obscureConfirmPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmPassword,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) {
+                    if (!_isLoading) {
+                      _handleRegister();
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Confirm Password',
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureConfirmPassword =
+                              !_obscureConfirmPassword;
+                        });
+                      },
                     ),
+                    border: const OutlineInputBorder(),
                   ),
-                  border:
-                      const OutlineInputBorder(),
                 ),
-              ),
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        const Color(0xFF326295),
-                    disabledBackgroundColor:
-                        const Color(0xFF9AAEC4),
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(25),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF326295),
+                      disabledBackgroundColor:
+                          const Color(0xFF9DB1C8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
                     ),
+                    onPressed: _isLoading ? null : _handleRegister,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Create Account',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
                   onPressed: _isLoading
                       ? null
-                      : _handleRegister,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child:
-                              CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : const Text(
-                          'Create Account',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight:
-                                FontWeight.w600,
-                          ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextButton(
-                onPressed: _isLoading
-                    ? null
-                    : () {
-                        Navigator.pop(context);
-                      },
-                child: const Text(
-                  'Already have an account? Login',
-                  style: TextStyle(
-                    color: Color(0xFF326295),
-                    fontWeight: FontWeight.w600,
+                      : () {
+                          Navigator.pop(context);
+                        },
+                  child: const Text(
+                    'Already have an account? Login',
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 10),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
-
