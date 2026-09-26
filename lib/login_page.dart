@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'home_page.dart';
 import 'register_page.dart';
@@ -16,6 +18,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _isResettingPassword = false;
   bool _isResendingVerification = false;
   bool _obscurePassword = true;
@@ -74,7 +77,6 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
 
         await _showVerificationDialog(email);
-
         return;
       }
 
@@ -118,6 +120,117 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() {
+      _isGoogleLoading = true;
+    });
+
+    try {
+      final googleSignIn = GoogleSignIn(
+        scopes: <String>[
+          'email',
+        ],
+      );
+
+      await googleSignIn.signOut();
+
+      final googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        return;
+      }
+
+      final googleAuthentication = await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuthentication.accessToken,
+        idToken: googleAuthentication.idToken,
+      );
+
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+
+      final user = userCredential.user;
+
+      if (user == null) {
+        _showMessage('Unable to sign in with Google.');
+        return;
+      }
+
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+
+      final userSnapshot = await userRef.get();
+
+      if (!userSnapshot.exists) {
+        await userRef.set(
+          {
+            'uid': user.uid,
+            'name': user.displayName ?? googleUser.displayName ?? '',
+            'email': user.email ?? googleUser.email,
+            'phone': '',
+            'profileImageUrl': user.photoURL ?? googleUser.photoUrl ?? '',
+            'sellerStatus': 'none',
+            'entrepreneurStatus': 'none',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      } else {
+        await userRef.set(
+          {
+            'uid': user.uid,
+            'email': user.email ?? googleUser.email,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomePage(),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Unable to sign in with Google.';
+
+      switch (e.code) {
+        case 'account-exists-with-different-credential':
+          errorMessage =
+              'An account already exists with this email using another sign-in method.';
+          break;
+        case 'credential-already-in-use':
+          errorMessage = 'This Google account is already in use.';
+          break;
+        case 'network-request-failed':
+          errorMessage = 'Network error. Please check your connection.';
+          break;
+        case 'user-disabled':
+          errorMessage = 'This account has been disabled.';
+          break;
+        case 'operation-not-allowed':
+          errorMessage = 'Google Sign-In is currently disabled.';
+          break;
+      }
+
+      _showMessage(errorMessage);
+    } catch (e) {
+      _showMessage('Google Sign-In was cancelled or failed.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
         });
       }
     }
@@ -319,6 +432,11 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isBusy = _isLoading ||
+        _isGoogleLoading ||
+        _isResettingPassword ||
+        _isResendingVerification;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -369,7 +487,7 @@ class _LoginPageState extends State<LoginPage> {
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) {
-                    if (!_isLoading) {
+                    if (!isBusy) {
                       _handleLogin();
                     }
                   },
@@ -382,11 +500,13 @@ class _LoginPageState extends State<LoginPage> {
                             ? Icons.visibility_off
                             : Icons.visibility,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                      onPressed: isBusy
+                          ? null
+                          : () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
                     ),
                     border: const OutlineInputBorder(),
                   ),
@@ -396,7 +516,7 @@ class _LoginPageState extends State<LoginPage> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed:
-                        _isResettingPassword ? null : _handleForgotPassword,
+                        isBusy ? null : _handleForgotPassword,
                     child: _isResettingPassword
                         ? const SizedBox(
                             width: 18,
@@ -423,7 +543,7 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                     ),
-                    onPressed: _isLoading ? null : _handleLogin,
+                    onPressed: isBusy ? null : _handleLogin,
                     child: _isLoading
                         ? const SizedBox(
                             width: 24,
@@ -441,6 +561,42 @@ class _LoginPageState extends State<LoginPage> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      side: const BorderSide(
+                        color: Color(0xFF326295),
+                      ),
+                    ),
+                    onPressed:
+                        isBusy ? null : _handleGoogleLogin,
+                    icon: _isGoogleLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.g_mobiledata,
+                            size: 28,
+                          ),
+                    label: const Text(
+                      'Continue with Google',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -474,7 +630,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     TextButton(
-                      onPressed: _openRegisterPage,
+                      onPressed: isBusy ? null : _openRegisterPage,
                       child: const Text(
                         'Create Account',
                         style: TextStyle(
