@@ -36,22 +36,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Create Debug Keystore
+      - name: Restore persistent debug keystore
         run: |
           mkdir -p "$HOME/.android"
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 --decode > "$HOME/.android/debug.keystore"
 
-          keytool -genkeypair \
-            -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-      - name: Get SHA-1
+      - name: Get SHA-1 (for verification)
         run: |
           echo "========================================"
           echo "BUY NOVA SHA-1"
