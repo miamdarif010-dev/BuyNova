@@ -31,7 +31,11 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
     super.dispose();
   }
 
-  Map<String, dynamic> _toMap(Object? value) {
+  Map<String, dynamic> _toMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
     if (value is Map) {
       return Map<String, dynamic>.from(value);
     }
@@ -123,7 +127,7 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
             );
           }
 
-          final rawDocs = snapshot.data?.docs ?? [];
+          final rawDocs = snapshot.data?.docs ?? <QueryDocumentSnapshot>[];
 
           if (rawDocs.isEmpty) {
             return const Center(
@@ -138,16 +142,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
           }
 
           final docs = _sortVideos(rawDocs);
-
-          if (_currentPage >= docs.length) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-
-              setState(() {
-                _currentPage = docs.isEmpty ? 0 : docs.length - 1;
-              });
-            });
-          }
 
           return Stack(
             children: [
@@ -164,7 +158,6 @@ class _NewsFeedPageState extends State<NewsFeedPage> {
                 },
                 itemBuilder: (context, index) {
                   final doc = docs[index];
-
                   final data = _toMap(doc.data());
 
                   return _ReelsVideoItem(
@@ -280,6 +273,33 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
 
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
+  Map<String, dynamic> _toMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return <String, dynamic>{};
+  }
+
+  int _toInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
+  }
+
   String get sellerId {
     final seller = widget.data['sellerId']?.toString().trim();
 
@@ -363,16 +383,6 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     _viewTimer?.cancel();
     _controller?.dispose();
     super.dispose();
-  }
-
-  int _toInt(dynamic value) {
-    if (value is int) return value;
-
-    if (value is num) {
-      return value.toInt();
-    }
-
-    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Future<void> _loadVideo() async {
@@ -568,6 +578,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
         .doc(widget.videoId);
 
     try {
+      bool likedAfterTransaction = false;
+
       await FirebaseFirestore.instance.runTransaction(
         (transaction) async {
           final likeSnapshot = await transaction.get(likeRef);
@@ -589,6 +601,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             if (count > 0) {
               count--;
             }
+
+            likedAfterTransaction = false;
           } else {
             transaction.set(
               likeRef,
@@ -599,6 +613,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
             );
 
             count++;
+
+            likedAfterTransaction = true;
           }
 
           transaction.update(
@@ -613,13 +629,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       if (!mounted) return;
 
       setState(() {
-        _isLiked = !_isLiked;
-
-        if (_isLiked) {
-          _likeCount++;
-        } else if (_likeCount > 0) {
-          _likeCount--;
-        }
+        _isLiked = likedAfterTransaction;
+        _likeCount = likedAfterTransaction
+            ? _likeCount + 1
+            : (_likeCount > 0 ? _likeCount - 1 : 0);
       });
     } catch (e) {
       debugPrint('Like error: $e');
@@ -643,7 +656,9 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
       builder: (sheetContext) {
         return Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            bottom: MediaQuery.of(sheetContext)
+                .viewInsets
+                .bottom,
           ),
           child: SafeArea(
             child: SizedBox(
@@ -698,7 +713,9 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                           );
                         }
 
-                        final docs = snapshot.data?.docs ?? [];
+                        final docs =
+                            snapshot.data?.docs ??
+                                <QueryDocumentSnapshot>[];
 
                         if (docs.isEmpty) {
                           return const Center(
@@ -711,9 +728,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                         return ListView.builder(
                           itemCount: docs.length,
                           itemBuilder: (context, index) {
-                            final data = _toMap(
-                              docs[index].data(),
-                            );
+                            final data =
+                                _toMap(docs[index].data());
 
                             final name =
                                 data['userName']?.toString() ??
@@ -754,7 +770,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                             decoration: InputDecoration(
                               hintText: 'Write a comment...',
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(25),
+                                borderRadius:
+                                    BorderRadius.circular(25),
                               ),
                             ),
                           ),
@@ -762,7 +779,8 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
                         const SizedBox(width: 8),
                         IconButton(
                           onPressed: () async {
-                            final text = controller.text.trim();
+                            final text =
+                                controller.text.trim();
 
                             if (text.isEmpty) return;
 
@@ -866,14 +884,10 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
           });
         }
       } catch (e) {
-        debugPrint(
-          'Share count error: $e',
-        );
+        debugPrint('Share count error: $e');
       }
     } catch (e) {
-      debugPrint(
-        'Share error: $e',
-      );
+      debugPrint('Share error: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -1237,3 +1251,4 @@ class _ReelsVideoItemState extends State<_ReelsVideoItem> {
     );
   }
 }
+
