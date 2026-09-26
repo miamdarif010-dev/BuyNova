@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "798069156907-kskd4a95kqe4lua0b2hr4tujn5lcpb3e.apps.googleusercontent.com",
+          "client_id": "798069156907-gtlli646uk82ith201gp0rou4vm5ns37.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.buynova.app",
-            "certificate_hash": "0e6b810ac3a8c30de2dd970156a9a4648ef6d2b3"
+            "certificate_hash": "6a0f585acce7fa463830eb1281ebfb0833f6bb85"
           }
         },
         {
