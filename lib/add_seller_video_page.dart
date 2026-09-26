@@ -24,7 +24,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
   static const String _cloudName = 'riassg6d';
 
   // Updated Cloudinary unsigned upload preset
-  static const String _uploadPreset = 'buynova_upload';
+  static const String _uploadPreset = 'buynova_products';
 
   static const int _maxVideoBytes = 60 * 1024 * 1024;
 
