@@ -990,7 +990,7 @@ class _AddSellerVideoPageState extends State<AddSellerVideoPage> {
                 else
                   DropdownButtonFormField<
                       String>(
-                    value: _selectedProductId,
+                    initialValue: _selectedProductId,
                     isExpanded: true,
                     decoration:
                         InputDecoration(
