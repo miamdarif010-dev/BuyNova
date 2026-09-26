@@ -13,10 +13,22 @@ import 'watch_earn_page.dart';
 import 'seller_page.dart';
 
 class UserProfilePage extends StatefulWidget {
-  const UserProfilePage({super.key});
+  final String? userId;
+
+  final String? initialName;
+
+  final String? initialProfileImageUrl;
+
+  const UserProfilePage({
+    super.key,
+    this.userId,
+    this.initialName,
+    this.initialProfileImageUrl,
+  });
 
   @override
-  State<UserProfilePage> createState() => _UserProfilePageState();
+  State<UserProfilePage> createState() =>
+      _UserProfilePageState();
 }
 
 class _UserProfilePageState extends State<UserProfilePage> {
@@ -26,45 +38,66 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String _phone = '';
   String _profileImageUrl = '';
 
+  String _email = '';
+
   String _sellerStatus = '';
   String _entrepreneurStatus = '';
   String _role = '';
 
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+  StreamSubscription<
+      DocumentSnapshot<Map<String, dynamic>>>? _userSub;
 
-  User? get currentUser => FirebaseAuth.instance.currentUser;
+  User? get currentUser =>
+      FirebaseAuth.instance.currentUser;
 
-  // =========================================================
-  // ADMIN CHECK
-  // =========================================================
+  String? get _targetUserId {
+    final id = widget.userId?.trim();
+
+    if (id != null && id.isNotEmpty) {
+      return id;
+    }
+
+    return currentUser?.uid;
+  }
+
+  bool get _isOwnProfile {
+    final target = _targetUserId;
+    final current = currentUser?.uid;
+
+    if (target == null || current == null) {
+      return true;
+    }
+
+    return target == current;
+  }
 
   bool get _isAdmin {
+    if (!_isOwnProfile) {
+      return false;
+    }
+
     return _role.toLowerCase() == 'admin' ||
         currentUser?.email?.toLowerCase() ==
             'miamdarif010@gmail.com';
   }
 
-  bool get _isSellerApproved {
-    return _sellerStatus.toLowerCase() == 'approved';
-  }
+  bool get _isSellerApproved =>
+      _sellerStatus.toLowerCase() == 'approved';
 
-  bool get _isEntrepreneurApproved {
-    return _entrepreneurStatus.toLowerCase() == 'approved';
-  }
-
-  // =========================================================
-  // INIT
-  // =========================================================
+  bool get _isEntrepreneurApproved =>
+      _entrepreneurStatus.toLowerCase() ==
+      'approved';
 
   @override
   void initState() {
     super.initState();
-    _listenUserData();
-  }
 
-  // =========================================================
-  // DISPOSE
-  // =========================================================
+    if (_isOwnProfile) {
+      _listenUserData();
+    } else {
+      _loadPublicProfile();
+    }
+  }
 
   @override
   void dispose() {
@@ -72,57 +105,101 @@ class _UserProfilePageState extends State<UserProfilePage> {
     super.dispose();
   }
 
-  // =========================================================
-  // LIVE USER DATA
-  // =========================================================
-
   void _listenUserData() {
-    final user = currentUser;
+    final uid = _targetUserId;
 
-    if (user == null) {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+    if (uid == null || uid.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
 
       return;
     }
 
     _userSub = FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(uid)
         .snapshots()
         .listen(
       (doc) {
         _applyUserData(doc.data());
       },
       onError: (error) {
+        debugPrint(
+          'User profile stream error: $error',
+        );
+
         if (!mounted) return;
 
         setState(() {
           _isLoading = false;
         });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not load profile: $error',
-            ),
-          ),
-        );
       },
     );
   }
 
-  // =========================================================
-  // LOAD USER DATA
-  // =========================================================
+  Future<void> _loadPublicProfile() async {
+    final uid = _targetUserId;
+
+    // Use information already present in the News Feed
+    // immediately, so the profile can still open even
+    // when Firestore rules don't allow public users read.
+    if (mounted) {
+      setState(() {
+        _name =
+            widget.initialName?.trim().isNotEmpty == true
+                ? widget.initialName!.trim()
+                : 'BuyNova User';
+
+        _profileImageUrl =
+            widget.initialProfileImageUrl
+                    ?.trim() ??
+                '';
+
+        _isLoading = false;
+      });
+    }
+
+    if (uid == null || uid.isEmpty) {
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!mounted) return;
+
+      if (doc.exists) {
+        _applyUserData(
+          doc.data(),
+          keepLoadingFalse: true,
+        );
+      }
+    } catch (e) {
+      // Public profile may not have permission to read
+      // users/{uid}. The profile already has fallback
+      // information from the News Feed, so don't break it.
+      debugPrint(
+        'Public profile read skipped: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   Future<void> _loadUserData() async {
-    final user = currentUser;
+    final uid = _targetUserId;
 
-    if (user == null) {
+    if (uid == null || uid.isEmpty) {
       if (!mounted) return;
 
       setState(() {
@@ -135,59 +212,84 @@ class _UserProfilePageState extends State<UserProfilePage> {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(uid)
           .get();
 
       _applyUserData(doc.data());
-    } catch (error) {
+    } catch (e) {
+      debugPrint(
+        'Load user profile error: $e',
+      );
+
       if (!mounted) return;
 
       setState(() {
         _isLoading = false;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not load profile: $error',
-          ),
-        ),
-      );
     }
   }
 
-  // =========================================================
-  // APPLY USER DATA
-  // =========================================================
-
   void _applyUserData(
-    Map<String, dynamic>? data,
-  ) {
+    Map<String, dynamic>? data, {
+    bool keepLoadingFalse = false,
+  }) {
+    final map = data ?? <String, dynamic>{};
+
+    final firestoreName =
+        map['name']?.toString().trim() ?? '';
+
+    final firestorePhone =
+        map['phone']?.toString().trim() ?? '';
+
+    final firestoreEmail =
+        map['email']?.toString().trim() ?? '';
+
+    final firestoreImage =
+        map['profileImageUrl']?.toString().trim() ?? '';
+
     if (!mounted) return;
 
     setState(() {
-      _name = (data?['name'] ?? '').toString();
+      if (firestoreName.isNotEmpty) {
+        _name = firestoreName;
+      } else if (_name.isEmpty) {
+        _name =
+            widget.initialName?.trim() ?? '';
+      }
 
-      _phone = (data?['phone'] ?? '').toString();
+      if (firestorePhone.isNotEmpty) {
+        _phone = firestorePhone;
+      }
 
-      _profileImageUrl =
-          (data?['profileImageUrl'] ?? '').toString();
+      if (firestoreEmail.isNotEmpty) {
+        _email = firestoreEmail;
+      } else if (_isOwnProfile) {
+        _email =
+            currentUser?.email?.trim() ?? '';
+      }
+
+      if (firestoreImage.isNotEmpty) {
+        _profileImageUrl = firestoreImage;
+      } else if (_profileImageUrl.isEmpty) {
+        _profileImageUrl =
+            widget.initialProfileImageUrl
+                    ?.trim() ??
+                '';
+      }
 
       _sellerStatus =
-          (data?['sellerStatus'] ?? '').toString();
+          map['sellerStatus']?.toString() ?? '';
 
       _entrepreneurStatus =
-          (data?['entrepreneurStatus'] ?? '').toString();
+          map['entrepreneurStatus']?.toString() ??
+              '';
 
-      _role = (data?['role'] ?? '').toString();
+      _role = map['role']?.toString() ?? '';
 
-      _isLoading = false;
+      _isLoading =
+          keepLoadingFalse ? false : false;
     });
   }
-
-  // =========================================================
-  // COMMON NAVIGATION
-  // =========================================================
 
   void _push(Widget page) {
     Navigator.of(context).push(
@@ -197,318 +299,397 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  // =========================================================
-  // EDIT PROFILE
-  // =========================================================
-
   void _openEditProfile() {
-    Navigator.of(context)
-        .push(
-      MaterialPageRoute(
-        builder: (_) => const EditProfilePage(),
-      ),
-    )
-        .then((_) {
-      _loadUserData();
-    });
+    _push(
+      const EditProfilePage(),
+    );
   }
-
-  // =========================================================
-  // ADMIN PANEL
-  // =========================================================
 
   void _openAdmin() {
-    _push(const AdminPanelPage());
-  }
-
-  // =========================================================
-  // BUYER / CUSTOMER
-  // DIRECT PAGE
-  // =========================================================
-
-  void _openBuyer() {
-    _push(const BuyerPage());
-  }
-
-  // =========================================================
-  // RESELLER
-  // DIRECT PAGE
-  // =========================================================
-
-  void _openReseller() {
-    _push(const EntrepreneurPage());
-  }
-
-  // =========================================================
-  // SELLER
-  // DIRECT PAGE
-  // =========================================================
-
-  void _openSeller() {
-    _push(const SellerPage());
-  }
-
-  // =========================================================
-  // EARN & REWARDS
-  // =========================================================
-
-  void _openEarn() {
-    _push(const WatchEarnPage());
-  }
-
-  // =========================================================
-  // SETTINGS
-  // =========================================================
-
-  void _openSettings() {
-    _push(const SettingsPage());
-  }
-
-  // =========================================================
-  // LOGOUT
-  // =========================================================
-
-  Future<void> _logout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-
-      if (!mounted) return;
-
-      Navigator.of(context).popUntil(
-        (route) => route.isFirst,
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Logout failed: $error',
-          ),
-        ),
-      );
-    }
-  }
-
-  // =========================================================
-  // PROFILE IMAGE
-  // =========================================================
-
-  Widget _profileImage() {
-    if (_profileImageUrl.isNotEmpty) {
-      return ClipOval(
-        child: Image.network(
-          _profileImageUrl,
-          width: 78,
-          height: 78,
-          fit: BoxFit.cover,
-          loadingBuilder: (
-            context,
-            child,
-            loadingProgress,
-          ) {
-            if (loadingProgress == null) {
-              return child;
-            }
-
-            return const SizedBox(
-              width: 78,
-              height: 78,
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                ),
-              ),
-            );
-          },
-          errorBuilder: (
-            context,
-            error,
-            stackTrace,
-          ) {
-            return const Icon(
-              Icons.person,
-              size: 44,
-              color: Colors.grey,
-            );
-          },
-        ),
-      );
-    }
-
-    return const Icon(
-      Icons.person,
-      size: 44,
-      color: Colors.grey,
+    _push(
+      const AdminPanelPage(),
     );
   }
 
-  // =========================================================
-  // PROFILE SECTION CARD
-  // =========================================================
+  void _openBuyer() {
+    _push(
+      const BuyerPage(),
+    );
+  }
+
+  void _openReseller() {
+    _push(
+      const EntrepreneurPage(),
+    );
+  }
+
+  void _openSeller() {
+    _push(
+      const SellerPage(),
+    );
+  }
+
+  void _openEarn() {
+    _push(
+      const WatchEarnPage(),
+    );
+  }
+
+  void _openSettings() {
+    _push(
+      const SettingsPage(),
+    );
+  }
+
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+
+    if (!mounted) return;
+
+    Navigator.of(context).pop();
+  }
+
+  ImageProvider<Object>? _profileImage() {
+    if (_profileImageUrl.trim().isEmpty) {
+      return null;
+    }
+
+    return NetworkImage(
+      _profileImageUrl.trim(),
+    );
+  }
 
   Widget _sectionCard({
-    required IconData icon,
     required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    Color? iconColor,
+    required IconData icon,
+    required List<Widget> children,
   }) {
-    final color = iconColor ?? Colors.redAccent;
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 5,
-        ),
-        leading: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(14),
+    return Container(
+      margin: const EdgeInsets.only(
+        bottom: 14,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: Icon(
-            icon,
-            color: color,
-          ),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 3),
-          child: Text(
-            subtitle,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 13,
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  icon,
+                  color: Colors.redAccent,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 8),
+            ...children,
+          ],
         ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
-        onTap: onTap,
       ),
     );
   }
-
-  // =========================================================
-  // SIMPLE MENU ITEM
-  // =========================================================
 
   Widget _menuItem({
     required IconData icon,
     required String title,
+    String? subtitle,
     required VoidCallback onTap,
     Color? iconColor,
   }) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: Icon(
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor:
+            (iconColor ?? Colors.redAccent)
+                .withOpacity(0.10),
+        child: Icon(
           icon,
-          color: iconColor,
+          color: iconColor ?? Colors.redAccent,
         ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
-        onTap: onTap,
       ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle),
+      trailing: const Icon(
+        Icons.chevron_right,
+      ),
+      onTap: onTap,
     );
   }
 
-  // =========================================================
-  // LOGOUT DIALOG
-  // =========================================================
-
-  void _showLogoutDialog() {
-    showDialog<void>(
+  Future<void> _showLogoutDialog() async {
+    final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Logout'),
+          title: const Text(
+            'Logout',
+          ),
           content: const Text(
             'Are you sure you want to logout?',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.of(dialogContext)
+                    .pop(false);
               },
-              child: const Text('Cancel'),
+              child: const Text(
+                'Cancel',
+              ),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
-                _logout();
+                Navigator.of(dialogContext)
+                    .pop(true);
               },
-              child: const Text('Logout'),
+              child: const Text(
+                'Logout',
+              ),
             ),
           ],
         );
       },
     );
+
+    if (result == true) {
+      await _logout();
+    }
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
-
-  @override
-  Widget build(BuildContext context) {
-    final user = currentUser;
-
-    // =======================================================
-    // NOT LOGGED IN
-    // =======================================================
-
-    if (user == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'My Profile',
-          ),
-          centerTitle: true,
-        ),
-        body: const Center(
-          child: Text(
-            'Please log in to view your profile.',
-          ),
-        ),
-      );
-    }
-
-    // =======================================================
-    // PROFILE PAGE
-    // =======================================================
+  Widget _buildPublicProfile() {
+    final image = _profileImage();
 
     return Scaffold(
+      backgroundColor: const Color(0xfff6f6f6),
+      appBar: AppBar(
+        title: const Text(
+          'Profile',
+        ),
+        centerTitle: true,
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black
+                              .withOpacity(0.05),
+                          blurRadius: 12,
+                          offset:
+                              const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 58,
+                          backgroundColor:
+                              Colors.grey.shade200,
+                          backgroundImage: image,
+                          child: image == null
+                              ? const Icon(
+                                  Icons.person,
+                                  size: 55,
+                                  color: Colors.grey,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          _name.isEmpty
+                              ? 'BuyNova User'
+                              : _name,
+                          textAlign:
+                              TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'BuyNova Member',
+                          style: TextStyle(
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+
+                        if (_isSellerApproved)
+                          Container(
+                            padding:
+                                const EdgeInsets
+                                    .symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green
+                                  .withOpacity(0.10),
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(20),
+                            ),
+                            child: const Row(
+                              mainAxisSize:
+                                  MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.verified,
+                                  color:
+                                      Colors.green,
+                                  size: 17,
+                                ),
+                                SizedBox(width: 5),
+                                Text(
+                                  'Seller',
+                                  style: TextStyle(
+                                    color:
+                                        Colors.green,
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        if (_isEntrepreneurApproved)
+                          Padding(
+                            padding:
+                                const EdgeInsets
+                                    .only(top: 8),
+                            child: Container(
+                              padding:
+                                  const EdgeInsets
+                                      .symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue
+                                    .withOpacity(
+                                        0.10),
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize:
+                                    MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons
+                                        .business_center,
+                                    color:
+                                        Colors.blue,
+                                    size: 17,
+                                  ),
+                                  SizedBox(
+                                    width: 5,
+                                  ),
+                                  Text(
+                                    'Entrepreneur',
+                                    style:
+                                        TextStyle(
+                                      color:
+                                          Colors.blue,
+                                      fontWeight:
+                                          FontWeight
+                                              .bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.circular(18),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.redAccent,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'This is a BuyNova user profile.',
+                            style: TextStyle(
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildOwnProfile() {
+    final user = currentUser;
+
+    return Scaffold(
+      backgroundColor: const Color(0xfff6f6f6),
       appBar: AppBar(
         title: const Text(
           'My Profile',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
         ),
         centerTitle: true,
       ),
@@ -523,232 +704,275 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
                   children: [
-                    // =================================================
-                    // PROFILE CARD
-                    // =================================================
-
-                    Card(
-                      elevation: 0,
-                      child: Padding(
-                        padding:
-                            const EdgeInsets.all(18),
-                        child: Column(
-                          children: [
-                            GestureDetector(
-                              onTap:
-                                  _openEditProfile,
-                              child: Container(
-                                width: 84,
-                                height: 84,
-                                decoration:
-                                    BoxDecoration(
-                                  shape:
-                                      BoxShape.circle,
-                                  color: Colors
-                                      .grey
-                                      .shade200,
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black
+                                .withOpacity(0.05),
+                            blurRadius: 12,
+                            offset:
+                                const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          GestureDetector(
+                            onTap: _openEditProfile,
+                            child: Stack(
+                              alignment:
+                                  Alignment.bottomRight,
+                              children: [
+                                CircleAvatar(
+                                  radius: 58,
+                                  backgroundColor:
+                                      Colors.grey
+                                          .shade200,
+                                  backgroundImage:
+                                      _profileImage(),
+                                  child:
+                                      _profileImage() ==
+                                              null
+                                          ? const Icon(
+                                              Icons.person,
+                                              size: 55,
+                                              color:
+                                                  Colors.grey,
+                                            )
+                                          : null,
                                 ),
-                                child:
-                                    _profileImage(),
-                              ),
+                                Container(
+                                  padding:
+                                      const EdgeInsets
+                                          .all(8),
+                                  decoration:
+                                      const BoxDecoration(
+                                    color:
+                                        Colors.redAccent,
+                                    shape:
+                                        BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit,
+                                    color:
+                                        Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ],
                             ),
-
-                            const SizedBox(
-                              height: 12,
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            _name.isEmpty
+                                ? 'BuyNova User'
+                                : _name,
+                            textAlign:
+                                TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
-
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _email.isEmpty
+                                ? (user?.email ?? '')
+                                : _email,
+                            textAlign:
+                                TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.grey,
+                            ),
+                          ),
+                          if (_phone.isNotEmpty) ...[
+                            const SizedBox(height: 5),
                             Text(
-                              _name.isNotEmpty
-                                  ? _name
-                                  : 'BuyNova User',
-                              style:
-                                  const TextStyle(
-                                fontSize: 22,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 5,
-                            ),
-
-                            Text(
-                              user.email ?? '',
-                              style: TextStyle(
-                                color: Colors
-                                    .grey
-                                    .shade600,
-                              ),
-                            ),
-
-                            if (_phone.isNotEmpty) ...[
-                              const SizedBox(
-                                height: 4,
-                              ),
-                              Text(
-                                _phone,
-                                style: TextStyle(
-                                  color: Colors
-                                      .grey
-                                      .shade600,
-                                ),
-                              ),
-                            ],
-
-                            const SizedBox(
-                              height: 14,
-                            ),
-
-                            SizedBox(
-                              width: double.infinity,
-                              child:
-                                  OutlinedButton.icon(
-                                onPressed:
-                                    _openEditProfile,
-                                icon: const Icon(
-                                  Icons
-                                      .edit_outlined,
-                                ),
-                                label: const Text(
-                                  'Edit Profile',
-                                ),
+                              _phone,
+                              style: const TextStyle(
+                                color: Colors.grey,
                               ),
                             ),
                           ],
+                          const SizedBox(height: 15),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  _openEditProfile,
+                              icon: const Icon(
+                                Icons.edit,
+                              ),
+                              label: const Text(
+                                'Edit Profile',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    if (_isAdmin)
+                      _sectionCard(
+                        title: 'Admin',
+                        icon: Icons.admin_panel_settings,
+                        children: [
+                          _menuItem(
+                            icon: Icons.dashboard,
+                            title: 'Admin Panel',
+                            subtitle:
+                                'Manage BuyNova',
+                            onTap: _openAdmin,
+                          ),
+                        ],
+                      ),
+
+                    _sectionCard(
+                      title: 'Buyer / Customer',
+                      icon: Icons.shopping_bag,
+                      children: [
+                        _menuItem(
+                          icon: Icons.shopping_cart,
+                          title: 'Buyer',
+                          subtitle:
+                              'Browse and shop products',
+                          onTap: _openBuyer,
+                        ),
+                      ],
+                    ),
+
+                    _sectionCard(
+                      title: 'Reseller',
+                      icon: Icons.business_center,
+                      children: [
+                        _menuItem(
+                          icon:
+                              Icons.business_center,
+                          title: 'Entrepreneur / Reseller',
+                          subtitle:
+                              _isEntrepreneurApproved
+                                  ? 'Approved'
+                                  : 'Manage reseller account',
+                          onTap: _openReseller,
+                        ),
+                      ],
+                    ),
+
+                    _sectionCard(
+                      title: 'Seller',
+                      icon: Icons.storefront,
+                      children: [
+                        _menuItem(
+                          icon: Icons.store,
+                          title: 'Seller',
+                          subtitle:
+                              _isSellerApproved
+                                  ? 'Approved seller'
+                                  : 'Manage seller account',
+                          onTap: _openSeller,
+                        ),
+                      ],
+                    ),
+
+                    _sectionCard(
+                      title: 'Earn & Rewards',
+                      icon: Icons.monetization_on,
+                      children: [
+                        _menuItem(
+                          icon: Icons.play_circle_fill,
+                          title: 'Watch & Earn',
+                          subtitle:
+                              'Watch videos and earn',
+                          onTap: _openEarn,
+                        ),
+                      ],
+                    ),
+
+                    _sectionCard(
+                      title: 'Settings',
+                      icon: Icons.settings,
+                      children: [
+                        _menuItem(
+                          icon: Icons.settings,
+                          title: 'Settings',
+                          subtitle:
+                              'Manage your account settings',
+                          onTap: _openSettings,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            _showLogoutDialog,
+                        icon: const Icon(
+                          Icons.logout,
+                          color: Colors.red,
+                        ),
+                        label: const Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: Colors.red,
+                          ),
                         ),
                       ),
                     ),
 
-                    const SizedBox(
-                      height: 16,
-                    ),
-
-                    // =================================================
-                    // ADMIN PANEL
-                    // EDIT PROFILE-এর ঠিক নিচে
-                    // =================================================
-
-                    if (_isAdmin)
-                      _sectionCard(
-                        icon: Icons
-                            .admin_panel_settings_outlined,
-                        title: 'ADMIN PANEL',
-                        subtitle:
-                            'Manage BuyNova from the admin panel.',
-                        onTap: _openAdmin,
-                        iconColor: Colors.red,
-                      ),
-
-                    // =================================================
-                    // BUYER / CUSTOMER
-                    // DIRECT PAGE
-                    // =================================================
-
-                    _sectionCard(
-                      icon:
-                          Icons.shopping_bag_outlined,
-                      title: 'BUYER / CUSTOMER',
-                      subtitle:
-                          'Shopping, orders, favorites and buyer tools.',
-                      onTap: _openBuyer,
-                      iconColor: Colors.redAccent,
-                    ),
-
-                    // =================================================
-                    // RESELLER
-                    // DIRECT PAGE
-                    // =================================================
-
-                    _sectionCard(
-                      icon:
-                          Icons.business_center_outlined,
-                      title: 'RESELLER',
-                      subtitle:
-                          _isEntrepreneurApproved
-                              ? 'Manage your reseller business.'
-                              : _entrepreneurStatus ==
-                                      'pending'
-                                  ? 'Reseller request is pending.'
-                                  : _entrepreneurStatus ==
-                                          'rejected'
-                                      ? 'Reseller request was rejected.'
-                                      : 'Apply to become a BuyNova reseller.',
-                      onTap: _openReseller,
-                      iconColor: Colors.deepOrange,
-                    ),
-
-                    // =================================================
-                    // SELLER
-                    // DIRECT PAGE
-                    // =================================================
-
-                    _sectionCard(
-                      icon:
-                          Icons.storefront_outlined,
-                      title: 'SELLER',
-                      subtitle:
-                          _isSellerApproved
-                              ? 'Manage your seller business.'
-                              : _sellerStatus ==
-                                      'pending'
-                                  ? 'Seller request is pending.'
-                                  : _sellerStatus ==
-                                          'rejected'
-                                      ? 'Seller request was rejected.'
-                                      : 'Apply to sell products on BuyNova.',
-                      onTap: _openSeller,
-                      iconColor: Colors.blue,
-                    ),
-
-                    // =================================================
-                    // EARN & REWARDS
-                    // =================================================
-
-                    _sectionCard(
-                      icon: Icons.stars_outlined,
-                      title: 'EARN & REWARDS',
-                      subtitle:
-                          'Points, Watch & Earn and rewards.',
-                      onTap: _openEarn,
-                      iconColor: Colors.orange,
-                    ),
-
-                    const SizedBox(
-                      height: 6,
-                    ),
-
-                    // =================================================
-                    // SETTINGS
-                    // =================================================
-
-                    _menuItem(
-                      icon: Icons.settings_outlined,
-                      title: 'Settings',
-                      onTap: _openSettings,
-                    ),
-
-                    // =================================================
-                    // LOGOUT
-                    // =================================================
-
-                    _menuItem(
-                      icon: Icons.logout,
-                      title: 'Logout',
-                      iconColor: Colors.red,
-                      onTap: _showLogoutDialog,
-                    ),
-
-                    const SizedBox(
-                      height: 20,
-                    ),
+                    const SizedBox(height: 25),
                   ],
                 ),
               ),
             ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (currentUser == null &&
+        !_isOwnProfile) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Profile'),
+        ),
+        body: const Center(
+          child: Text(
+            'Profile is unavailable.',
+          ),
+        ),
+      );
+    }
+
+    if (!_isOwnProfile) {
+      return _buildPublicProfile();
+    }
+
+    if (currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('My Profile'),
+        ),
+        body: const Center(
+          child: Text(
+            'Please log in to view your profile.',
+          ),
+        ),
+      );
+    }
+
+    return _buildOwnProfile();
   }
 }
