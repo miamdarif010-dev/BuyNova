@@ -321,8 +321,6 @@ class _RegisterPageState extends State<RegisterPage> {
       _isLoading = true;
     });
 
-    User? createdUser;
-
     try {
       final userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -338,8 +336,6 @@ class _RegisterPageState extends State<RegisterPage> {
           message: 'User account could not be created.',
         );
       }
-
-      createdUser = user;
 
       await user.updateDisplayName(name);
 
