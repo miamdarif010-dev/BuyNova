@@ -238,7 +238,13 @@ class _LoginPageState extends State<LoginPage> {
 
       _showMessage(errorMessage);
     } catch (e) {
-      _showMessage('Google Sign-In was cancelled or failed.');
+      // TEMPORARY DEBUG LOGGING â€” remove once Google Sign-In is confirmed
+      // working. This prints the real underlying error (e.g. a
+      // PlatformException with a code like "sign_in_failed" or
+      // "ApiException: 10") to the debug console / logcat instead of
+      // hiding it behind a generic message.
+      debugPrint('Google Sign-In error: $e');
+      _showMessage('Google Sign-In was cancelled or failed. ($e)');
     } finally {
       if (mounted) {
         setState(() {
