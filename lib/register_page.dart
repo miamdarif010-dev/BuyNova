@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
-
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
@@ -18,6 +16,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isCheckingVerification = false;
+  bool _isResendingVerification = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
@@ -70,10 +70,8 @@ class _RegisterPageState extends State<RegisterPage> {
       _isLoading = true;
     });
 
-    UserCredential? userCredential;
-
     try {
-      userCredential =
+      final userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -112,33 +110,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (!mounted) return;
 
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Verify Your Email'),
-            content: const Text(
-              'A verification email has been sent to your email address. '
-              'Please verify your email before logging in.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
+      await _showVerificationPage(email);
 
       if (!mounted) return;
 
       await FirebaseAuth.instance.signOut();
-
-      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'Unable to create your account.';
 
@@ -153,10 +129,16 @@ class _RegisterPageState extends State<RegisterPage> {
           errorMessage = 'The password is too weak.';
           break;
         case 'operation-not-allowed':
-          errorMessage = 'Email and password authentication is disabled.';
+          errorMessage =
+              'Email and password authentication is disabled.';
           break;
         case 'network-request-failed':
-          errorMessage = 'Network error. Please check your connection.';
+          errorMessage =
+              'Network error. Please check your connection.';
+          break;
+        case 'too-many-requests':
+          errorMessage =
+              'Too many requests. Please try again later.';
           break;
       }
 
@@ -170,6 +152,20 @@ class _RegisterPageState extends State<RegisterPage> {
         });
       }
     }
+  }
+
+  Future<void> _showVerificationPage(String email) async {
+    if (!mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmailVerificationPage(
+          email: email,
+          password: _passwordController.text,
+        ),
+      ),
+    );
   }
 
   void _showMessage(String message) {
@@ -260,11 +256,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             ? Icons.visibility_off
                             : Icons.visibility,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              setState(() {
+                                _obscurePassword =
+                                    !_obscurePassword;
+                              });
+                            },
                     ),
                     border: const OutlineInputBorder(),
                   ),
@@ -281,19 +280,22 @@ class _RegisterPageState extends State<RegisterPage> {
                   },
                   decoration: InputDecoration(
                     labelText: 'Confirm Password',
-                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                    prefixIcon:
+                        const Icon(Icons.lock_reset_outlined),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureConfirmPassword
                             ? Icons.visibility_off
                             : Icons.visibility,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword =
-                              !_obscureConfirmPassword;
-                        });
-                      },
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              setState(() {
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword;
+                              });
+                            },
                     ),
                     border: const OutlineInputBorder(),
                   ),
@@ -311,7 +313,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(25),
                       ),
                     ),
-                    onPressed: _isLoading ? null : _handleRegister,
+                    onPressed:
+                        _isLoading ? null : _handleRegister,
                     child: _isLoading
                         ? const SizedBox(
                             width: 24,
@@ -340,6 +343,361 @@ class _RegisterPageState extends State<RegisterPage> {
                         },
                   child: const Text(
                     'Already have an account? Login',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class EmailVerificationPage extends StatefulWidget {
+  final String email;
+  final String password;
+
+  const EmailVerificationPage({
+    super.key,
+    required this.email,
+    required this.password,
+  });
+
+  @override
+  State<EmailVerificationPage> createState() =>
+      _EmailVerificationPageState();
+}
+
+class _EmailVerificationPageState
+    extends State<EmailVerificationPage> {
+  bool _isChecking = false;
+  bool _isResending = false;
+
+  Future<void> _checkVerification() async {
+    if (_isChecking) return;
+
+    setState(() {
+      _isChecking = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        _showMessage(
+          'Your session has expired. Please login again.',
+        );
+        return;
+      }
+
+      await user.reload();
+
+      final refreshedUser =
+          FirebaseAuth.instance.currentUser;
+
+      if (refreshedUser == null) {
+        _showMessage(
+          'Unable to check your account. Please login again.',
+        );
+        return;
+      }
+
+      if (refreshedUser.emailVerified) {
+        if (!mounted) return;
+
+        _showSuccessMessage(
+          'Email verified successfully.',
+        );
+
+        await Future<void>.delayed(
+          const Duration(milliseconds: 500),
+        );
+
+        if (!mounted) return;
+
+        Navigator.pop(context, true);
+        return;
+      }
+
+      _showMessage(
+        'Your email is not verified yet. Please open the verification link in your email and try again.',
+      );
+    } on FirebaseAuthException catch (e) {
+      _showFirebaseError(e);
+    } catch (e) {
+      _showMessage(
+        'Unable to check email verification status.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _resendVerification() async {
+    if (_isResending) return;
+
+    setState(() {
+      _isResending = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        _showMessage(
+          'Your session has expired. Please login again.',
+        );
+        return;
+      }
+
+      await user.reload();
+
+      final refreshedUser =
+          FirebaseAuth.instance.currentUser;
+
+      if (refreshedUser == null) {
+        _showMessage(
+          'Unable to access your account.',
+        );
+        return;
+      }
+
+      if (refreshedUser.emailVerified) {
+        _showSuccessMessage(
+          'Your email is already verified.',
+        );
+        return;
+      }
+
+      await refreshedUser.sendEmailVerification();
+
+      _showSuccessMessage(
+        'A new verification email has been sent.',
+      );
+    } on FirebaseAuthException catch (e) {
+      _showFirebaseError(e);
+    } catch (e) {
+      _showMessage(
+        'Unable to send the verification email.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResending = false;
+        });
+      }
+    }
+  }
+
+  void _showFirebaseError(FirebaseAuthException e) {
+    String message = 'Unable to complete the request.';
+
+    switch (e.code) {
+      case 'too-many-requests':
+        message =
+            'Too many requests. Please wait and try again later.';
+        break;
+      case 'network-request-failed':
+        message =
+            'Network error. Please check your internet connection.';
+        break;
+      case 'user-not-found':
+        message =
+            'The account could not be found.';
+        break;
+      case 'invalid-email':
+        message =
+            'The email address is invalid.';
+        break;
+      case 'user-disabled':
+        message =
+            'This account has been disabled.';
+        break;
+      case 'requires-recent-login':
+        message =
+            'Please login again and try this action.';
+        break;
+      default:
+        if (e.message != null && e.message!.isNotEmpty) {
+          message = '${e.code}: ${e.message}';
+        } else {
+          message = e.code;
+        }
+    }
+
+    _showMessage(message);
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+  }
+
+  void _showSuccessMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+        ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Verify Your Email'),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const CircleAvatar(
+                  radius: 46,
+                  backgroundColor: Color(0xFFDCE8F8),
+                  child: Icon(
+                    Icons.mark_email_read_outlined,
+                    size: 48,
+                    color: Color(0xFF326295),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Check Your Email',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'We sent a verification link to:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.email,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Open the email and tap the verification link. Then return to BuyNova and tap "I Have Verified".',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF326295),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    onPressed: _isChecking
+                        ? null
+                        : _checkVerification,
+                    child: _isChecking
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'I Have Verified',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      side: const BorderSide(
+                        color: Color(0xFF326295),
+                      ),
+                    ),
+                    onPressed: _isResending
+                        ? null
+                        : _resendVerification,
+                    child: _isResending
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Resend Verification Email',
+                            style: TextStyle(
+                              color: Color(0xFF326295),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                TextButton(
+                  onPressed: _isChecking || _isResending
+                      ? null
+                      : () async {
+                          await FirebaseAuth.instance
+                              .signOut();
+
+                          if (!mounted) return;
+
+                          Navigator.pop(context);
+                        },
+                  child: const Text(
+                    'Back to Login',
                   ),
                 ),
               ],
